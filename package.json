@@ -1,0 +1,26 @@
+{
+    "name": "slice",
+    "displayName": "slice",
+    "description": "",
+    "version": "0.0.1",
+    "publisher": "ZeroC, Inc.",
+    "engines": {
+        "vscode": "^1.21.0"
+    },
+    "categories": [
+        "Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "slice",
+            "aliases": ["Slice", "slice"],
+            "extensions": [".ice"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "slice",
+            "scopeName": "source.slice",
+            "path": "./syntaxes/slice.tmLanguage.json"
+        }]
+    }
+}

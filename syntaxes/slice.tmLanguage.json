@@ -1,0 +1,265 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Slice",
+  "patterns": [
+    {
+      "include": "#storage"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#metadata"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#control"
+    },
+    {
+      "include": "#preprocessor"
+    },
+    {
+      "include": "#expression"
+    }
+  ],
+  "repository": {
+    "storage": {
+      "patterns": [
+        {
+          "match": "\\b(exception|local|struct|enum|throws)\\b",
+          "name": "storage.type.slice"
+        },
+        {
+          "match": "\\b(bool|extends|LocalObject|string|byte|false|long|float|module|throws|const|idempotent|Object|true|dictionary|implements|optional|void|double|int|out|sequence|exception|local|short)\\b",
+          "name": "storage.type.slice"
+        },
+        {
+          "match": "\\b(-)?[0-9.]+\\b",
+          "name": "constant.numeric.slice"
+        }
+      ]
+    },
+    "metadata": {
+      "patterns": [
+        {
+          "begin": "\\[(\\[)?",
+            "beginCaptures": {
+              "0": {
+                "name": "meta.metadata.begin.slice"
+              }
+            },
+          "end": "\\](\\])?",
+          "endCaptures": {
+            "0": {
+              "name": "meta.metadata.end.slice"
+            }
+          },
+          "contentName": "meta.metadata.slice",
+          "patterns": [
+            {
+              "include": "#strings"
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "beginCaotures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.slice"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.slice"
+            }
+          },
+          "name": "string.quoted.double.slice",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.slice"
+            }
+          ]
+        }
+      ]
+    },
+    "prototype": {
+      "patterns": [
+        {
+          "include": "#comments"
+        }
+      ]
+    },
+    "curly-brackets": {
+      "patterns": [
+        {
+          "begin": "{",
+          "beginCaptures": {
+            "0": {
+              "name": "meta.brace.curly.begin.slice"
+            }
+          },
+          "end": "}",
+          "endCaptures": {
+            "0": {
+              "name": "meta.braces.curly.end.slice"
+            }
+          },
+          "contentName": "meta.group.braces.curly.slice",
+          "patterns": [
+            {
+              "include": "$base"
+            }
+          ]
+        }
+      ]
+    },
+    "round-brackets": {
+      "patterns": [
+        {
+          "begin": "\\(",
+          "beginCaptures": {
+            "0": {
+              "name": "meta.brace.round.begin.slice"
+            }
+          },
+          "end": "\\)",
+          "endCaptures": {
+            "0": {
+              "name": "meta.braces.round.end.slice"
+            }
+          },
+          "contentName": "meta.group.braces.round.slice",
+          "patterns": [
+            {
+              "include": "$base"
+            }
+          ]
+        }
+      ]
+    },
+    "brackets": {
+      "patterns": [
+        {
+          "include": "#curly-brackets"
+        },
+        {
+          "include": "#round-brackets"
+        }
+      ]
+    },
+    "control": {
+      "patterns": [
+        {
+          "match": "\\b(module)\\b",
+          "name": "keyword.control.module"
+        },
+        {
+          "include": "#brackets"
+        },
+        {
+          "include": "$base"
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "match": "^\\s*(#)\\s*(pragma|define|include)\\b",
+          "name": "keyword.other.preprocessor.directive.slice"
+        },
+        {
+          "match": "\\s*<(.*)>",
+          "captures": {
+            "1":{
+              "name": "string.quoted.other.include.slice"
+            }
+          }
+        },
+        {
+          "match": "\\b(.*)$\\b",
+          "name": "meta.preprocessor.slice"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "begin": "//",
+          "beginCaptures": {
+            "0": {
+              "name": "comment.line.slice"
+            }
+          },
+          "end": "(?=\\n)",
+          "name":"comment.line.double-slash.slice"
+        },
+        {
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.begin.slice"
+            }
+          },
+          "end": "\\*/",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.end.slice"
+            }
+          },
+          "name": "comment.block.slice"
+        }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#interface-definition"
+        },
+        {
+          "include": "#function-definition"
+        }
+      ]
+    },
+    "interface-definition": {
+      "patterns": [
+        {
+          "match": "\\b(interface|class)\\b",
+          "captures": {
+            "1": {
+              "name": "storage.type.interface.slice"
+            },
+            "2": {
+              "name": "storage.type.class.slice"
+            }
+          },
+          "name": "storage.type.class.slice"
+        }
+      ]
+    },
+    "function-definition": {
+      "patterns": [
+        {
+          "begin": "(\\w+)\\s*\\(",
+          "captures": {
+            "1": {
+              "name": "entity.name.function"
+            }
+          },
+          "end": "\\)"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.slice"
+}
