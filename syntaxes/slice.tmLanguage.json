@@ -1,265 +1,727 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Slice",
-  "patterns": [
-    {
-      "include": "#storage"
-    },
-    {
-      "include": "#comments"
-    },
-    {
-      "include": "#metadata"
-    },
-    {
-      "include": "#numbers"
-    },
-    {
-      "include": "#strings"
-    },
-    {
-      "include": "#control"
-    },
-    {
-      "include": "#preprocessor"
-    },
-    {
-      "include": "#expression"
-    }
+  "scopeName": "source.slice",
+  "fileTypes":
+  [
+    "ice"
   ],
+
+  "patterns": [
+    {"include": "#comment"},
+    {"include": "#preprocessor"},
+    {"include": "#metadata.global"},
+    {"include": "#storage.module"},
+    {"include": "#metadata.local"},
+    {"include": "#storage.modifier"},
+    {
+      "match": "\\b(?:bool|byte|class|dictionary|double|enum|exception|extends|float|implements|interface|int|long|LocalObject|Object|optional|out|sequence|short|string|struct|throws|Value|void)\\b",
+      "name": "storage.type"
+    },
+    {"include": "#invalid"}
+  ],
+
   "repository": {
-    "storage": {
+    "comment": {
       "patterns": [
-        {
-          "match": "\\b(exception|local|struct|enum|throws)\\b",
-          "name": "storage.type.slice"
-        },
-        {
-          "match": "\\b(bool|extends|LocalObject|string|byte|false|long|float|module|throws|const|idempotent|Object|true|dictionary|implements|optional|void|double|int|out|sequence|exception|local|short)\\b",
-          "name": "storage.type.slice"
-        },
-        {
-          "match": "\\b(-)?[0-9.]+\\b",
-          "name": "constant.numeric.slice"
-        }
+        {"include": "#comment.line"},
+        {"include": "#comment.block"}
       ]
     },
-    "metadata": {
+    "comment.line": {
       "patterns": [
         {
-          "begin": "\\[(\\[)?",
-            "beginCaptures": {
-              "0": {
-                "name": "meta.metadata.begin.slice"
-              }
-            },
-          "end": "\\](\\])?",
-          "endCaptures": {
-            "0": {
-              "name": "meta.metadata.end.slice"
-            }
-          },
-          "contentName": "meta.metadata.slice",
-          "patterns": [
-            {
-              "include": "#strings"
-            }
-          ]
-        }
-      ]
-    },
-    "strings": {
-      "patterns": [
-        {
-          "begin": "\"",
-          "beginCaotures": {
-            "0": {
-              "name": "punctuation.definition.string.begin.slice"
-            }
-          },
-          "end": "\"",
-          "endCaptures": {
-            "0": {
-              "name": "punctuation.definition.string.end.slice"
-            }
-          },
-          "name": "string.quoted.double.slice",
-          "patterns": [
-            {
-              "match": "\\\\.",
-              "name": "constant.character.escape.slice"
-            }
-          ]
-        }
-      ]
-    },
-    "prototype": {
-      "patterns": [
-        {
-          "include": "#comments"
-        }
-      ]
-    },
-    "curly-brackets": {
-      "patterns": [
-        {
-          "begin": "{",
+          "name": "comment.line.slice",
+          "contentName": "text.slice",
+          "begin": "\\/\\/",
+          "end": "$",
           "beginCaptures": {
-            "0": {
-              "name": "meta.brace.curly.begin.slice"
-            }
+            "0": {"name": "punctuation.definition.comment.line.begin.slice"}
           },
-          "end": "}",
-          "endCaptures": {
-            "0": {
-              "name": "meta.braces.curly.end.slice"
-            }
-          },
-          "contentName": "meta.group.braces.curly.slice",
           "patterns": [
-            {
-              "include": "$base"
-            }
+            {"include": "#line.continuation"}
           ]
         }
       ]
     },
-    "round-brackets": {
+    "comment.block": {
       "patterns": [
         {
-          "begin": "\\(",
+          "name": "comment.block.slice",
+          "contentName": "text.slice",
+          "begin": "\\/\\*",
+          "end": "\\*\\/",
           "beginCaptures": {
-            "0": {
-              "name": "meta.brace.round.begin.slice"
-            }
+            "0": {"name": "punctuation.definition.comment.block.begin.slice"}
           },
-          "end": "\\)",
           "endCaptures": {
-            "0": {
-              "name": "meta.braces.round.end.slice"
-            }
-          },
-          "contentName": "meta.group.braces.round.slice",
-          "patterns": [
-            {
-              "include": "$base"
-            }
-          ]
+            "0": {"name": "punctuation.definition.comment.block.end.slice"}
+          }
         }
       ]
     },
-    "brackets": {
-      "patterns": [
-        {
-          "include": "#curly-brackets"
-        },
-        {
-          "include": "#round-brackets"
-        }
-      ]
-    },
-    "control": {
-      "patterns": [
-        {
-          "match": "\\b(module)\\b",
-          "name": "keyword.control.module"
-        },
-        {
-          "include": "#brackets"
-        },
-        {
-          "include": "$base"
-        }
-      ]
-    },
+
     "preprocessor": {
       "patterns": [
-        {
-          "match": "^\\s*(#)\\s*(pragma|define|include)\\b",
-          "name": "keyword.other.preprocessor.directive.slice"
-        },
-        {
-          "match": "\\s*<(.*)>",
-          "captures": {
-            "1":{
-              "name": "string.quoted.other.include.slice"
-            }
-          }
-        },
-        {
-          "match": "\\b(.*)$\\b",
-          "name": "meta.preprocessor.slice"
-        }
+        {"include": "#preprocessor.if"},
+        {"include": "#preprocessor.ifdef"},
+        {"include": "#preprocessor.ifndef"},
+        {"include": "#preprocessor.elif"},
+        {"include": "#preprocessor.else"},
+        {"include": "#preprocessor.endif"},
+        {"include": "#preprocessor.define"},
+        {"include": "#preprocessor.undef"},
+        {"include": "#preprocessor.include"},
+        {"include": "#preprocessor.pragma"},
+        {"include": "#preprocessor.line"},
+        {"include": "#preprocessor.error"},
+        {"include": "#preprocessor.null"}
       ]
     },
-    "comments": {
+    "preprocessor.ifdef": {
       "patterns": [
         {
-          "begin": "//",
+          "name": "meta.preprocessor.ifdef.slice",
+          "begin": "((#)\\s*ifdef)\\b",
+          "end": "$",
           "beginCaptures": {
-            "0": {
-              "name": "comment.line.slice"
-            }
+            "1": {"name": "keyword.control.preprocessor.ifdef.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
           },
-          "end": "(?=\\n)",
-          "name":"comment.line.double-slash.slice"
-        },
-        {
-          "begin": "/\\*",
-          "beginCaptures": {
-            "0": {
-              "name": "punctuation.definition.comment.begin.slice"
-            }
-          },
-          "end": "\\*/",
-          "endCaptures": {
-            "0": {
-              "name": "punctuation.definition.comment.end.slice"
-            }
-          },
-          "name": "comment.block.slice"
-        }
-      ]
-    },
-    "expression": {
-      "patterns": [
-        {
-          "include": "#interface-definition"
-        },
-        {
-          "include": "#function-definition"
-        }
-      ]
-    },
-    "interface-definition": {
-      "patterns": [
-        {
-          "match": "\\b(interface|class)\\b",
-          "captures": {
-            "1": {
-              "name": "storage.type.interface.slice"
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "\\b\\w+\\b",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"patterns": [{"include": "#identifier.preprocessor"}]}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
             },
-            "2": {
-              "name": "storage.type.class.slice"
-            }
-          },
-          "name": "storage.type.class.slice"
+            {"include": "#invalid"}
+          ]
         }
       ]
     },
-    "function-definition": {
+    "preprocessor.ifndef": {
       "patterns": [
         {
-          "begin": "(\\w+)\\s*\\(",
-          "captures": {
-            "1": {
-              "name": "entity.name.function"
-            }
+          "name": "meta.preprocessor.ifndef.slice",
+          "begin": "((#)\\s*ifndef)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.ifndef.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
           },
-          "end": "\\)"
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "\\b\\w+\\b",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"patterns": [{"include": "#identifier.preprocessor"}]}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.if": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.if.slice",
+          "begin": "((#)\\s*if)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.if.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {"include": "#preprocessor.expression"},
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.elif": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.elif.slice",
+          "begin": "((#)\\s*elif)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.elif.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {"include": "#preprocessor.expression"},
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.else": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.endif.slice",
+          "begin": "((#)\\s*else)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.else.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.endif": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.endif.slice",
+          "begin": "((#)\\s*endif)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.endif.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.define": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.define.slice",
+          "begin": "((#)\\s*define)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.define.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "\\b(\\w+)(\\(.*?\\))?",
+              "end": "$",
+              "beginCaptures": {
+                "1": {"patterns": [{"include": "#identifier.preprocessor"}]},
+                "2": {
+                  "patterns": [
+                    {
+                      "name": "meta.group.parameters.preprocessor.slice",
+                      "match": "(\\()(.*?)(\\))",
+                      "captures": {
+                        "1": {"name": "punctuation.section.group.parameters.begin.slice"},
+                        "2": {"patterns": [{"include": "#preprocessor.parameters.content"}]},
+                        "3": {"name": "punctuation.section.group.parameters.end.slice"}
+                      }
+                    }
+                  ]
+                }
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.undef": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.undef.slice",
+          "begin": "((#)\\s*undef)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.undef.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "\\b\\w+\\b",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"patterns": [{"include": "#identifier.preprocessor"}]}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.include" : {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.include.slice",
+          "begin": "((#)\\s*include)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.include.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "(\")((?:[^\\\\\"]|\\.)*)(\")",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"name": "string.quoted.double.slice"},
+                "1": {"name": "punctuation.definition.string.begin.slice"},
+                "2": {"name": "entity.name.header.slice"},
+                "3": {"name": "punctuation.definition.string.end.slice"}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
+            },
+            {
+              "begin": "(<)((?:[^\\\\\"]|\\.)*)(>)",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"name": "string.quoted.other.angle.slice"},
+                "1": {"name": "punctuation.definition.string.begin.slice"},
+                "2": {"name": "entity.name.header.slice"},
+                "3": {"name": "punctuation.definition.string.end.slice"}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.pragma": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.pragma.slice",
+          "begin": "((#)\\s*pragma)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.pragma.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "\\b[\\w]+\\b",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"name": "keyword.control.preprocessor.pragma.other.slice"}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.line": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.line.slice",
+          "begin": "((#)\\s*line)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.line.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": "\\b[\\d]+\\b",
+              "end": "$",
+              "beginCaptures": {
+                "0": {"patterns": [{"include": "#constant.numeric.dec"}]}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {
+                  "begin": "(\")((?:[^\\\\\"]|\\.)*)(\")",
+                  "end": "$",
+                  "beginCaptures": {
+                    "0": {"name": "string.quoted.double.slice"},
+                    "1": {"name": "punctuation.definition.string.begin.slice"},
+                    "2": {"name": "entity.name.file.slice"},
+                    "3": {"name": "punctuation.definition.string.end.slice"}
+                  },
+                  "patterns": [
+                    {"include": "#comment"},
+                    {"include": "#line.continuation"},
+                    {"include": "#invalid"}
+                  ]
+                },
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.error": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.error.slice",
+          "begin": "((#)\\s*error)\\b",
+          "end": "$",
+          "beginCaptures": {
+            "1": {"name": "keyword.control.preprocessor.error.slice"},
+            "2": {"name": "punctuation.definition.preprocessor.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "name": "text.error.slice",
+              "match": "."
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.null": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.null.slice",
+          "begin": "(#)",
+          "end": "$",
+          "beginCaptures": {
+            "0": {"name": "punctuation.definition.preprocessor.slice"},
+            "1": {"name": "keyword.control.preprocessor.null.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.parameters.content": {
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#line.continuation"},
+        {
+          "begin": "\\b\\w+\\b",
+          "end": "(?=\\))|($)",
+          "beginCaptures": {
+            "0": {"patterns": [{"include": "#identifier.preprocessor"}]}
+          },
+          "endCaptures": {
+            "1": {"name": "invalid.illegal.mismatched.parenthesis.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {
+              "begin": ",",
+              "end": "(?=\\))|($)",
+              "beginCaptures": {
+                "0": {"name": "punctuation.separator.parameter.preprocessor.slice"}
+              },
+              "endCaptures": {
+                "1": {"name": "invalid.illegal.mismatched.parenthesis.slice"}
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#line.continuation"},
+                {"include": "#preprocessor.parameters.content"},
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        },
+        {
+          "begin": "\\b...\\b",
+          "end": "(?=\\))|($)",
+          "beginCaptures": {
+            "0": {"name": "variable.parameter.preprocessor.slice"}
+          },
+          "endCaptures": {
+            "1": {"name": "invalid.illegal.mismatched.parenthesis.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#line.continuation"},
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    "preprocessor.expression": {
+      "patterns": [
+      ]
+    },
+    "identifier.preprocessor": {
+      "patterns": [
+        {
+          "name": "entity.identifier.preproprocessor.slice",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        },
+        {"include": "#invalid"}
+      ]
+    },
+
+    "metadata": {
+      "patterns": [
+        {"include": "#metadata.global"},
+        {"include": "#metadata.local"}
+      ]
+    },
+    "metadata.global": {
+      "patterns": [
+        {
+          "name": "meta.metadata.global.slice",
+          "begin": "\\[\\[",
+          "end": "\\]\\]",
+          "beginCaptures": {
+            "0": {"name": "punctuation.definition.metadata.global.begin.slice"}
+          },
+          "endCaptures": {
+            "0": {"name": "punctuation.definition.metadata.global.end.slice"}
+          },
+          "patterns": [
+            {"include": "#metadata.content"}
+          ]
+        }
+      ]
+    },
+    "metadata.local": {
+      "patterns": [
+        {
+          "name": "meta.metadata.local.slice",
+          "begin": "\\[",
+          "end": "\\]",
+          "beginCaptures": {
+            "0": {"name": "punctuation.definition.metadata.local.begin.slice"}
+          },
+          "endCaptures": {
+            "0": {"name": "punctuation.definition.metadata.local.end.slice"}
+          },
+          "patterns": [
+            {"include": "#metadata.content"}
+          ]
+        }
+      ]
+    },
+    "metadata.content": {
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#preprocessor"},
+        {
+          "begin": "(\")((?:[^\\\\\"]|\\.)*)(\")",
+          "end": "(?=\\])",
+          "beginCaptures": {
+            "0": {"name": "string.quoted.double.slice"},
+            "1": {"name": "punctuation.definition.string.begin.slice"},
+            "2": {
+              "name": "string.quoted.double.slice",
+              "patterns": [{"include": "#identifier.metadata"}]},
+            "3": {"name": "punctuation.definition.string.end.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#preprocessor"},
+            {
+              "begin": ",",
+              "end": "(?=\\])",
+              "beginCaptures": {
+                "0": {"name": "punctuation.separator.parameter.metadata.slice"}
+              },
+              "patterns": [
+                {"include": "#metadata.content"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        },
+        {"include": "#invalid"}
+      ]
+    },
+    "identifier.metadata": {
+      "patterns": [
+        {
+          "name": "entity.metadata.directive.slice",
+          "match": "\\w+"
+        }
+      ]
+    },
+
+    "storage": {
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#preprocessor"},
+        {"include": "#metadata.global"},
+        {"include": "#metadata.local"},
+        {"include": "#storage.modifier"},
+        {"include": "#storage.module"},
+        {
+          "match": "\\b(?:bool|byte|class|dictionary|double|enum|exception|extends|float|implements|interface|int|long|LocalObject|Object|optional|out|sequence|short|string|struct|throws|Value|void)\\b",
+          "name": "storage.type"
+        },
+        {"include": "#invalid"}
+      ]
+    },
+    "storage.module": {
+      "patterns": [
+        {
+          "name": "meta.module.slice",
+          "begin": "(?<!\\\\)\\bmodule\\b",
+          "end": "}",
+          "beginCaptures": {
+            "0": {"name": "storage.type.module.slice"}
+          },
+          "endCaptures": {
+            "0": {"name": "punctuation.section.block.end.slice"}
+          },
+          "patterns": [
+            {"include": "#comment"},
+            {"include": "#preprocessor"},
+            {
+              "begin": "\\\\?\\b\\w+\\b",
+              "end": "(?=})",
+              "beginCaptures": {
+                "0": {
+                  "name": "entity.name.module.slice",
+                  "patterns": [{"include": "#identifier"}]
+                }
+              },
+              "patterns": [
+                {"include": "#comment"},
+                {"include": "#preprocessor"},
+                {
+                  "begin": "{",
+                  "end": "(?=})",
+                  "beginCaptures": {
+                    "0": {"name": "punctuation.section.block.begin.slice"}
+                  },
+                  "patterns": [
+                    {"include": "#comment"},
+                    {"include": "#preprocessor"},
+                    {"include": "#storage"},
+                    {"include": "#invalid"}
+                  ]
+                },
+                {"include": "#invalid"}
+              ]
+            },
+            {"include": "#invalid"}
+          ]
+        }
+      ]
+    },
+    
+    "invalid": {
+      "patterns": [
+      ]
+    },
+    "line.continuation": {
+      "patterns": [
+        {
+          "begin": "(\\\\)\\s*$",
+          "end": "^",
+          "beginCaptures": {
+            "1": {"name": "punctuation.separator.continuation.backslash.slice"}
+          }
+        }
+      ]
+    },
+    "constant.numeric.dec": {
+      "patterns": [
+        {
+          "match": "[\\d]+",
+          "name": "constant.numeric.dec.slice"
+        }
+      ]
+    },
+    "constant.boolean": {
+      "patterns": [
+        {
+          "match": "true|false",
+          "name": "constant.boolean.slice"
+        }
+      ]
+    },
+
+    "storage.modifier": {
+      "patterns": [
+        {
+          "name": "storage.modifier.const.slice",
+          "match": "\\b(const)\\b"
+        },
+        {
+          "name": "storage.modifier.idempotent.slice",
+          "match": "\\b(idempotent)\\b"
+        },
+        {
+          "name": "storage.modifier.local.slice",
+          "match": "\\b(local)\\b"
+        }
+      ]
+    },
+
+    "identifier": {
+      "patterns": [
+        {
+          "match": "\\\\?\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        },
+        {
+          "name": "invalid.illegal.identifier.slice",
+          "match": "."
         }
       ]
     }
-  },
-  "scopeName": "source.slice"
+  }
 }
