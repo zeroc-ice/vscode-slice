@@ -1,5 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Slice",
   "scopeName": "source.slice",
   "fileTypes":
@@ -229,7 +228,7 @@
           "patterns": [
             {"include": "#standardP"},
             {
-              "begin": "\\b(\\w+)((\\()))",
+              "begin": "\\b(\\w+)((\\())",
               "end": "$",
               "beginCaptures": {
                 "1": {"patterns": [{"include": "#preprocessor.identifier"}]},
