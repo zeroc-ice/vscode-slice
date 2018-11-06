@@ -1,7 +1,7 @@
 {
     "name": "slice",
-    "displayName": "slice",
-    "description": "",
+    "displayName": "Slice Highlighter",
+    "description": "Provides support for Slice syntax highlighting.",
     "version": "0.0.1",
     "publisher": "ZeroC, Inc.",
     "engines": {
