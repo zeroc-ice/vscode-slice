@@ -12,7 +12,7 @@
     "galleryBanner": {
         "color": "#000030",
         "theme": "dark"
-    }
+    },
     "categories": [
         "Programming Languages"
     ],
@@ -29,7 +29,7 @@
             "path": "./syntaxes/slice.tmLanguage.json"
         }]
     },
-    "homepage": "https://zeroc.com/"
+    "homepage": "https://zeroc.com/",
     "repository": {
         "type": "git",
         "url": "https://github.com/zeroc-ice/vscode-slice.git"
