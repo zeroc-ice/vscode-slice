@@ -4,7 +4,7 @@
     "description": "Provides support for Slice syntax highlighting.",
     "icon": "images/icon.png",
     "version": "0.0.1",
-    "publisher": "ZeroC, Inc.",
+    "publisher": "ZeroC",
     "license": "see LICENSE.",
     "engines": {
         "vscode": "^1.21.0"
