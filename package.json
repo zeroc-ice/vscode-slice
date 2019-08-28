@@ -3,8 +3,8 @@
     "displayName": "Slice Highlighter",
     "description": "Provides support for Slice syntax highlighting.",
     "icon": "images/icon.png",
-    "version": "0.0.1",
-    "publisher": "ZeroC",
+    "version": "1.0.0",
+    "publisher": "ZeroCInc",
     "license": "see LICENSE.",
     "engines": {
         "vscode": "^1.21.0"
