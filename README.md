@@ -2,18 +2,19 @@
 
 This simple [language extension](https://code.visualstudio.com/api/language-extensions/overview) adds support for [Slice](https://doc.zeroc.com/ice/latest/the-slice-language) syntax highlighting to Visual Studio Code and other environments, such as GitHub and the Visual Studio IDE.
 
-# Manually Installing for Visual Studio Code
+## Installation
 
-To manually install this extension with Visual Studio Code, first navigate to the `.vscode/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it). Then create a new folder titled `vscode-slice` and copy `package.json` and the `syntaxes` folder from this repository into it.
+### Visual Studio Code
 
-# Manually Installing for Visual Studio
+The [Slice Highlighter](https://marketplace.visualstudio.com/items?itemName=ZeroCInc.slice) extension can be installed from the Visual Studio Code Marketplace or through VS Code Quick Open (`Ctrl + P`) with the following command:
+```
+ext install "Slice Highlighter"
+```
 
-To manually install this extension with Visual Studio, first navigate to the `.vs/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it). Then create a new folder titled `vscode-slice` and copy the `syntaxes` folder from this repository into it.
+To manually install this extension from source, first navigate to the `.vscode/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it), and copy this repository into it: `.vscode/extensions/vscode-slice`.
 
-# .ice Files
+### Visual Studio
 
-Slice definitions are always stored in files with the `.ice` extension.
+The Slice Highlighter extension is included with the [Ice Builder for Visual Studio](https://marketplace.visualstudio.com/items?itemName=ZeroCInc.IceBuilder) extension on the Visual Studio Marketplace.
 
-# TextMate Grammar for Slice
-
-The [TextMate grammar for Slice](syntaxes/slice.tmLanguage.json) file describes the grammar of [Slice](https://doc.zeroc.com/ice/latest/the-slice-language) and is the most important file in this repository.
+To manually install this extension from source, first navigate to the `.vs/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it), and copy this repository into it: `.vs/extensions/vscode-slice`.
