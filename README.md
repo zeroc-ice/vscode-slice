@@ -12,9 +12,17 @@ ext install "Slice Highlighter"
 ```
 
 To manually install this extension from source, first navigate to the `.vscode/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it), and copy this repository into it: `.vscode/extensions/vscode-slice`.
+```
+cd ~/.vscode/extensions
+git clone https://github.com/zeroc-ice/vscode-slice.git
+```
 
 ### Visual Studio
 
 The Slice Highlighter extension is included with the [Ice Builder for Visual Studio](https://marketplace.visualstudio.com/items?itemName=ZeroCInc.IceBuilder) extension on the Visual Studio Marketplace.
 
 To manually install this extension from source, first navigate to the `.vs/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it), and copy this repository into it: `.vs/extensions/vscode-slice`.
+```
+cd ~/.vs/extensions
+git clone https://github.com/zeroc-ice/vscode-slice.git
+```
