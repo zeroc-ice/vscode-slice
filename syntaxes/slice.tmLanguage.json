@@ -1632,7 +1632,7 @@
           ]
         },
         {
-          "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|((?:optional|tag)\\(\\d*\\)))(?:\\b|(?<=\\)))",
+          "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|((?:optional|tag)\\([-a-zA-Z0-9:]*\\)))(?:\\b|(?<=\\)))",
           "captures": {
             "1": {"name": "storage.modifier.local.slice"},
             "2": {"name": "storage.modifier.const.slice"},
@@ -1641,11 +1641,18 @@
             "5": {
               "patterns": [
                 {
-                  "match": "(optional|tag)(\\()(\\d*)(\\))",
+                  "match": "(optional|tag)(\\()([-a-zA-Z0-9:]*)(\\))",
                   "captures": {
                     "1": {"name": "storage.modifier.tagged.slice"},
                     "2": {"name": "punctuation.section.group.tagged.begin.slice"},
-                    "3": {"patterns": [{"include": "#constant.numeric.dec"}]},
+                    "3": {
+                      "patterns": [
+                        {"include": "#constant.numeric.oct"},
+                        {"include": "#constant.numeric.dec"},
+                        {"include": "#constant.numeric.hex"},
+                        {"include": "#storage.types.custom"}
+                      ]
+                    },
                     "4": {"name": "punctuation.section.group.tagged.end.slice"}
                   }
                 }
