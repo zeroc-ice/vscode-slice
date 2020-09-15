@@ -588,6 +588,24 @@
               ]
             }
           ]
+        },
+        {
+          "begin": "",
+          "end": "(?=\\])",
+          "patterns": [
+            {"include": "#line.continuation"},
+            {
+              "name": "string.unquoted.slice",
+              "match": "((?:[^\\\\\"\\]]|\\\\.)+)",
+              "captures": {
+                "1": {"patterns": [{"include": "#metadata.identifier"}]}
+              }
+            },
+            {
+              "name": "invalid.illegal.punctuation.definition.string.slice",
+              "match": "\""
+            }
+          ]
         }
       ]
     },
