@@ -1039,81 +1039,135 @@
             "2": {"name": "invalid.illegal.missing-brace.slice"}
           },
           "patterns": [
+            {"include": "#storage.operation.body"}
+          ]
+        },
+        {
+          "name": "meta.operation.slice",
+          "begin": "\\(",
+          "end": "(;)|((?=}))",
+          "beginCaptures": {
+            "0": {"name": "punctuation.section.group.operation.return-tuple.begin.slice"}
+          },
+          "endCaptures": {
+            "1": {"name": "punctuation.terminator.semicolon.slice"},
+            "2": {"name": "invalid.illegal.missing-brace.slice"}
+          },
+          "patterns": [
             {"include": "#standard"},
             {
-              "begin": "\\\\?\\b\\w+\\b",
+              "begin": "\\)",
               "end": "(?=;|})",
               "beginCaptures": {
-                "0": {
-                  "name": "entity.name.function.slice",
-                  "patterns": [{"include": "#storage.identifier"}]
+                "0": {"name": "punctuation.section.group.operation.return-tuple.end.slice"}
+              },
+              "patterns": [
+                {"include": "#standard"},
+                {"include": "#storage.operation.body"}
+              ]
+            },
+            {"include": "#storage.modifier"},
+            {
+              "begin": "\\\\?[:\\w]+\\s*\\??",
+              "end": "(?=\\))|(?<=,)",
+              "beginCaptures": {
+                "0": {"patterns": [{"include": "#storage.types"}]}
+              },
+              "patterns": [
+                {
+                  "begin": "\\\\?\\b\\w+\\b",
+                  "end": "(?=\\))|(,)",
+                  "beginCaptures": {
+                    "0": {
+                      "name": "entity.name.operation.return-member",
+                      "patterns": [{"include": "#storage.identifier"}]
+                    }
+                  },
+                  "endCaptures": {
+                    "1": {"name": "punctuation.separator.operation.return-tuple.slice"}
+                  }
                 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "storage.operation.body": {
+      "patterns": [
+        {"include": "#standard"},
+        {
+          "begin": "\\\\?\\b\\w+\\b",
+          "end": "(?=;|})",
+          "beginCaptures": {
+            "0": {
+              "name": "entity.name.function.slice",
+              "patterns": [{"include": "#storage.identifier"}]
+            }
+          },
+          "patterns": [
+            {"include": "#standard"},
+            {
+              "begin": "\\(",
+              "end": "(?=;|})",
+              "beginCaptures": {
+                "0": {"name": "punctuation.section.group.operation.parameters.begin.slice"}
               },
               "patterns": [
                 {"include": "#standard"},
                 {
-                  "begin": "\\(",
+                  "begin": "\\)",
                   "end": "(?=;|})",
                   "beginCaptures": {
-                    "0": {"name": "punctuation.section.group.operation.parameters.begin.slice"}
+                    "0": {"name": "punctuation.section.group.operation.parameters.end.slice"}
                   },
                   "patterns": [
                     {"include": "#standard"},
                     {
-                      "begin": "\\)",
+                      "begin": "(?<!\\\\)\\bthrows\\b",
                       "end": "(?=;|})",
                       "beginCaptures": {
-                        "0": {"name": "punctuation.section.group.operation.parameters.end.slice"}
+                        "0": {"name": "storage.modifier.throws.slice"}
                       },
                       "patterns": [
                         {"include": "#standard"},
                         {
-                          "begin": "(?<!\\\\)\\bthrows\\b",
-                          "end": "(?=;|})",
+                          "begin": "\\\\?[:\\w]+",
+                          "end": "(?=;|})|(,)",
                           "beginCaptures": {
-                            "0": {"name": "storage.modifier.throws.slice"}
+                            "0": {"patterns": [{"include": "#storage.types"}]}
+                          },
+                          "endCaptures": {
+                            "1": {"name": "punctuation.separator.operation.throws.slice"}
                           },
                           "patterns": [
-                            {"include": "#standard"},
-                            {
-                              "begin": "\\\\?[:\\w]+",
-                              "end": "(?=;|})|(,)",
-                              "beginCaptures": {
-                                "0": {"patterns": [{"include": "#storage.types"}]}
-                              },
-                              "endCaptures": {
-                                "1": {"name": "punctuation.separator.operation.throws.slice"}
-                              },
-                              "patterns": [
-                                {"include": "#standard"}
-                              ]
-                            }
+                            {"include": "#standard"}
                           ]
                         }
                       ]
-                    },
-                    {"include": "#storage.modifier"},
+                    }
+                  ]
+                },
+                {"include": "#storage.modifier"},
+                {
+                  "begin": "\\\\?[:\\w]+\\s*\\??",
+                  "end": "(?=\\))|(?<=,)",
+                  "beginCaptures": {
+                    "0": {"patterns": [{"include": "#storage.types"}]}
+                  },
+                  "patterns": [
                     {
-                      "begin": "\\\\?[:\\w]+\\s*\\??",
-                      "end": "(?=\\))|(?<=,)",
+                      "begin": "\\\\?\\b\\w+\\b",
+                      "end": "(?=\\))|(,)",
                       "beginCaptures": {
-                        "0": {"patterns": [{"include": "#storage.types"}]}
-                      },
-                      "patterns": [
-                        {
-                          "begin": "\\\\?\\b\\w+\\b",
-                          "end": "(?=\\))|(,)",
-                          "beginCaptures": {
-                            "0": {
-                              "name": "entity.name.operation.parameter",
-                              "patterns": [{"include": "#storage.identifier"}]
-                            }
-                          },
-                          "endCaptures": {
-                            "1": {"name": "punctuation.separator.operation.parameter.slice"}
-                          }
+                        "0": {
+                          "name": "entity.name.operation.parameter",
+                          "patterns": [{"include": "#storage.identifier"}]
                         }
-                      ]
+                      },
+                      "endCaptures": {
+                        "1": {"name": "punctuation.separator.operation.parameter.slice"}
+                      }
                     }
                   ]
                 }
