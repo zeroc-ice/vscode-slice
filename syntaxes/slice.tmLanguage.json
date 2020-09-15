@@ -1632,7 +1632,7 @@
           ]
         },
         {
-          "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|(optional\\(\\d*\\)))(?:\\b|(?<=\\)))",
+          "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|((?:optional|tag)\\(\\d*\\)))(?:\\b|(?<=\\)))",
           "captures": {
             "1": {"name": "storage.modifier.local.slice"},
             "2": {"name": "storage.modifier.const.slice"},
@@ -1641,12 +1641,12 @@
             "5": {
               "patterns": [
                 {
-                  "match": "(optional)(\\()(\\d*)(\\))",
+                  "match": "(optional|tag)(\\()(\\d*)(\\))",
                   "captures": {
-                    "1": {"name": "storage.modifier.optional.slice"},
-                    "2": {"name": "punctuation.section.group.optional.begin.slice"},
+                    "1": {"name": "storage.modifier.tagged.slice"},
+                    "2": {"name": "punctuation.section.group.tagged.begin.slice"},
                     "3": {"patterns": [{"include": "#constant.numeric.dec"}]},
-                    "4": {"name": "punctuation.section.group.optional.end.slice"}
+                    "4": {"name": "punctuation.section.group.tagged.end.slice"}
                   }
                 }
               ]
@@ -1659,7 +1659,7 @@
       "patterns": [
         {
           "name": "invalid.illegal.reserved.identifier.slice",
-          "match": "(?<!\\\\)\\b(?:bool|byte|class|const|dictionary|double|enum|exception|extends|false|float|idempotent|implements|int|interface|local|LocalObject|long|module|Object|optional|out|sequence|short|string|struct|throws|true|Value|void)\\b"
+          "match": "(?<!\\\\)\\b(?:bool|byte|class|const|dictionary|double|enum|exception|extends|false|float|idempotent|implements|int|interface|local|LocalObject|long|module|Object|optional|out|sequence|short|string|struct|tag|throws|true|Value|void)\\b"
         },
         {
           "match": "(\\\\)?\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
