@@ -1008,7 +1008,7 @@
         {"include": "#storage.modifier"},
         {
           "name": "meta.operation.slice",
-          "begin": "\\\\?[:\\w]+",
+          "begin": "\\\\?[:\\w]+\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [
@@ -1076,7 +1076,7 @@
                     },
                     {"include": "#storage.modifier"},
                     {
-                      "begin": "\\\\?[:\\w]+",
+                      "begin": "\\\\?[:\\w]+\\s*\\??",
                       "end": "(?=\\))|(?<=,)",
                       "beginCaptures": {
                         "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1293,7 +1293,7 @@
         {"include": "#storage.modifier"},
         {
           "name": "meta.bool.slice",
-          "begin": "\\\\?\\bbool\\b",
+          "begin": "\\\\?\\bbool\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1321,7 +1321,7 @@
         },
         {
           "name": "meta.byte.slice",
-          "begin": "\\\\?\\bbyte\\b",
+          "begin": "\\\\?\\bbyte\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1349,7 +1349,7 @@
         },
         {
           "name": "meta.short.slice",
-          "begin": "\\\\?\\bshort\\b",
+          "begin": "\\\\?\\bshort\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1377,7 +1377,7 @@
         },
         {
           "name": "meta.int.slice",
-          "begin": "\\\\?\\bint\\b",
+          "begin": "\\\\?\\bint\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1405,7 +1405,7 @@
         },
         {
           "name": "meta.long.slice",
-          "begin": "\\\\?\\blong\\b",
+          "begin": "\\\\?\\blong\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1433,7 +1433,7 @@
         },
         {
           "name": "meta.float.slice",
-          "begin": "\\\\?\\bfloat\\b",
+          "begin": "\\\\?\\bfloat\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1461,7 +1461,7 @@
         },
         {
           "name": "meta.double.slice",
-          "begin": "\\\\?\\bdouble\\b",
+          "begin": "\\\\?\\bdouble\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1489,7 +1489,7 @@
         },
         {
           "name": "meta.string.slice",
-          "begin": "\\\\?\\bstring\\b",
+          "begin": "\\\\?\\bstring\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types"}]}
@@ -1517,7 +1517,7 @@
         },
         {
           "name": "meta.type.slice",
-          "begin": "\\\\?\\b[:\\w]+\\b",
+          "begin": "\\\\?\\b[:\\w]+\\b\\s*\\??",
           "end": "(;)|((?=}))",
           "beginCaptures": {
             "0": {"patterns": [{"include": "#storage.types.custom"}]}
@@ -1564,7 +1564,7 @@
     "storage.types": {
       "patterns": [
         {
-          "match": "(\\\\)?\\b(?:(bool)|(byte)|(short)|(int)|(long)|(float)|(double)|(string)|(Object)|(LocalObject)|(Value))\\b",
+          "match": "(\\\\)?\\b(?:(bool)|(byte)|(short)|(int)|(long)|(float)|(double)|(string)|(Object)|(LocalObject)|(Value))\\b\\s*(\\?)?",
           "captures": {
             "1": {"name": "punctuation.escape.backslash.slice"},
             "2": {"name": "storage.type.bool.slice"},
@@ -1577,7 +1577,8 @@
             "9": {"name": "storage.type.string.slice"},
             "10": {"name": "storage.type.object.slice"},
             "11": {"name": "storage.type.localobject.slice"},
-            "12": {"name": "storage.type.value.slice"}
+            "12": {"name": "storage.type.value.slice"},
+            "13": {"name": "punctuation.storage.modifier.optional.slice"}
           }
         },
         {"include": "#storage.types.custom"}
@@ -1586,7 +1587,7 @@
     "storage.types.custom": {
       "patterns": [
         {
-          "match": "(\\\\)?([:\\w]+)",
+          "match": "(\\\\)?([:\\w]+)\\s*(\\?)?",
           "captures": {
             "1": {"name": "punctuation.escape.backslash.slice"},
             "2": {
@@ -1604,7 +1605,8 @@
                   "match": ":"
                 }
               ]
-            }
+            },
+            "3": {"name": "punctuation.storage.modifier.optional.slice"}
           }
         },
         {"include": "#invalid"}
