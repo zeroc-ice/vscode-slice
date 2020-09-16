@@ -701,6 +701,14 @@
               "patterns": [
                 {"include": "#standard"},
                 {
+                  "begin": "(:)\\s*(\\w*)",
+                  "end": "(?=({|;))",
+                  "beginCaptures": {
+                    "1": {"name": "punctuation.storage.modifier.extends.slice"},
+                    "2": {"patterns": [{"include": "#storage.types"}]}
+                  }
+                },
+                {
                   "begin": "{",
                   "end": "(?=})",
                   "beginCaptures": {
