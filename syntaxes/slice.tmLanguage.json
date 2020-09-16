@@ -1917,13 +1917,14 @@
           ]
         },
         {
-          "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|((?:optional|tag)\\([-a-zA-Z0-9:]*\\)))(?:\\b|(?<=\\)))",
+          "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|(unchecked)|((?:optional|tag)\\([-a-zA-Z0-9:]*\\)))(?:\\b|(?<=\\)))",
           "captures": {
             "1": {"name": "storage.modifier.local.slice"},
             "2": {"name": "storage.modifier.const.slice"},
             "3": {"name": "storage.modifier.idempotent.slice"},
             "4": {"name": "storage.modifier.out.slice"},
-            "5": {
+            "5": {"name": "storage.modifier.unchecked.slice"},
+            "6": {
               "patterns": [
                 {
                   "match": "(optional|tag)(\\()([-a-zA-Z0-9:]*)(\\))",
