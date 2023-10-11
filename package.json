@@ -17,17 +17,40 @@
         "Programming Languages"
     ],
     "contributes": {
-        "languages": [{
-            "id": "slice",
-            "aliases": ["Slice", "slice"],
-            "extensions": [".ice"],
-            "configuration": "./language-configuration.json"
-        }],
-        "grammars": [{
-            "language": "slice",
-            "scopeName": "source.slice",
-            "path": "./syntaxes/slice.tmLanguage.json"
-        }]
+        "languages": [
+            {
+                "id": "slice",
+                "aliases": ["Slice", "IceRPC"],
+                "extensions": [".slice"],
+                "configuration": "./language-configuration.json",
+                "icon": {
+                    "light": "./images/slice.svg",
+                    "dark": "./images/slice.svg"
+                }
+            },
+            {
+                "id": "ice",
+                "aliases": ["Ice", "Slice", "slice"],
+                "extensions": [".ice"],
+                "configuration": "./language-configuration.json",
+                "icon": {
+                    "light": "./images/ice.svg",
+                    "dark": "./images/ice.svg"
+                }
+            }
+        ],
+        "grammars": [
+            {
+                "language": "slice",
+                "scopeName": "source.slice",
+                "path": "./syntaxes/slice.tmLanguage.json"
+            },
+            {
+                "language": "ice",
+                "scopeName": "source.ice",
+                "path": "./syntaxes/ice.tmLanguage.json"
+            }
+        ]
     },
     "homepage": "https://zeroc.com/",
     "repository": {
