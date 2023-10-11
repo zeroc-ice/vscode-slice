@@ -20,7 +20,7 @@
         "languages": [
             {
                 "id": "slice",
-                "aliases": ["Slice", "IceRPC"],
+                "aliases": ["icerpc"],
                 "extensions": [".slice"],
                 "configuration": "./language-configuration.json",
                 "icon": {
@@ -30,7 +30,7 @@
             },
             {
                 "id": "ice",
-                "aliases": ["Ice", "Slice", "slice"],
+                "aliases": ["slice"],
                 "extensions": [".ice"],
                 "configuration": "./language-configuration.json",
                 "icon": {
