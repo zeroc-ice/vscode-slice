@@ -505,7 +505,7 @@
     "preprocessor.identifier": {
       "patterns": [
         {
-          "name": "entity.identifier.preproprocessor.ice",
+          "name": "entity.identifier.preprocessor.ice",
           "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
         },
         {"include": "#invalid"}
@@ -1701,7 +1701,7 @@
         {
           "match": "\\b(?:(true)|(false))\\b",
           "captures": {
-            "0": {"name": "constant.langauge.ice"},
+            "0": {"name": "constant.language.ice"},
             "1": {"name": "constant.boolean.true.ice"},
             "2": {"name": "constant.boolean.false.ice"}
           }
