@@ -29,4 +29,4 @@ vsce package
 
 This creates a `.vsix` package file that can be installed in either of the following ways:
 - drag-and-drop the file into the "Extensions" panel of VSCode
-- copy the file into your `.vscode/extensions/vscode-slice` folder
+- copy the file into your `.vscode/extensions` folder
