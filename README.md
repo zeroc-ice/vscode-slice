@@ -1,28 +1,32 @@
 # Slice Extension for Visual Studio Code
 
-This simple [language extension](https://code.visualstudio.com/api/language-extensions/overview) adds support for [Slice](https://doc.zeroc.com/ice/latest/the-slice-language) syntax highlighting to Visual Studio Code and other environments, such as GitHub and the Visual Studio IDE.
+This language extension adds support for highlighting Slice files within Visual Studio Code.  
+It supports `.ice` files (which use the [original Slice](https://doc.zeroc.com/ice/latest/the-slice-language) syntax)
+and `.slice` files (which use the [newer Slice](https://docs.icerpc.dev/slice2) syntax).
 
 ## Installation
 
-### Visual Studio Code
-
-The [Slice Highlighter](https://marketplace.visualstudio.com/items?itemName=ZeroCInc.slice) extension can be installed from the Visual Studio Code Marketplace or through VS Code Quick Open (`Ctrl + P`) with the following command:
+The extension can be installed through the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ZeroCInc.slice) by clicking "Install",  
+or from within VSCode by using Quick Open (`Ctrl + P`) to run the following command:
 ```
 ext install "Slice Highlighter"
 ```
 
-To manually install this extension from source, first navigate to the `.vscode/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it), and copy this repository into it: `.vscode/extensions/vscode-slice`.
+## Development
+
+The extension can be tested locally through VSCode by selecting "Extension" from the "Start Debugging" section.  
+This starts a new instance of VSCode that has the extension installed.
+
+To create a test package, you must have [`vsce`](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#vsce) installed:
 ```
-cd ~/.vscode/extensions
-git clone https://github.com/zeroc-ice/vscode-slice.git
+npm install -g @vscode/vsce
 ```
 
-### Visual Studio
-
-The Slice Highlighter extension is included with the [Ice Builder for Visual Studio](https://marketplace.visualstudio.com/items?itemName=ZeroCInc.IceBuilder) extension on the Visual Studio Marketplace.
-
-To manually install this extension from source, first navigate to the `.vs/extensions` folder in your home directory (If this folder doesn't already exist, you'll have to create it), and copy this repository into it: `.vs/extensions/vscode-slice`.
+Then to package the extension, run:
 ```
-cd ~/.vs/extensions
-git clone https://github.com/zeroc-ice/vscode-slice.git
+vsce package
 ```
+
+This creates a `.vsix` package file that can be installed in either of the following ways:
+- drag-and-drop the file into the "Extensions" panel of VSCode
+- copy the file into your `.vscode/extensions/vscode-slice` folder
