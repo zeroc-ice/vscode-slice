@@ -27,6 +27,4 @@ Then to package the extension, run:
 vsce package
 ```
 
-This creates a `.vsix` package file that can be installed in either of the following ways:
-- drag-and-drop the file into the "Extensions" panel of VSCode
-- copy the file into your `.vscode/extensions` folder
+This creates a `.vsix` file that can be installed by drag-and-dropping it into the "Extensions panel of VSCode.
