@@ -6,7 +6,7 @@ or from within VSCode by using Quick Open (`Ctrl + P`) to run the following comm
 ext install "Slice Highlighter"
 ```
 
-# Installing Locally
+# Installing from a Local Package
 
 ## Prerequisites
 
