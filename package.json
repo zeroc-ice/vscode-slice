@@ -5,7 +5,7 @@
     "icon": "images/icon.png",
     "version": "3.0.0",
     "publisher": "ZeroCInc",
-    "license": "see LICENSE.",
+    "license": "BSD-3-Clause",
     "engines": {
         "vscode": "^1.21.0"
     },
