@@ -3,7 +3,7 @@
     "displayName": "Slice Highlighter",
     "description": "Provides support for Slice syntax highlighting.",
     "icon": "images/icon.png",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "publisher": "ZeroCInc",
     "license": "BSD-3-Clause",
     "engines": {
