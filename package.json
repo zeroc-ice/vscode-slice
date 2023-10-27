@@ -1,63 +1,111 @@
 {
-    "name": "slice",
-    "displayName": "Slice Highlighter",
-    "description": "Provides support for Slice syntax highlighting.",
-    "icon": "images/icon.png",
-    "version": "3.0.1",
-    "publisher": "ZeroCInc",
-    "license": "BSD-3-Clause",
-    "engines": {
-        "vscode": "^1.21.0"
-    },
-    "galleryBanner": {
-        "color": "#000030",
-        "theme": "dark"
-    },
-    "categories": [
-        "Programming Languages"
-    ],
-    "contributes": {
-        "languages": [
-            {
-                "id": "slice",
-                "aliases": ["icerpc"],
-                "extensions": [".slice"],
-                "configuration": "./language-configuration.json",
-                "icon": {
-                    "light": "./images/slice.svg",
-                    "dark": "./images/slice.svg"
-                }
-            },
-            {
-                "id": "ice",
-                "aliases": ["slice"],
-                "extensions": [".ice"],
-                "configuration": "./language-configuration.json",
-                "icon": {
-                    "light": "./images/ice.svg",
-                    "dark": "./images/ice.svg"
-                }
-            }
+  "name": "slice",
+  "displayName": "Slice Highlighter",
+  "description": "Provides support for Slice syntax highlighting.",
+  "icon": "images/icon.png",
+  "version": "3.0.1",
+  "publisher": "ZeroCInc",
+  "license": "BSD-3-Clause",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "main": "./client/out/extension",
+  "galleryBanner": {
+    "color": "#000030",
+    "theme": "dark"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "slice",
+        "aliases": [
+          "icerpc"
         ],
-        "grammars": [
-            {
-                "language": "slice",
-                "scopeName": "source.slice",
-                "path": "./syntaxes/slice.tmLanguage.json"
-            },
-            {
-                "language": "ice",
-                "scopeName": "source.ice",
-                "path": "./syntaxes/ice.tmLanguage.json"
-            }
-        ]
-    },
-    "homepage": "https://zeroc.com/",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/zeroc-ice/vscode-slice.git"
-    },
-    "bugs": {
-        "url": "https://github.com/zeroc-ice/vscode-slice/issues"
+        "extensions": [
+          ".slice"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/slice.svg",
+          "dark": "./images/slice.svg"
+        }
+      },
+      {
+        "id": "ice",
+        "aliases": [
+          "slice"
+        ],
+        "extensions": [
+          ".ice"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/ice.svg",
+          "dark": "./images/ice.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "slice",
+        "scopeName": "source.slice",
+        "path": "./syntaxes/slice.tmLanguage.json"
+      },
+      {
+        "language": "ice",
+        "scopeName": "source.ice",
+        "path": "./syntaxes/ice.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "slice-language-server",
+      "properties": {
+        "slice-language-server.trace.server": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "enumDescriptions": [
+            "No traces",
+            "Error only",
+            "Full log"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
     }
+  },
+  "homepage": "https://zeroc.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zeroc-ice/vscode-slice.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeroc-ice/vscode-slice/issues"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "lint": "eslint ./client/src ./server/src --ext .ts,.tsx",
+    "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+    "test": "sh ./scripts/e2e.sh"
+  },
+  "devDependencies": {
+    "@types/mocha": "^9.1.0",
+    "@types/node": "^16.18.34",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.35.0",
+    "mocha": "^9.2.1",
+    "typescript": "^5.2.2"
+  }
 }
