@@ -7,9 +7,6 @@ edition = "2021"
 
 [dependencies]
 async-recursion = "1.0.5"
-env_logger = "0.10.0"
-futures = "0.3.28"
-slicec = "0.1.1"
+slicec = { path = "../../../icerpc/slicec" }
 tokio = { version = "1.33.0", features = ["full"] }
 tower-lsp = "0.20.0"
-walkdir = "2.4.0"
