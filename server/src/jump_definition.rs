@@ -1,4 +1,5 @@
 use slicec::{
+    compilation_state::CompilationState,
     grammar::{
         Class, CustomType, Entity, Enum, Enumerator, Exception, Field, Interface, Module,
         Operation, Parameter, Struct, TypeAlias, TypeRef, TypeRefDefinition, Types,
@@ -6,15 +7,33 @@ use slicec::{
     slice_file::{Location, SliceFile, Span},
     visitor::Visitor,
 };
+use tower_lsp::lsp_types::{Position, Url};
 
-pub struct LspVisitor {
+pub fn get_definition_span(state: CompilationState, uri: Url, position: Position) -> Option<Span> {
+    // Attempt to convert the URL to a file path and then to a string
+    let file_path = uri.to_file_path().ok()?.to_str()?.to_owned();
+
+    // Attempt to retrieve the file from the state
+    let file = state.files.get(&file_path)?;
+
+    // Convert position to row and column 1 based
+    let col = (position.character + 1) as usize;
+    let row = (position.line + 1) as usize;
+
+    let mut visitor = JumpVisitor::new(slicec::slice_file::Location { row, col });
+    file.visit_with(&mut visitor);
+
+    visitor.found_span
+}
+
+struct JumpVisitor {
     pub search_location: Location,
     pub found_span: Option<Span>,
 }
 
-impl LspVisitor {
+impl JumpVisitor {
     pub fn new(search_location: Location) -> Self {
-        LspVisitor {
+        JumpVisitor {
             search_location,
             found_span: None,
         }
@@ -31,7 +50,7 @@ impl LspVisitor {
     }
 }
 
-impl Visitor for LspVisitor {
+impl Visitor for JumpVisitor {
     fn visit_file(&mut self, _: &SliceFile) {}
 
     fn visit_module(&mut self, _: &Module) {}

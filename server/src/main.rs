@@ -1,9 +1,10 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::slicec_ext::visitor::LspVisitor;
+mod jump_definition;
+
 use async_recursion::async_recursion;
+use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
-use slicec::slice_file::Span;
 use slicec::slice_options::SliceOptions;
 use slicec_ext::diagnostic_ext::DiagnosticExt;
 use std::collections::HashMap;
@@ -32,30 +33,6 @@ struct Backend {
     client: Client,
     root_uri: Arc<Mutex<Option<Url>>>,
     documents: Arc<Mutex<HashMap<Url, String>>>,
-}
-
-fn get_definition_span(state: CompilationState, uri: Url, position: Position) -> Option<Span> {
-    // Drop the file:// prefix
-    let file_path = &uri
-        .to_file_path()
-        .unwrap()
-        .to_str()
-        .to_owned()
-        .unwrap()
-        .to_string();
-    let file = state.files.get(file_path).unwrap();
-
-    // Convert position to row and column 1 based
-    let col = (position.character + 1) as usize;
-    let row = (position.line + 1) as usize;
-
-    let mut visitor = LspVisitor {
-        search_location: slicec::slice_file::Location { row, col },
-        found_span: None,
-    };
-    file.visit_with(&mut visitor);
-
-    visitor.found_span
 }
 
 #[tower_lsp::async_trait]
