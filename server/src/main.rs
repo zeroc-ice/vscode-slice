@@ -1,8 +1,10 @@
 // Copyright (c) ZeroC, Inc.
 
+mod hover;
 mod jump_definition;
 
 use async_recursion::async_recursion;
+use hover::get_hover_info;
 use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
 use slicec::slice_options::SliceOptions;
@@ -65,6 +67,7 @@ impl LanguageServer for Backend {
                     ..Default::default()
                 }),
                 definition_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
         })
@@ -116,6 +119,20 @@ impl LanguageServer for Backend {
                 uri: Url::from_file_path(found_location.file).unwrap(),
                 range: Range::new(start, end),
             })))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let (state, _) = self.compile_slice_files().await;
+        if let Some(info) = get_hover_info(state, uri, position) {
+            Ok(Some(Hover {
+                contents: HoverContents::Scalar(MarkedString::String(info)),
+                range: None,
+            }))
         } else {
             Ok(None)
         }
