@@ -80,7 +80,25 @@ impl LanguageServer for Backend {
 
         if let Some(uri) = self.root_uri.lock().await.clone() {
             match self.find_slice_files(uri).await {
-                Ok(_) => {}
+                Ok(_) => {
+                    let foo = self
+                        .documents
+                        .lock()
+                        .await
+                        .keys()
+                        .into_iter()
+                        .map(|f| f.path())
+                        .collect::<Vec<_>>()
+                        // Async for each file
+                        .into_iter()
+                        .map(|f| {
+                            self.client
+                                .log_message(MessageType::INFO, format!("Found file: {:?}", f))
+                        })
+                        .collect::<Vec<_>>();
+                    // Wait for all the async calls to finish using tokio::join_all
+                    futures::future::join_all(foo).await;
+                }
                 Err(e) => {
                     self.client
                         .log_message(MessageType::ERROR, format!("error: {}", e))
@@ -102,25 +120,35 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let (state, _) = self.compile_slice_files().await;
 
-        if let Some(found_location) = get_definition_span(state, uri, position) {
-            let start = Position {
-                line: (found_location.start.row - 1) as u32,
-                character: (found_location.start.col - 1) as u32,
-            };
+        let found_location = {
+            let (state, _) = self.compile_slice_files().await;
+            get_definition_span(state, uri, position)
+        };
 
-            let end = Position {
-                line: (found_location.end.row - 1) as u32,
-                character: (found_location.end.col - 1) as u32,
-            };
+        match found_location {
+            Some(found_location) => {
+                let start = Position {
+                    line: (found_location.start.row - 1) as u32,
+                    character: (found_location.start.col - 1) as u32,
+                };
 
-            Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: Url::from_file_path(found_location.file).unwrap(),
-                range: Range::new(start, end),
-            })))
-        } else {
-            Ok(None)
+                let end = Position {
+                    line: (found_location.end.row - 1) as u32,
+                    character: (found_location.end.col - 1) as u32,
+                };
+
+                Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                    uri: Url::from_file_path(found_location.file).unwrap(),
+                    range: Range::new(start, end),
+                })))
+            }
+            None => {
+                self.client
+                    .log_message(MessageType::INFO, "No definition found!")
+                    .await;
+                Ok(None)
+            }
         }
     }
 
@@ -222,6 +250,12 @@ impl Backend {
     }
 
     async fn find_slice_files(&self, dir: Url) -> tokio::io::Result<()> {
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Finding slice files in {:?} ...", dir),
+            )
+            .await;
         let path = dir.to_file_path().map_err(|_| {
             tokio::io::Error::new(tokio::io::ErrorKind::InvalidInput, "Invalid URL")
         })?;
