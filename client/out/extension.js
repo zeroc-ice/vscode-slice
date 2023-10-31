@@ -1,4 +1,5 @@
 "use strict";
+// Copyright (c) ZeroC, Inc.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deactivate = exports.activate = void 0;
 const vscode_1 = require("vscode");

@@ -1,3 +1,5 @@
+// Copyright (c) ZeroC, Inc.
+
 import * as path from "path";
 import { workspace, ExtensionContext, window } from "vscode";
 

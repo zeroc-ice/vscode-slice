@@ -1,3 +1,5 @@
+// Copyright (c) ZeroC, Inc.
+
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
