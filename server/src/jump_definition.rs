@@ -46,18 +46,9 @@ impl JumpVisitor {
     fn check_comment(&mut self, commentable: &dyn Commentable) {
         if let Some(comment) = commentable.comment() {
             comment
-                .see
-                .iter()
-                .for_each(|s| self.check_and_set_span(s.linked_entity(), &s.span));
-            comment
-                .throws
-                .iter()
-                .for_each(|s| self.check_and_set_span(s.thrown_type(), &s.span));
-
-            // Check all comment types that can have a link in their message
-            if let Some(overview) = &comment.overview {
-                self.check_message_links(&overview.message)
-            }
+                .overview
+                .as_ref()
+                .map(|overview| self.check_message_links(&overview.message));
             comment
                 .returns
                 .iter()
@@ -70,6 +61,14 @@ impl JumpVisitor {
                 .throws
                 .iter()
                 .for_each(|throws| self.check_message_links(&throws.message));
+            comment
+                .throws
+                .iter()
+                .for_each(|s| self.check_and_set_span(s.thrown_type(), &s.span));
+            comment
+                .see
+                .iter()
+                .for_each(|s| self.check_and_set_span(s.linked_entity(), &s.span));
         }
     }
 

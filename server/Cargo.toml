@@ -6,8 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-recursion = "1.0.5"
-futures = "0.3.29"
 slicec = { path = "../../../icerpc/slicec" }
 tokio = { version = "1.33.0", features = ["full"] }
 tower-lsp = "0.20.0"

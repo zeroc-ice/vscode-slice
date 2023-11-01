@@ -68,7 +68,7 @@ impl HoverVisitor {
             Primitive::VarUInt62 => "The variable-length unsigned integer type.",
             Primitive::Float32 => "The 32-bit floating point type.",
             Primitive::Float64 => "The 64-bit floating point type.",
-            Primitive::String => "A UTF-8–encoded, growable string.",
+            Primitive::String => "A UTF-8 encoded, growable string.",
             Primitive::AnyClass => "An instance of any Slice class.",
         };
         Some(description.to_owned())

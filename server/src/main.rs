@@ -1,17 +1,15 @@
 // Copyright (c) ZeroC, Inc.
 
-mod hover;
-mod jump_definition;
-
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
-use slicec::compilation_state::CompilationState;
-use slicec::slice_options::SliceOptions;
+use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
 use slicec_ext::diagnostic_ext::DiagnosticExt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
+
+mod hover;
+mod jump_definition;
 pub mod slicec_ext;
 
 #[tokio::main]
@@ -87,35 +85,25 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
+        let state = self.compilation_state.lock().await;
 
-        let found_location = {
-            let state = self.compilation_state.lock().await;
-            get_definition_span(&state, uri, position)
-        };
+        if let Some(location) = get_definition_span(&state, uri, position) {
+            let start = Position {
+                line: (location.start.row - 1) as u32,
+                character: (location.start.col - 1) as u32,
+            };
 
-        match found_location {
-            Some(found_location) => {
-                let start = Position {
-                    line: (found_location.start.row - 1) as u32,
-                    character: (found_location.start.col - 1) as u32,
-                };
+            let end = Position {
+                line: (location.end.row - 1) as u32,
+                character: (location.end.col - 1) as u32,
+            };
 
-                let end = Position {
-                    line: (found_location.end.row - 1) as u32,
-                    character: (found_location.end.col - 1) as u32,
-                };
-
-                Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                    uri: Url::from_file_path(found_location.file).unwrap(),
-                    range: Range::new(start, end),
-                })))
-            }
-            None => {
-                self.client
-                    .log_message(MessageType::INFO, "No definition found!")
-                    .await;
-                Ok(None)
-            }
+            Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: Url::from_file_path(location.file).unwrap(),
+                range: Range::new(start, end),
+            })))
+        } else {
+            Ok(None)
         }
     }
 
@@ -134,42 +122,22 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let uri = params.text_document.uri.clone();
-
         self.client
             .log_message(MessageType::INFO, "file opened!")
             .await;
-
-        // Compile all files to get the updated compilation state
-        // Compile all files to get the initial compilation state
-        let (updated_state, options) = self.compile_slice_files().await;
-        let mut compilation_state_guard = self.compilation_state.lock().await;
-        *compilation_state_guard = updated_state;
-        let mut compilation_options_guard = self.compilation_options.lock().await;
-        *compilation_options_guard = options;
-
-        // Compile all files and get the diagnostics for the opened file
-        let diagnostics = self
-            .get_diagnostics_for_uri(
-                &uri,
-                &mut compilation_state_guard,
-                &compilation_options_guard,
-            )
-            .await;
-
-        self.client
-            .publish_diagnostics(uri, diagnostics, None)
-            .await;
+        self.handle_file_change(params.text_document.uri).await;
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         self.client
             .log_message(MessageType::INFO, "file saved!")
             .await;
+        self.handle_file_change(params.text_document.uri).await;
+    }
+}
 
-        let uri = params.text_document.uri.clone();
-
-        // Compile all files to get the updated compilation state
+impl Backend {
+    async fn handle_file_change(&self, uri: Url) {
         let (updated_state, options) = self.compile_slice_files().await;
         let mut compilation_state_guard = self.compilation_state.lock().await;
         *compilation_state_guard = updated_state;
@@ -177,7 +145,6 @@ impl LanguageServer for Backend {
         let mut compilation_options_guard = self.compilation_options.lock().await;
         *compilation_options_guard = options;
 
-        // Compile all files and get the diagnostics for the saved file
         let diagnostics = self
             .get_diagnostics_for_uri(
                 &uri,
@@ -190,9 +157,7 @@ impl LanguageServer for Backend {
             .publish_diagnostics(uri, diagnostics, None)
             .await;
     }
-}
 
-impl Backend {
     // This will consume all of the diagnostics in the compilation state and return them as LSP diagnostics.
     // If you need the diagnostics again you will need to recompile.
     async fn get_diagnostics_for_uri(
