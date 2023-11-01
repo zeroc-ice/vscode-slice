@@ -11,7 +11,7 @@ use slicec::{
 };
 use tower_lsp::lsp_types::{Position, Url};
 
-pub fn get_hover_info(state: CompilationState, uri: Url, position: Position) -> Option<String> {
+pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) -> Option<String> {
     // Attempt to convert the URL to a file path and then to a string
     let file_path = uri.to_file_path().ok()?.to_str()?.to_owned();
 
@@ -82,11 +82,11 @@ impl Visitor for HoverVisitor {
 
     fn visit_struct(&mut self, _: &Struct) {}
 
-    fn visit_class(&mut self, class_def: &Class) {}
+    fn visit_class(&mut self, _: &Class) {}
 
-    fn visit_exception(&mut self, exception_def: &Exception) {}
+    fn visit_exception(&mut self, _: &Exception) {}
 
-    fn visit_interface(&mut self, interface_def: &Interface) {}
+    fn visit_interface(&mut self, _: &Interface) {}
 
     fn visit_enum(&mut self, _: &Enum) {}
 

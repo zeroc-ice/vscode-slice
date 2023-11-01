@@ -31,7 +31,7 @@
         {
             "label": "Build Rust Server",
             "type": "shell",
-            "command": "cargo build",
+            "command": "cargo build --release",
             "options": {
                 "cwd": "${workspaceFolder}/server"
             },

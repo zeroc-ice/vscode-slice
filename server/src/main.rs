@@ -3,13 +3,11 @@
 mod hover;
 mod jump_definition;
 
-use async_recursion::async_recursion;
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
 use slicec::slice_options::SliceOptions;
 use slicec_ext::diagnostic_ext::DiagnosticExt;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::*;
@@ -24,7 +22,8 @@ async fn main() {
     let (service, socket) = LspService::new(|client| Backend {
         root_uri: Arc::new(Mutex::new(None)),
         client,
-        documents: Arc::new(Mutex::new(HashMap::new())),
+        compilation_state: Arc::new(Mutex::new(CompilationState::create())),
+        compilation_options: Arc::new(Mutex::new(SliceOptions::default())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -34,7 +33,8 @@ async fn main() {
 struct Backend {
     client: Client,
     root_uri: Arc<Mutex<Option<Url>>>,
-    documents: Arc<Mutex<HashMap<Url, String>>>,
+    compilation_state: Arc<Mutex<CompilationState>>,
+    compilation_options: Arc<Mutex<SliceOptions>>,
 }
 
 #[tower_lsp::async_trait]
@@ -57,15 +57,6 @@ impl LanguageServer for Backend {
                         ..Default::default()
                     },
                 )),
-                completion_provider: Some(CompletionOptions {
-                    resolve_provider: Some(false),
-                    trigger_characters: Some(vec![
-                        "\n".to_string(),
-                        " ".to_string(),
-                        "{".to_string(),
-                    ]),
-                    ..Default::default()
-                }),
                 definition_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
@@ -74,43 +65,19 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        // Compile all files to get the initial compilation state
+        let (initial_state, options) = self.compile_slice_files().await;
+        let mut compilation_state_guard = self.compilation_state.lock().await;
+        *compilation_state_guard = initial_state;
+        let mut compilation_options_guard = self.compilation_options.lock().await;
+        *compilation_options_guard = options;
+
         self.client
             .log_message(MessageType::INFO, "Slice language server initialized!")
             .await;
-
-        if let Some(uri) = self.root_uri.lock().await.clone() {
-            match self.find_slice_files(uri).await {
-                Ok(_) => {
-                    let foo = self
-                        .documents
-                        .lock()
-                        .await
-                        .keys()
-                        .into_iter()
-                        .map(|f| f.path())
-                        .collect::<Vec<_>>()
-                        // Async for each file
-                        .into_iter()
-                        .map(|f| {
-                            self.client
-                                .log_message(MessageType::INFO, format!("Found file: {:?}", f))
-                        })
-                        .collect::<Vec<_>>();
-                    // Wait for all the async calls to finish using tokio::join_all
-                    futures::future::join_all(foo).await;
-                }
-                Err(e) => {
-                    self.client
-                        .log_message(MessageType::ERROR, format!("error: {}", e))
-                        .await;
-                }
-            }
-        }
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
-        // Clear the documents cache
-        self.documents.lock().await.clear();
         Ok(())
     }
 
@@ -122,8 +89,8 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
 
         let found_location = {
-            let (state, _) = self.compile_slice_files().await;
-            get_definition_span(state, uri, position)
+            let state = self.compilation_state.lock().await;
+            get_definition_span(&state, uri, position)
         };
 
         match found_location {
@@ -155,8 +122,8 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let (state, _) = self.compile_slice_files().await;
-        if let Some(info) = get_hover_info(state, uri, position) {
+        let state = self.compilation_state.lock().await;
+        if let Some(info) = get_hover_info(&state, uri, position) {
             Ok(Some(Hover {
                 contents: HoverContents::Scalar(MarkedString::String(info)),
                 range: None,
@@ -166,26 +133,29 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn completion(
-        &self,
-        _params: CompletionParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<CompletionResponse>> {
-        // Add more conditions here based on context, structure, and user input
-
-        Ok(None)
-    }
-
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        // Save the document in the documents cache
         let uri = params.text_document.uri.clone();
-        let text = params.text_document.text;
-        self.documents
-            .lock()
-            .await
-            .insert(uri.clone(), text.clone());
+
+        self.client
+            .log_message(MessageType::INFO, "file opened!")
+            .await;
+
+        // Compile all files to get the updated compilation state
+        // Compile all files to get the initial compilation state
+        let (updated_state, options) = self.compile_slice_files().await;
+        let mut compilation_state_guard = self.compilation_state.lock().await;
+        *compilation_state_guard = updated_state;
+        let mut compilation_options_guard = self.compilation_options.lock().await;
+        *compilation_options_guard = options;
 
         // Compile all files and get the diagnostics for the opened file
-        let diagnostics = self.get_diagnostics_for_uri(&uri).await;
+        let diagnostics = self
+            .get_diagnostics_for_uri(
+                &uri,
+                &mut compilation_state_guard,
+                &compilation_options_guard,
+            )
+            .await;
 
         self.client
             .publish_diagnostics(uri, diagnostics, None)
@@ -193,38 +163,51 @@ impl LanguageServer for Backend {
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        let uri = params.text_document.uri.clone();
-
         self.client
             .log_message(MessageType::INFO, "file saved!")
             .await;
 
+        let uri = params.text_document.uri.clone();
+
+        // Compile all files to get the updated compilation state
+        let (updated_state, options) = self.compile_slice_files().await;
+        let mut compilation_state_guard = self.compilation_state.lock().await;
+        *compilation_state_guard = updated_state;
+
+        let mut compilation_options_guard = self.compilation_options.lock().await;
+        *compilation_options_guard = options;
+
         // Compile all files and get the diagnostics for the saved file
-        let diagnostics = self.get_diagnostics_for_uri(&uri).await;
+        let diagnostics = self
+            .get_diagnostics_for_uri(
+                &uri,
+                &mut compilation_state_guard,
+                &compilation_options_guard,
+            )
+            .await;
 
         self.client
             .publish_diagnostics(uri, diagnostics, None)
             .await;
     }
-
-    async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let uri = params.text_document.uri;
-        let changes = params.content_changes;
-
-        let mut documents = self.documents.lock().await;
-        let doc = documents.get_mut(&uri).expect("Document not found!");
-
-        for change in changes {
-            *doc = change.text;
-        }
-    }
 }
 
 impl Backend {
-    async fn get_diagnostics_for_uri(&self, uri: &Url) -> Vec<Diagnostic> {
-        let (state, options) = self.compile_slice_files().await;
-        state
-            .into_diagnostics(&options)
+    // This will consume all of the diagnostics in the compilation state and return them as LSP diagnostics.
+    // If you need the diagnostics again you will need to recompile.
+    async fn get_diagnostics_for_uri(
+        &self,
+        uri: &Url,
+        compilation_state: &mut CompilationState,
+        options: &SliceOptions,
+    ) -> Vec<Diagnostic> {
+        let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
+            &compilation_state.ast,
+            &compilation_state.files,
+            options,
+        );
+
+        diagnostics
             .iter()
             .filter(|d| d.span().is_some_and(|s| s.file == uri.path())) // Only show diagnostics for the saved file
             .filter_map(|d| d.try_into_lsp_diagnostic())
@@ -232,66 +215,22 @@ impl Backend {
     }
 
     async fn compile_slice_files(&self) -> (CompilationState, SliceOptions) {
-        let sources = self
-            .documents
-            .lock()
-            .await
-            .keys()
-            .filter_map(|k| Some(k.to_file_path().ok()?.to_str()?.to_owned()))
-            .collect::<Vec<_>>();
         let options = SliceOptions {
-            sources,
+            references: vec![self
+                .root_uri
+                .lock()
+                .await
+                .as_ref()
+                .unwrap()
+                .to_file_path()
+                .unwrap()
+                .display()
+                .to_string()],
             ..Default::default()
         };
         (
             slicec::compile_from_options(&options, |_| {}, |_| {}),
             options,
         )
-    }
-
-    async fn find_slice_files(&self, dir: Url) -> tokio::io::Result<()> {
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("Finding slice files in {:?} ...", dir),
-            )
-            .await;
-        let path = dir.to_file_path().map_err(|_| {
-            tokio::io::Error::new(tokio::io::ErrorKind::InvalidInput, "Invalid URL")
-        })?;
-
-        self.find_slice_files_recursive(path).await
-    }
-
-    #[async_recursion]
-    async fn find_slice_files_recursive(&self, dir: std::path::PathBuf) -> tokio::io::Result<()> {
-        let mut entries = tokio::fs::read_dir(dir).await?;
-
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
-            if path.is_dir() {
-                // If it's a directory, recurse into it
-                self.find_slice_files_recursive(path).await?;
-            } else if path.is_file() && path.extension().unwrap_or_default() == "slice" {
-                // If it's a slice file, process it
-                let text = tokio::fs::read_to_string(&path).await?;
-
-                match Url::from_file_path(path.clone()) {
-                    Ok(url) => {
-                        let mut documents = self.documents.lock().await;
-                        documents.insert(url, text);
-                    }
-                    Err(_) => {
-                        eprintln!("Failed to convert file path to URL: {:?}", path);
-                        return Err(tokio::io::Error::new(
-                            tokio::io::ErrorKind::InvalidData,
-                            "Invalid file path",
-                        ));
-                    }
-                };
-            }
-        }
-
-        Ok(())
     }
 }
