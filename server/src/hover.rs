@@ -4,9 +4,9 @@ use slicec::{
     compilation_state::CompilationState,
     grammar::{
         Class, CustomType, Enum, Enumerator, Exception, Field, Interface, Module, Operation,
-        Parameter, Primitive, Struct, TypeAlias, TypeRef, TypeRefDefinition, Types,
+        Parameter, Primitive, Struct, Symbol, TypeAlias, TypeRef, TypeRefDefinition, Types,
     },
-    slice_file::{Location, SliceFile, Span},
+    slice_file::{Location, SliceFile},
     visitor::Visitor,
 };
 use tower_lsp::lsp_types::{Position, Url};
@@ -41,18 +41,8 @@ impl HoverVisitor {
         }
     }
 
-    fn is_location_in_span(&self, location: &Location, span: &Span) -> bool {
-        let start = &span.start;
-        let end = &span.end;
-
-        location.row >= start.row
-            && location.row <= end.row
-            && location.col >= start.col
-            && location.col <= end.col
-    }
-
-    fn describe_primitive_type(&self, primitive_type: &Primitive) -> Option<String> {
-        let description = match primitive_type {
+    fn describe_primitive_type(primitive_type: &Primitive) -> &'static str {
+        match primitive_type {
             Primitive::Bool => "The boolean type.",
             Primitive::Int8 => "The 8-bit signed integer type.",
             Primitive::UInt8 => "The 8-bit unsigned integer type.",
@@ -68,10 +58,9 @@ impl HoverVisitor {
             Primitive::VarUInt62 => "The variable-length unsigned integer type.",
             Primitive::Float32 => "The 32-bit floating point type.",
             Primitive::Float64 => "The 64-bit floating point type.",
-            Primitive::String => "A UTF-8 encoded, growable string.",
+            Primitive::String => "A UTF-8 string.",
             Primitive::AnyClass => "An instance of any Slice class.",
-        };
-        Some(description.to_owned())
+        }
     }
 }
 
@@ -88,7 +77,14 @@ impl Visitor for HoverVisitor {
 
     fn visit_interface(&mut self, _: &Interface) {}
 
-    fn visit_enum(&mut self, _: &Enum) {}
+    fn visit_enum(&mut self, enum_def: &Enum) {
+        if let Some(underlying) = &enum_def.underlying {
+            if !&self.search_location.is_within(underlying.span()) {
+                return;
+            }
+            Some(HoverVisitor::describe_primitive_type(underlying.definition()).to_owned());
+        }
+    }
 
     fn visit_operation(&mut self, _: &Operation) {}
 
@@ -103,16 +99,18 @@ impl Visitor for HoverVisitor {
     fn visit_enumerator(&mut self, _: &Enumerator) {}
 
     fn visit_type_ref(&mut self, typeref: &TypeRef) {
-        if !self.is_location_in_span(&self.search_location, &typeref.span) {
+        if self.found_message.is_some() {
             return;
         }
-
+        if !&self.search_location.is_within(typeref.span()) {
+            return;
+        }
         let TypeRefDefinition::Patched(type_def) = &typeref.definition else {
             return;
         };
 
         let type_description = match type_def.borrow().concrete_type() {
-            Types::Primitive(x) => self.describe_primitive_type(x),
+            Types::Primitive(x) => Some(HoverVisitor::describe_primitive_type(x).to_owned()),
             _ => None,
         };
 

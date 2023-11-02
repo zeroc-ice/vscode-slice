@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-slicec = { path = "../../../icerpc/slicec" }
+slicec  = { git = "https://github.com/icerpc/slicec", branch = "main" }
 tokio = { version = "1.33.0", features = ["full"] }
 tower-lsp = "0.20.0"

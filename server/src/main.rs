@@ -76,7 +76,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        let mut workspace_uri = self.workspace_uri.lock().await;
+        let workspace_uri = self.workspace_uri.lock().await;
 
         // Fetch and set the search directory
         let file_directory = match self.get_search_directory(&workspace_uri, None).await {
@@ -119,42 +119,44 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        let uri = params.text_document_position_params.text_document.uri;
+        let param_uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let state = self.compilation_state.lock().await;
 
-        if let Some(location) = get_definition_span(&state, uri, position) {
-            let start = Position {
-                line: (location.start.row - 1) as u32,
-                character: (location.start.col - 1) as u32,
-            };
+        let location = match get_definition_span(&state, param_uri, position) {
+            Some(location) => location,
+            None => return Ok(None),
+        };
 
-            let end = Position {
-                line: (location.end.row - 1) as u32,
-                character: (location.end.col - 1) as u32,
-            };
+        let start = Position {
+            line: (location.start.row - 1) as u32,
+            character: (location.start.col - 1) as u32,
+        };
 
-            Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: Url::from_file_path(location.file).unwrap(),
-                range: Range::new(start, end),
-            })))
-        } else {
-            Ok(None)
-        }
+        let end = Position {
+            line: (location.end.row - 1) as u32,
+            character: (location.end.col - 1) as u32,
+        };
+
+        let uri = match Url::from_file_path(location.file) {
+            Ok(uri) => uri,
+            Err(_) => return Ok(None),
+        };
+
+        Ok(Some(GotoDefinitionResponse::Scalar(Location {
+            uri,
+            range: Range::new(start, end),
+        })))
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let state = self.compilation_state.lock().await;
-        if let Some(info) = get_hover_info(&state, uri, position) {
-            Ok(Some(Hover {
-                contents: HoverContents::Scalar(MarkedString::String(info)),
-                range: None,
-            }))
-        } else {
-            Ok(None)
-        }
+        Ok(get_hover_info(&state, uri, position).map(|info| Hover {
+            contents: HoverContents::Scalar(MarkedString::String(info)),
+            range: None,
+        }))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {

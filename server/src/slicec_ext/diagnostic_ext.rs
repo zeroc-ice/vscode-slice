@@ -15,8 +15,7 @@ impl DiagnosticExt for Diagnostic {
         let severity = match self.level() {
             DiagnosticLevel::Error => Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
             DiagnosticLevel::Warning => Some(tower_lsp::lsp_types::DiagnosticSeverity::WARNING),
-            // Ignore the allowed level
-            _ => None,
+            DiagnosticLevel::Allowed => None,
         };
 
         // Map the spans to ranges, if span is none, return none

@@ -949,7 +949,8 @@ dependencies = [
 
 [[package]]
 name = "slicec"
-version = "0.1.1"
+version = "0.1.2"
+source = "git+https://github.com/icerpc/slicec?branch=main#5edefec62ceb5f6b485b96acde861988fec1ba4d"
 dependencies = [
  "clap",
  "console",
