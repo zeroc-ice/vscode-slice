@@ -79,6 +79,11 @@
           ],
           "default": "off",
           "description": "Traces the communication between VS Code and the language server."
+        },
+        "slice-language-server.searchDirectory": {
+          "type": "string",
+          "description": "The directory to search for Slice files.",
+          "scope": "resource"
         }
       }
     }

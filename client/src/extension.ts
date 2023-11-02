@@ -62,6 +62,23 @@ export function activate(context: ExtensionContext) {
 
   traceOutputChannel.appendLine("Language client created");
   traceOutputChannel.appendLine("Starting client...");
+
+  workspace.onDidChangeConfiguration((event) => {
+    if (event.affectsConfiguration("slice-language-server")) {
+      const config = workspace.getConfiguration("slice-language-server");
+      const searchDirectory = config.get<string>("searchDirectory");
+
+      // Send the "workspace/didChangeConfiguration" notification.
+      client.sendNotification("workspace/didChangeConfiguration", {
+        settings: {
+          "slice-language-server": {
+            searchDirectory: searchDirectory,
+          },
+        },
+      });
+    }
+  });
+
   client.start().then(() => {
     traceOutputChannel.appendLine("Client started");
     console.log("Client started");
