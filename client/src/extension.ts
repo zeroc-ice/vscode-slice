@@ -1,8 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-import * as path from "path";
 import { workspace, ExtensionContext, window } from "vscode";
-
 import {
   Executable,
   LanguageClient,
@@ -11,83 +9,104 @@ import {
   ServerOptions,
 } from "vscode-languageclient/node";
 
-let client: LanguageClient;
+// Create an output channel for the language server's trace information.
+const traceOutputChannel = window.createOutputChannel(
+  "Slice Language Server trace"
+);
 
-export function activate(context: ExtensionContext) {
-  const traceOutputChannel = window.createOutputChannel(
-    "Slice Language Server trace"
-  );
-  traceOutputChannel.appendLine("Activating extension...");
-  // If the extension is launched in debug mode then the debug server options are used
-  // Otherwise the run options are used
-  const command = process.env.SERVER_PATH || "slice-language-server";
-  const run: Executable = {
-    command,
-    options: {
-      env: {
-        ...process.env,
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        RUST_LOG: "debug",
-      },
-    },
-  };
-  const serverOptions: ServerOptions = {
-    run,
-    debug: run,
-  };
+// The language client.
+let client: LanguageClient | undefined;
 
-  // Options to control the language client
-  // If the extension is launched in debug mode then the debug server options are used
-  // Otherwise the run options are used
-  // Options to control the language client
-  let clientOptions: LanguageClientOptions = {
-    // Register the server for slice documents
-    documentSelector: [{ scheme: "file", language: "slice" }],
-    synchronize: {
-      // Notify the server about file changes to '.clientrc files contained in the workspace
-      fileEvents: workspace.createFileSystemWatcher("**/.clientrc"),
-    },
-    traceOutputChannel,
-    outputChannel: traceOutputChannel,
-    revealOutputChannelOn: RevealOutputChannelOn.Never,
-  };
-
-  // Create the language client and start the client.
-  client = new LanguageClient(
+/**
+ * Create a new instance of LanguageClient.
+ * @param {ServerOptions} serverOptions - The server options.
+ * @param {LanguageClientOptions} clientOptions - The client options.
+ * @returns {LanguageClient} - The created language client.
+ */
+const createClient = (
+  serverOptions: ServerOptions,
+  clientOptions: LanguageClientOptions
+) => {
+  return new LanguageClient(
     "slice-language-server",
     "Slice Language Server",
     serverOptions,
     clientOptions
   );
+};
 
-  traceOutputChannel.appendLine("Language client created");
-  traceOutputChannel.appendLine("Starting client...");
-
+/**
+ * Set up handling for configuration changes.
+ * @param {LanguageClient} client - The language client.
+ */
+const handleConfigurationChanges = (client: LanguageClient) => {
   workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration("slice-language-server")) {
+      // Retrieve the updated configuration settings.
       const config = workspace.getConfiguration("slice-language-server");
       const searchDirectory = config.get<string>("searchDirectory");
 
-      // Send the "workspace/didChangeConfiguration" notification.
+      // Send the "workspace/didChangeConfiguration" notification to the server with the updated settings.
       client.sendNotification("workspace/didChangeConfiguration", {
         settings: {
-          "slice-language-server": {
-            searchDirectory: searchDirectory,
-          },
+          "slice-language-server": { searchDirectory },
         },
       });
     }
   });
+};
 
-  client.start().then(() => {
+/**
+ * Activate the extension.
+ * @param {ExtensionContext} _context - The extension context.
+ */
+export async function activate(_context: ExtensionContext) {
+  try {
+    traceOutputChannel.appendLine("Activating extension...");
+
+    // Configure the language server executable.
+    const command = process.env.SERVER_PATH || "slice-language-server";
+    const run: Executable = {
+      command,
+      options: { env: { ...process.env, RUST_LOG: "debug" } },
+    };
+    const serverOptions: ServerOptions = { run, debug: run };
+
+    // Configure the language client options.
+    const clientOptions: LanguageClientOptions = {
+      documentSelector: [{ scheme: "file", language: "slice" }],
+      synchronize: {
+        fileEvents: workspace.createFileSystemWatcher("**/.clientrc"),
+      },
+      traceOutputChannel,
+      outputChannel: traceOutputChannel,
+      revealOutputChannelOn: RevealOutputChannelOn.Never,
+    };
+
+    // Create and start the language client.
+    client = createClient(serverOptions, clientOptions);
+    traceOutputChannel.appendLine("Language client created");
+
+    // Set up configuration change handling.
+    handleConfigurationChanges(client);
+
+    // Start the client.
+    await client.start();
     traceOutputChannel.appendLine("Client started");
-    console.log("Client started");
-  });
+  } catch (error) {
+    traceOutputChannel.appendLine(`Failed to start client: ${error}`);
+    window.showErrorMessage(
+      "Slice Language Server failed to start. See the trace for more information."
+    );
+  }
 }
 
-export function deactivate(): Thenable<void> | undefined {
-  if (!client) {
-    return undefined;
+/**
+ * Deactivate the extension.
+ * @returns {Promise<void>} - A promise that resolves when the client has stopped.
+ */
+export async function deactivate(): Promise<void> {
+  if (client) {
+    await client.stop();
   }
-  return client.stop();
 }
