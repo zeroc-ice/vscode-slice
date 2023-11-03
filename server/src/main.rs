@@ -1,16 +1,18 @@
 // Copyright (c) ZeroC, Inc.
 
+use diagnostic_ext::try_into_lsp_diagnostic;
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
+use shared_state::SharedState;
 use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
-use slicec_ext::diagnostic_ext::DiagnosticExt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
 
+mod diagnostic_ext;
 mod hover;
 mod jump_definition;
-pub mod slicec_ext;
+mod shared_state;
 
 #[tokio::main]
 async fn main() {
@@ -21,20 +23,17 @@ async fn main() {
         root_uri: Arc::new(Mutex::new(None)),
         client,
         workspace_uri: Arc::new(Mutex::new(None)),
-        compilation_state: Arc::new(Mutex::new(CompilationState::create())),
-        compilation_options: Arc::new(Mutex::new(SliceOptions::default())),
+        shared_state: Arc::new(Mutex::new(SharedState::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-#[derive(Debug)]
 struct Backend {
     client: Client,
     workspace_uri: Arc<Mutex<Option<Url>>>,
     root_uri: Arc<Mutex<Option<Url>>>,
-    compilation_state: Arc<Mutex<CompilationState>>,
-    compilation_options: Arc<Mutex<SliceOptions>>,
+    shared_state: Arc<Mutex<SharedState>>,
 }
 
 #[tower_lsp::async_trait]
@@ -121,9 +120,9 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
         let param_uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let state = self.compilation_state.lock().await;
+        let compilation_state = &self.shared_state.lock().await.compilation_state;
 
-        let location = match get_definition_span(&state, param_uri, position) {
+        let location = match get_definition_span(&compilation_state, param_uri, position) {
             Some(location) => location,
             None => return Ok(None),
         };
@@ -152,11 +151,13 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let state = self.compilation_state.lock().await;
-        Ok(get_hover_info(&state, uri, position).map(|info| Hover {
-            contents: HoverContents::Scalar(MarkedString::String(info)),
-            range: None,
-        }))
+        let compilation_state = &self.shared_state.lock().await.compilation_state;
+        Ok(
+            get_hover_info(&compilation_state, uri, position).map(|info| Hover {
+                contents: HoverContents::Scalar(MarkedString::String(info)),
+                range: None,
+            }),
+        )
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -177,18 +178,13 @@ impl LanguageServer for Backend {
 impl Backend {
     async fn handle_file_change(&self, uri: Url) {
         let (updated_state, options) = self.compile_slice_files().await;
-        let mut compilation_state_guard = self.compilation_state.lock().await;
-        *compilation_state_guard = updated_state;
+        let mut shared_state_lock = self.shared_state.lock().await;
 
-        let mut compilation_options_guard = self.compilation_options.lock().await;
-        *compilation_options_guard = options;
+        shared_state_lock.compilation_state = updated_state;
+        shared_state_lock.compilation_options = options;
 
         let diagnostics = self
-            .get_diagnostics_for_uri(
-                &uri,
-                &mut compilation_state_guard,
-                &compilation_options_guard,
-            )
+            .get_diagnostics_for_uri(&uri, &mut shared_state_lock)
             .await;
 
         self.client
@@ -201,9 +197,10 @@ impl Backend {
     async fn get_diagnostics_for_uri(
         &self,
         uri: &Url,
-        compilation_state: &mut CompilationState,
-        options: &SliceOptions,
+        shared_state: &mut SharedState,
     ) -> Vec<Diagnostic> {
+        let compilation_state = &mut shared_state.compilation_state;
+        let options = &shared_state.compilation_options;
         let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
             &compilation_state.ast,
             &compilation_state.files,
@@ -213,7 +210,7 @@ impl Backend {
         diagnostics
             .iter()
             .filter(|d| d.span().is_some_and(|s| s.file == uri.path())) // Only show diagnostics for the saved file
-            .filter_map(|d| d.try_into_lsp_diagnostic())
+            .filter_map(|d| try_into_lsp_diagnostic(d))
             .collect::<Vec<_>>()
     }
 
