@@ -110,6 +110,13 @@ impl LanguageServer for Backend {
         };
 
         *self.root_uri.lock().await = file_directory;
+
+        // Re-compile the slice files
+        let (updated_state, options) = self.compile_slice_files().await;
+        let mut shared_state_lock = self.shared_state.lock().await;
+
+        shared_state_lock.compilation_state = updated_state;
+        shared_state_lock.compilation_options = options;
     }
 
     async fn goto_definition(
