@@ -47,6 +47,7 @@ impl LanguageServer for Backend {
         let workspace_uri = params.root_uri.clone();
         *self.workspace_uri.lock().await = workspace_uri.clone();
         *self.root_uri.lock().await = workspace_uri;
+
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
@@ -87,9 +88,6 @@ impl LanguageServer for Backend {
         };
         let mut root_uri = self.root_uri.lock().await;
         *root_uri = file_directory;
-        self.client
-            .log_message(MessageType::INFO, "Slice language server initialized!")
-            .await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -126,7 +124,6 @@ impl LanguageServer for Backend {
             Some(location) => location,
             None => return Ok(None),
         };
-
         let start = Position {
             line: (location.start.row - 1) as u32,
             character: (location.start.col - 1) as u32,
@@ -178,6 +175,7 @@ impl LanguageServer for Backend {
 impl Backend {
     async fn handle_file_change(&self, uri: Url) {
         let (updated_state, options) = self.compile_slice_files().await;
+
         let mut shared_state_lock = self.shared_state.lock().await;
 
         shared_state_lock.compilation_state = updated_state;
@@ -200,6 +198,7 @@ impl Backend {
         shared_state: &mut SharedState,
     ) -> Vec<Diagnostic> {
         let compilation_state = &mut shared_state.compilation_state;
+
         let options = &shared_state.compilation_options;
         let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
             &compilation_state.ast,
@@ -209,8 +208,12 @@ impl Backend {
 
         diagnostics
             .iter()
-            .filter(|d| d.span().is_some_and(|s| s.file == uri.path())) // Only show diagnostics for the saved file
-            .filter_map(|d| try_into_lsp_diagnostic(d))
+            .filter_map(|d| {
+                d.span()
+                    .and_then(|s| Url::parse(&s.file).ok()) // Attempt to parse the URL
+                    .filter(|url| url.path() == uri.path()) // Check if the path matches
+                    .and_then(|_| try_into_lsp_diagnostic(d)) // Convert to LSP diagnostic
+            })
             .collect::<Vec<_>>()
     }
 

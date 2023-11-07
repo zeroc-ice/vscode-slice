@@ -14,10 +14,13 @@ use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_definition_span(state: &CompilationState, uri: Url, position: Position) -> Option<Span> {
     // Attempt to convert the URL to a file path and then to a string
-    let file_path = uri.to_file_path().ok()?.to_str()?.to_owned();
+    let file_path = uri
+        .to_file_path()
+        .ok()
+        .and_then(|x| x.to_str().map(|y| y.to_owned()))?;
 
     // Attempt to retrieve the file from the state
-    let file = state.files.get(&file_path)?;
+    let file = state.files.get(&file_path).unwrap();
 
     // Convert position to row and column to 1 based
     let col = (position.character + 1) as usize;

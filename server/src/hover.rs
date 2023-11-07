@@ -13,7 +13,13 @@ use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) -> Option<String> {
     // Attempt to convert the URL to a file path and then to a string
-    let file_path = uri.to_file_path().ok()?.to_str()?.to_owned();
+    let file_path = uri
+        .to_file_path()
+        .ok()?
+        .to_path_buf()
+        .as_path()
+        .to_str()?
+        .to_owned();
 
     // Attempt to retrieve the file from the state
     let file = state.files.get(&file_path)?;

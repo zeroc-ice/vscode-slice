@@ -58,18 +58,43 @@ const handleConfigurationChanges = (client: LanguageClient) => {
 
 /**
  * Activate the extension.
- * @param {ExtensionContext} _context - The extension context.
+ * @param {ExtensionContext} context - The extension context.
  */
-export async function activate(_context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
   try {
     traceOutputChannel.appendLine("Activating extension...");
 
-    // Configure the language server executable.
-    const command = process.env.SERVER_PATH || "slice-language-server";
+    // Determine the platform and architecture, then set the command
+    let command: string;
+    const serverPath =
+      context.extensionPath + process.env.SERVER_PATH ||
+      "slice-language-server/";
+    const isProduction = process.env.NODE_ENV === "production";
+    if (isProduction) {
+      switch (process.platform) {
+        case "darwin": // macOS
+          command = `${serverPath}${
+            process.arch === "arm64" ? "aarch64" : "x86_64"
+          }-apple-darwin/release/slice-language-server`;
+          break;
+        case "win32": // Windows
+          command = `${serverPath}x86_64-pc-windows-msvc/release/slice-language-server.exe`;
+          break;
+        case "linux": // Linux
+          command = `${serverPath}x86_64-unknown-linux-gnu/release/slice-language-server`;
+          break;
+        default:
+          throw new Error(`Unsupported platform: ${process.platform}`);
+      }
+    } else {
+      traceOutputChannel.appendLine(`FOOO: ${command}`);
+    }
+
     const run: Executable = {
       command,
       options: { env: { ...process.env, RUST_LOG: "debug" } },
     };
+
     const serverOptions: ServerOptions = { run, debug: run };
 
     // Configure the language client options.

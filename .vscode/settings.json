@@ -4,5 +4,5 @@
   "[rust]": {
     "editor.rulers": [120]
   },
-  "cSpell.words": ["Commentable", "slicec", "typeref"]
+  "cSpell.words": ["canonicalize", "Commentable", "slicec", "typeref"]
 }
