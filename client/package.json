@@ -7,7 +7,7 @@
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zeroc-ice/vscode-slice/pull/8"
+    "url": "https://github.com/zeroc-ice/vscode-slice"
   },
   "engines": {
     "vscode": "^1.75.0"
