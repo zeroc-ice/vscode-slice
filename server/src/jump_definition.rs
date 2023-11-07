@@ -1,7 +1,5 @@
 // Copyright (c) ZeroC, Inc.
 
-use std::path::PathBuf;
-
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -15,31 +13,25 @@ use slicec::{
 use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_definition_span(state: &CompilationState, uri: Url, position: Position) -> Option<Span> {
-    // Convert the URI to a PathBuf and normalize it
-    let uri_path = uri.to_file_path().ok()?.canonicalize().ok()?;
+    let file_path = uri
+        .to_file_path()
+        .ok()?
+        .to_path_buf()
+        .as_path()
+        .to_str()?
+        .to_owned();
 
-    // Find the matching key in the hashmap
-    let matching_key = state.files.keys().find(|&k| {
-        let key_path = PathBuf::from(k).canonicalize().ok();
-        key_path.as_ref() == Some(&uri_path)
-    });
+    // Attempt to retrieve the file from the state
+    let file = state.files.get(&file_path)?;
 
-    // Use the matching key to retrieve the file
-    if let Some(key) = matching_key {
-        let file = state.files.get(key)?;
-        // Convert position to row and column to 1 based
-        let col = (position.character + 1) as usize;
-        let row = (position.line + 1) as usize;
-        let location = (row, col).into();
+    // Convert position to row and column 1 based
+    let col = (position.character + 1) as usize;
+    let row = (position.line + 1) as usize;
 
-        let mut visitor = JumpVisitor::new(location);
-        file.visit_with(&mut visitor);
+    let mut visitor = JumpVisitor::new(slicec::slice_file::Location { row, col });
+    file.visit_with(&mut visitor);
 
-        visitor.found_span
-    } else {
-        // Handle the case where no matching file is found
-        None
-    }
+    visitor.found_span
 }
 
 struct JumpVisitor {

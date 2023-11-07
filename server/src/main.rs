@@ -44,9 +44,10 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
         // Use the workspace root if it exists temporarily as we cannot access configuration until
         // after initialization.
-        let workspace_uri = params.root_uri.clone();
-        *self.workspace_uri.lock().await = workspace_uri.clone();
-        *self.root_uri.lock().await = workspace_uri;
+
+        let fixed_uri = Url::from_file_path(params.root_uri.unwrap().to_file_path().unwrap()).ok();
+        *self.workspace_uri.lock().await = fixed_uri.clone();
+        *self.root_uri.lock().await = fixed_uri;
 
         Ok(InitializeResult {
             server_info: None,
@@ -123,7 +124,16 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        let param_uri = params.text_document_position_params.text_document.uri;
+        let param_uri = Url::from_file_path(
+            params
+                .text_document_position_params
+                .text_document
+                .uri
+                .to_file_path()
+                .unwrap(),
+        )
+        .unwrap();
+
         let position = params.text_document_position_params.position;
         let compilation_state = &self.shared_state.lock().await.compilation_state;
 
@@ -153,7 +163,15 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
-        let uri = params.text_document_position_params.text_document.uri;
+        let uri = Url::from_file_path(
+            params
+                .text_document_position_params
+                .text_document
+                .uri
+                .to_file_path()
+                .unwrap(),
+        )
+        .unwrap();
         let position = params.text_document_position_params.position;
         let compilation_state = &self.shared_state.lock().await.compilation_state;
         Ok(
@@ -224,12 +242,8 @@ impl Backend {
                         // Convert the URI to a PathBuf, handling URL decoding
                         let uri_path = uri.to_file_path().ok().map(|p| p.to_path_buf())?;
 
-                        // Normalize both paths for comparison
-                        let span_path_normalized = span_path.canonicalize().ok()?;
-                        let uri_path_normalized = uri_path.canonicalize().ok()?;
-
                         // Check if the paths match
-                        (span_path_normalized == uri_path_normalized).then(|| d)
+                        (span_path == uri_path).then(|| d)
                     })
                     // Convert to LSP diagnostic
                     .and_then(|d| try_into_lsp_diagnostic(d))

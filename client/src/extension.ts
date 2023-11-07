@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-import { workspace, ExtensionContext, window } from "vscode";
+import { workspace, ExtensionContext, window, Uri } from "vscode";
 import {
   Executable,
   LanguageClient,
