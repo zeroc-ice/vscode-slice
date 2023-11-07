@@ -1,5 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
+use std::path::PathBuf;
+
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -13,24 +15,31 @@ use slicec::{
 use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_definition_span(state: &CompilationState, uri: Url, position: Position) -> Option<Span> {
-    // Attempt to convert the URL to a file path and then to a string
-    let file_path = uri
-        .to_file_path()
-        .ok()
-        .and_then(|x| x.to_str().map(|y| y.to_owned()))?;
+    // Convert the URI to a PathBuf and normalize it
+    let uri_path = uri.to_file_path().ok()?.canonicalize().ok()?;
 
-    // Attempt to retrieve the file from the state
-    let file = state.files.get(&file_path).unwrap();
+    // Find the matching key in the hashmap
+    let matching_key = state.files.keys().find(|&k| {
+        let key_path = PathBuf::from(k).canonicalize().ok();
+        key_path.as_ref() == Some(&uri_path)
+    });
 
-    // Convert position to row and column to 1 based
-    let col = (position.character + 1) as usize;
-    let row = (position.line + 1) as usize;
-    let location = (row, col).into();
+    // Use the matching key to retrieve the file
+    if let Some(key) = matching_key {
+        let file = state.files.get(key)?;
+        // Convert position to row and column to 1 based
+        let col = (position.character + 1) as usize;
+        let row = (position.line + 1) as usize;
+        let location = (row, col).into();
 
-    let mut visitor = JumpVisitor::new(location);
-    file.visit_with(&mut visitor);
+        let mut visitor = JumpVisitor::new(location);
+        file.visit_with(&mut visitor);
 
-    visitor.found_span
+        visitor.found_span
+    } else {
+        // Handle the case where no matching file is found
+        None
+    }
 }
 
 struct JumpVisitor {
@@ -111,7 +120,10 @@ impl Visitor for JumpVisitor {
         self.check_comment(class_def);
         if let Some(base_ref) = &class_def.base {
             if self.search_location.is_within(&base_ref.span) {
-                self.found_span = Some(base_ref.definition().raw_identifier().span().clone());
+                let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
+                    return;
+                };
+                self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
                 return;
             }
         }
@@ -121,7 +133,10 @@ impl Visitor for JumpVisitor {
         self.check_comment(exception_def);
         if let Some(base_ref) = &exception_def.base {
             if self.search_location.is_within(&base_ref.span) {
-                self.found_span = Some(base_ref.definition().raw_identifier().span().clone());
+                let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
+                    return;
+                };
+                self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
                 return;
             }
         }
@@ -131,7 +146,10 @@ impl Visitor for JumpVisitor {
         self.check_comment(interface_def);
         for base_ref in interface_def.bases.iter() {
             if self.search_location.is_within(&base_ref.span) {
-                self.found_span = Some(base_ref.definition().raw_identifier().span().clone());
+                let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
+                    return;
+                };
+                self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
                 return;
             };
         }
@@ -145,7 +163,10 @@ impl Visitor for JumpVisitor {
         self.check_comment(operation_def);
         for base_ref in operation_def.exception_specification.iter() {
             if self.search_location.is_within(&base_ref.span) {
-                self.found_span = Some(base_ref.definition().raw_identifier().span().clone());
+                let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
+                    return;
+                };
+                self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
                 return;
             };
         }

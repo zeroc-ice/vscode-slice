@@ -1,5 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
+use std::path::PathBuf;
+
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -12,26 +14,31 @@ use slicec::{
 use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) -> Option<String> {
-    // Attempt to convert the URL to a file path and then to a string
-    let file_path = uri
-        .to_file_path()
-        .ok()?
-        .to_path_buf()
-        .as_path()
-        .to_str()?
-        .to_owned();
+    // Convert the URI to a PathBuf and normalize it
+    let uri_path = uri.to_file_path().ok()?.canonicalize().ok()?;
 
-    // Attempt to retrieve the file from the state
-    let file = state.files.get(&file_path)?;
+    // Find the matching key in the hashmap
+    let matching_key = state.files.keys().find(|&k| {
+        let key_path = PathBuf::from(k).canonicalize().ok();
+        key_path.as_ref() == Some(&uri_path)
+    });
 
-    // Convert position to row and column 1 based
-    let col = (position.character + 1) as usize;
-    let row = (position.line + 1) as usize;
+    // Use the matching key to retrieve the file
+    if let Some(key) = matching_key {
+        let file = state.files.get(key)?;
 
-    let mut visitor = HoverVisitor::new(slicec::slice_file::Location { row, col });
-    file.visit_with(&mut visitor);
+        // Convert position to row and column 1 based
+        let col = (position.character + 1) as usize;
+        let row = (position.line + 1) as usize;
 
-    visitor.found_message
+        let mut visitor = HoverVisitor::new(slicec::slice_file::Location { row, col });
+        file.visit_with(&mut visitor);
+
+        visitor.found_message
+    } else {
+        // Handle the case where no matching file is found
+        None
+    }
 }
 
 struct HoverVisitor {

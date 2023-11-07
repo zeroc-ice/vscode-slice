@@ -5,7 +5,7 @@ use hover::get_hover_info;
 use jump_definition::get_definition_span;
 use shared_state::SharedState;
 use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
 
@@ -210,9 +210,22 @@ impl Backend {
             .iter()
             .filter_map(|d| {
                 d.span()
-                    .and_then(|s| Url::parse(&s.file).ok()) // Attempt to parse the URL
-                    .filter(|url| url.path() == uri.path()) // Check if the path matches
-                    .and_then(|_| try_into_lsp_diagnostic(d)) // Convert to LSP diagnostic
+                    .and_then(|s| {
+                        // Convert the span file path to a PathBuf
+                        let span_path = PathBuf::from(&s.file);
+
+                        // Convert the URI to a PathBuf, handling URL decoding
+                        let uri_path = uri.to_file_path().ok().map(|p| p.to_path_buf())?;
+
+                        // Normalize both paths for comparison
+                        let span_path_normalized = span_path.canonicalize().ok()?;
+                        let uri_path_normalized = uri_path.canonicalize().ok()?;
+
+                        // Check if the paths match
+                        (span_path_normalized == uri_path_normalized).then(|| d)
+                    })
+                    // Convert to LSP diagnostic
+                    .and_then(|d| try_into_lsp_diagnostic(d))
             })
             .collect::<Vec<_>>()
     }
