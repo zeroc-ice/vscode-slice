@@ -2,7 +2,7 @@
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use tower_lsp::lsp_types::{
-    CodeDescription, DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
+    DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
 };
 
 pub fn try_into_lsp_diagnostic(
@@ -43,10 +43,7 @@ pub fn try_into_lsp_diagnostic(
         range,
         severity,
         code: Some(NumberOrString::String(diagnostic.code().to_owned())),
-        code_description: Some(CodeDescription { href:
-                // Create a URL object to https://docs.icerpc.dev
-                Url::parse("https://docs.icerpc.dev").unwrap(),
-             }),
+        code_description: None,
         source: Some("slicec".to_owned()),
         message,
         related_information,

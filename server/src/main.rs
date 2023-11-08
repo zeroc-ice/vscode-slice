@@ -80,7 +80,7 @@ impl LanguageServer for Backend {
         let workspace_uri = self.workspace_uri.lock().await;
 
         // Fetch and set the search directory
-        let file_directory = match self.get_search_directory(&workspace_uri, None).await {
+        let sources_directory = match self.get_sources_directory(&workspace_uri, None).await {
             Ok(dir) => Some(dir),
             Err(_err) => {
                 // Handle error as needed, for example, log it and return a default value
@@ -88,7 +88,7 @@ impl LanguageServer for Backend {
             }
         };
         let mut root_uri = self.root_uri.lock().await;
-        *root_uri = file_directory;
+        *root_uri = sources_directory;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -102,17 +102,17 @@ impl LanguageServer for Backend {
         let workspace_uri = self.workspace_uri.lock().await;
 
         // Update the search directory if it has changed
-        let file_directory = match self
-            .get_search_directory(&workspace_uri, Some(params))
+        let sources_directory = match self
+            .get_sources_directory(&workspace_uri, Some(params))
             .await
         {
             Ok(dir) => Some(dir),
             Err(_err) => None,
         };
 
-        *self.root_uri.lock().await = file_directory;
+        *self.root_uri.lock().await = sources_directory;
 
-        // Re-compile the slice files
+        // Re-compile the Slice files
         let (updated_state, options) = self.compile_slice_files().await;
         let mut shared_state_lock = self.shared_state.lock().await;
 
@@ -283,15 +283,15 @@ impl Backend {
         )
     }
 
-    async fn get_search_directory(
+    async fn get_sources_directory(
         &self,
         workspace_root: &Option<Url>,
         config_params: Option<DidChangeConfigurationParams>,
     ) -> Result<Url, Option<tower_lsp::jsonrpc::Error>> {
-        let search_dir = if let Some(params) = config_params {
+        let sources_directory = if let Some(params) = config_params {
             params
                 .settings
-                .get("slice-language-server")
+                .get("slice")
                 .and_then(|v| v.get("searchDirectory"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
@@ -299,7 +299,7 @@ impl Backend {
         } else {
             let params = vec![ConfigurationItem {
                 scope_uri: None,
-                section: Some("slice-language-server.searchDirectory".to_string()),
+                section: Some("slice.searchDirectory".to_string()),
             }];
 
             let result = self.client.configuration(params).await?;
@@ -316,7 +316,7 @@ impl Backend {
                 ))
             })?;
 
-            let search_path = workspace_path.join(&search_dir);
+            let search_path = workspace_path.join(&sources_directory);
 
             Url::from_file_path(search_path).map_err(|_| {
                 Some(tower_lsp::jsonrpc::Error::invalid_params(
