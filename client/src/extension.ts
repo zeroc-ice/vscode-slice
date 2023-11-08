@@ -66,10 +66,11 @@ export async function activate(context: ExtensionContext) {
 
     // Determine the platform and architecture, then set the command
     let command: string;
-    const serverPath =
-      context.extensionPath + process.env.SERVER_PATH ||
-      "slice-language-server/";
+
     const isProduction = process.env.NODE_ENV === "production";
+    const serverPath = isProduction
+      ? context.extensionPath + process.env.SERVER_PATH
+      : process.env.SERVER_PATH + "debug/slice-language-server";
     if (isProduction) {
       switch (process.platform) {
         case "darwin": // macOS
@@ -87,8 +88,10 @@ export async function activate(context: ExtensionContext) {
           throw new Error(`Unsupported platform: ${process.platform}`);
       }
     } else {
-      traceOutputChannel.appendLine(`FOOO: ${command}`);
+      command = serverPath;
     }
+
+    traceOutputChannel.appendLine(`Command: ${command}`);
 
     const run: Executable = {
       command,
