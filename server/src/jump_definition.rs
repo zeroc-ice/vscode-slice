@@ -28,7 +28,7 @@ pub fn get_definition_span(state: &CompilationState, uri: Url, position: Positio
     let col = (position.character + 1) as usize;
     let row = (position.line + 1) as usize;
 
-    let mut visitor = JumpVisitor::new(slicec::slice_file::Location { row, col });
+    let mut visitor = JumpVisitor::new(Location { row, col });
     file.visit_with(&mut visitor);
 
     visitor.found_span

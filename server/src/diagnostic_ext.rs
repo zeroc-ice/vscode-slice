@@ -35,7 +35,7 @@ pub fn try_into_lsp_diagnostic(
         diagnostic
             .notes()
             .iter()
-            .filter_map(|n| try_into_lsp_diagnostic_related_information(n))
+            .filter_map(try_into_lsp_diagnostic_related_information)
             .collect(),
     );
 

@@ -30,7 +30,7 @@ pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) ->
     let col = (position.character + 1) as usize;
     let row = (position.line + 1) as usize;
 
-    let mut visitor = HoverVisitor::new(slicec::slice_file::Location { row, col });
+    let mut visitor = HoverVisitor::new(Location { row, col });
     file.visit_with(&mut visitor);
 
     visitor.found_message
