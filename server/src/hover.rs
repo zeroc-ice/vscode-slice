@@ -1,7 +1,5 @@
 // Copyright (c) ZeroC, Inc.
 
-use std::primitive;
-
 use slicec::{
     compilation_state::CompilationState,
     grammar::{

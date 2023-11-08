@@ -4,11 +4,9 @@ node_modules
 tsconfig.json
 
 # Client
-client/.gitignore
-client/node_modules
-client/package.json
-client/package-lock.json
-client/tsconfig.json
+client/**
+!client/src
+!client/out
 
 # Server
 server/**

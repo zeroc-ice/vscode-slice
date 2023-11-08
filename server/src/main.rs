@@ -85,13 +85,7 @@ impl LanguageServer for Backend {
         let workspace_uri = self.workspace_uri.lock().await;
 
         // Fetch and set the search directory
-        let sources_directory = match self.get_sources_directory(&workspace_uri, None).await {
-            Ok(dir) => Some(dir),
-            Err(_err) => {
-                // Handle error as needed, for example, log it and return a default value
-                None
-            }
-        };
+        let sources_directory = self.get_sources_directory(&workspace_uri, None).await.ok();
         let mut sources_uri = self.sources_uri.lock().await;
         *sources_uri = sources_directory;
     }
@@ -107,22 +101,28 @@ impl LanguageServer for Backend {
         let workspace_uri = self.workspace_uri.lock().await;
 
         // Update the search directory if it has changed
-        let sources_directory = match self
+        let sources_directory = self
             .get_sources_directory(&workspace_uri, Some(params))
             .await
-        {
-            Ok(dir) => Some(dir),
-            Err(_err) => None,
-        };
+            .ok();
 
-        *self.sources_uri.lock().await = sources_directory;
+        if sources_directory.is_some() {
+            *self.sources_uri.lock().await = sources_directory;
 
-        // Re-compile the Slice files
-        let (updated_state, options) = self.compile_slice_files().await;
-        let mut shared_state_lock = self.shared_state.lock().await;
+            // Re-compile the Slice files
+            let (updated_state, options) = self.compile_slice_files().await;
+            let mut shared_state_lock = self.shared_state.lock().await;
 
-        shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
+            shared_state_lock.compilation_state = updated_state;
+            shared_state_lock.compilation_options = options;
+        } else {
+            self.client
+                .log_message(
+                    MessageType::ERROR,
+                    "Failed to update sources directory. Please check your Slice language server configuration.",
+                )
+                .await;
+        }
     }
 
     async fn goto_definition(
@@ -156,9 +156,8 @@ impl LanguageServer for Backend {
             character: (location.end.col - 1) as u32,
         };
 
-        let uri = match Url::from_file_path(location.file) {
-            Ok(uri) => uri,
-            Err(_) => return Ok(None),
+        let Ok(uri) = Url::from_file_path(location.file) else {
+            return Ok(None);
         };
 
         Ok(Some(GotoDefinitionResponse::Scalar(Location {
@@ -180,7 +179,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         let compilation_state = &self.shared_state.lock().await.compilation_state;
         Ok(
-            get_hover_info(&compilation_state, uri, position).map(|info| Hover {
+            get_hover_info(compilation_state, uri, position).map(|info| Hover {
                 contents: HoverContents::Scalar(MarkedString::String(info)),
                 range: None,
             }),
@@ -235,6 +234,13 @@ impl Backend {
             &compilation_state.files,
             options,
         );
+
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("got {} diagnostics", diagnostics.len()),
+            )
+            .await;
 
         diagnostics
             .iter()

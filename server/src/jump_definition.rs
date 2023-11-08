@@ -94,7 +94,6 @@ impl JumpVisitor {
         if let Ok(entity) = linked_entity_result {
             if self.search_location.is_within(span) {
                 self.found_span = Some(entity.raw_identifier().span().clone());
-                return;
             };
         }
     }
@@ -117,7 +116,6 @@ impl Visitor for JumpVisitor {
                     return;
                 };
                 self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
-                return;
             }
         }
     }
@@ -130,20 +128,18 @@ impl Visitor for JumpVisitor {
                     return;
                 };
                 self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
-                return;
             }
         }
     }
 
     fn visit_interface(&mut self, interface_def: &Interface) {
         self.check_comment(interface_def);
-        for base_ref in interface_def.bases.iter() {
+        for base_ref in &interface_def.bases {
             if self.search_location.is_within(&base_ref.span) {
                 let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
                     return;
                 };
                 self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
-                return;
             };
         }
     }
@@ -154,13 +150,12 @@ impl Visitor for JumpVisitor {
 
     fn visit_operation(&mut self, operation_def: &Operation) {
         self.check_comment(operation_def);
-        for base_ref in operation_def.exception_specification.iter() {
+        for base_ref in &operation_def.exception_specification {
             if self.search_location.is_within(&base_ref.span) {
                 let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
                     return;
                 };
                 self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
-                return;
             };
         }
     }
