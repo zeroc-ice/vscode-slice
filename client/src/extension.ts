@@ -28,7 +28,7 @@ const createClient = (
   clientOptions: LanguageClientOptions
 ) => {
   return new LanguageClient(
-    "slice-language-server",
+    "slice",
     "Slice Language Server",
     serverOptions,
     clientOptions
@@ -41,15 +41,15 @@ const createClient = (
  */
 const handleConfigurationChanges = (client: LanguageClient) => {
   workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration("slice-language-server")) {
+    if (event.affectsConfiguration("slice")) {
       // Retrieve the updated configuration settings.
-      const config = workspace.getConfiguration("slice-language-server");
-      const searchDirectory = config.get<string>("searchDirectory");
+      const config = workspace.getConfiguration("slice");
+      const sourceDirectory = config.get<string>("sourceDirectory");
 
       // Send the "workspace/didChangeConfiguration" notification to the server with the updated settings.
       client.sendNotification("workspace/didChangeConfiguration", {
         settings: {
-          "slice-language-server": { searchDirectory },
+          slice: { sourceDirectory },
         },
       });
     }
@@ -90,8 +90,6 @@ export async function activate(context: ExtensionContext) {
     } else {
       command = serverPath;
     }
-
-    traceOutputChannel.appendLine(`Command: ${command}`);
 
     const run: Executable = {
       command,

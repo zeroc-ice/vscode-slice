@@ -20,7 +20,7 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| Backend {
-        root_uri: Arc::new(Mutex::new(None)),
+        sources_uri: Arc::new(Mutex::new(None)),
         client,
         workspace_uri: Arc::new(Mutex::new(None)),
         shared_state: Arc::new(Mutex::new(SharedState::new())),
@@ -31,8 +31,10 @@ async fn main() {
 
 struct Backend {
     client: Client,
+    // The workspace URI is the URI of the VSCode workspace.
     workspace_uri: Arc<Mutex<Option<Url>>>,
-    root_uri: Arc<Mutex<Option<Url>>>,
+    // The sources URI is the URI of the directory containing the Slice files.
+    sources_uri: Arc<Mutex<Option<Url>>>,
     shared_state: Arc<Mutex<SharedState>>,
 }
 
@@ -43,11 +45,14 @@ impl LanguageServer for Backend {
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
         // Use the workspace root if it exists temporarily as we cannot access configuration until
-        // after initialization.
-
-        let fixed_uri = Url::from_file_path(params.root_uri.unwrap().to_file_path().unwrap()).ok();
+        // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
+        // drive letter. To fix this, we convert the path to a URL and then back to a path.
+        let fixed_uri = params
+            .root_uri
+            .and_then(|uri| uri.to_file_path().ok())
+            .and_then(|path| Url::from_file_path(path).ok());
         *self.workspace_uri.lock().await = fixed_uri.clone();
-        *self.root_uri.lock().await = fixed_uri;
+        *self.sources_uri.lock().await = fixed_uri;
 
         Ok(InitializeResult {
             server_info: None,
@@ -87,8 +92,8 @@ impl LanguageServer for Backend {
                 None
             }
         };
-        let mut root_uri = self.root_uri.lock().await;
-        *root_uri = sources_directory;
+        let mut sources_uri = self.sources_uri.lock().await;
+        *sources_uri = sources_directory;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -110,7 +115,7 @@ impl LanguageServer for Backend {
             Err(_err) => None,
         };
 
-        *self.root_uri.lock().await = sources_directory;
+        *self.sources_uri.lock().await = sources_directory;
 
         // Re-compile the Slice files
         let (updated_state, options) = self.compile_slice_files().await;
@@ -256,25 +261,24 @@ impl Backend {
             .log_message(MessageType::INFO, "compiling slice")
             .await;
 
-        let root_uri = self.root_uri.lock().await;
+        let sources_uri = self.sources_uri.lock().await;
 
-        let directory_path = root_uri
+        let directory_path = sources_uri
             .as_ref()
-            .unwrap()
-            .to_file_path()
-            .unwrap()
-            .display()
-            .to_string();
+            .and_then(|uri| uri.to_file_path().ok())
+            .map(|path| path.display().to_string());
 
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("directory_path {:?}", directory_path),
+        // This case should never happen during normal operation. In case it does, we log an error before unwrapping.
+        if directory_path.is_none() {
+            self.client.log_message(
+                MessageType::ERROR,
+                format!("Could not get sources directory path during slice compilation. Sources URI {:?}", sources_uri)
             )
             .await;
+        }
 
         let options = SliceOptions {
-            references: vec![directory_path],
+            references: vec![directory_path.unwrap()],
             ..Default::default()
         };
         (
@@ -292,14 +296,14 @@ impl Backend {
             params
                 .settings
                 .get("slice")
-                .and_then(|v| v.get("searchDirectory"))
+                .and_then(|v| v.get("sourceDirectory"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .ok_or(None)?
         } else {
             let params = vec![ConfigurationItem {
                 scope_uri: None,
-                section: Some("slice.searchDirectory".to_string()),
+                section: Some("slice.sourceDirectory".to_string()),
             }];
 
             let result = self.client.configuration(params).await?;

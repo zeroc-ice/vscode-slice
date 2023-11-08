@@ -62,9 +62,9 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "slice-language-server",
+      "title": "Slice",
       "properties": {
-        "slice-language-server.trace.server": {
+        "slice.trace.server": {
           "type": "string",
           "scope": "window",
           "enum": [
@@ -80,7 +80,7 @@
           "default": "off",
           "description": "Traces the communication between VS Code and the language server."
         },
-        "slice-language-server.searchDirectory": {
+        "slice.sourceDirectory": {
           "type": "string",
           "description": "The directory to search for Slice files.",
           "scope": "resource"
