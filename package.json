@@ -1,6 +1,6 @@
 {
   "name": "slice",
-  "displayName": "Slice Highlighter",
+  "displayName": "Slice",
   "description": "Provides support for Slice syntax highlighting.",
   "icon": "images/icon.png",
   "version": "4.0.0",

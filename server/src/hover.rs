@@ -1,5 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
+use std::primitive;
+
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -49,25 +51,25 @@ impl HoverVisitor {
         }
     }
 
-    fn describe_primitive_type(primitive_type: &Primitive) -> &'static str {
+    fn describe_primitive_type(primitive_type: &Primitive) -> (&'static str, &'static str) {
         match primitive_type {
-            Primitive::Bool => "The boolean type.",
-            Primitive::Int8 => "The 8-bit signed integer type.",
-            Primitive::UInt8 => "The 8-bit unsigned integer type.",
-            Primitive::Int16 => "The 16-bit signed integer type.",
-            Primitive::UInt16 => "The 16-bit unsigned integer type.",
-            Primitive::Int32 => "The 32-bit signed integer type.",
-            Primitive::UInt32 => "The 32-bit unsigned integer type.",
-            Primitive::VarInt32 => "The variable-length signed integer type.",
-            Primitive::VarUInt32 => "The variable-length unsigned integer type.",
-            Primitive::Int64 => "The 64-bit signed integer type.",
-            Primitive::UInt64 => "The 64-bit unsigned integer type.",
-            Primitive::VarInt62 => "The variable-length signed integer type.",
-            Primitive::VarUInt62 => "The variable-length unsigned integer type.",
-            Primitive::Float32 => "The 32-bit floating point type.",
-            Primitive::Float64 => "The 64-bit floating point type.",
-            Primitive::String => "A UTF-8 string.",
-            Primitive::AnyClass => "An instance of any Slice class.",
+            Primitive::Bool => ("A", "boolean type."),
+            Primitive::Int8 => ("An", "8-bit signed integer type."),
+            Primitive::UInt8 => ("An", "8-bit unsigned integer type."),
+            Primitive::Int16 => ("A", "16-bit signed integer type."),
+            Primitive::UInt16 => ("A", "16-bit unsigned integer type."),
+            Primitive::Int32 => ("A", "32-bit signed integer type."),
+            Primitive::UInt32 => ("A", "32-bit unsigned integer type."),
+            Primitive::VarInt32 => ("A", "variable-length signed integer type."),
+            Primitive::VarUInt32 => ("A", "variable-length unsigned integer type."),
+            Primitive::Int64 => ("A", "64-bit signed integer type."),
+            Primitive::UInt64 => ("A", "64-bit unsigned integer type."),
+            Primitive::VarInt62 => ("A", "variable-length signed integer type."),
+            Primitive::VarUInt62 => ("A", "variable-length unsigned integer type."),
+            Primitive::Float32 => ("A", "32-bit floating point type."),
+            Primitive::Float64 => ("A", "64-bit floating point type."),
+            Primitive::String => ("A", "UTF-8 string."),
+            Primitive::AnyClass => ("A", "instance of any Slice class."),
         }
     }
 }
@@ -90,7 +92,13 @@ impl Visitor for HoverVisitor {
             if !&self.search_location.is_within(underlying.span()) {
                 return;
             }
-            Some(HoverVisitor::describe_primitive_type(underlying.definition()).to_owned());
+            let (prefix, description) =
+                HoverVisitor::describe_primitive_type(underlying.definition()).to_owned();
+            self.found_message = if underlying.is_optional {
+                Some(format!("An optional {description}"))
+            } else {
+                Some(format!("{prefix} {description}"))
+            };
         }
     }
 
@@ -118,10 +126,17 @@ impl Visitor for HoverVisitor {
         };
 
         let type_description = match type_def.borrow().concrete_type() {
-            Types::Primitive(x) => Some(HoverVisitor::describe_primitive_type(x).to_owned()),
+            Types::Primitive(x) => {
+                let (prefix, description) = HoverVisitor::describe_primitive_type(x).to_owned();
+                let message = if typeref.is_optional {
+                    Some(format!("An optional {description}"))
+                } else {
+                    Some(format!("{prefix} {description}"))
+                };
+                message
+            }
             _ => None,
         };
-
         self.found_message = type_description;
     }
 }

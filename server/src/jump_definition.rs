@@ -4,8 +4,8 @@ use slicec::{
     compilation_state::CompilationState,
     grammar::{
         Class, Commentable, CustomType, Entity, Enum, Enumerator, Exception, Field, Identifier,
-        Interface, MessageComponent, Module, NamedSymbol, Operation, Parameter, Struct, Symbol,
-        TypeAlias, TypeRef, TypeRefDefinition, Types,
+        Interface, Message, MessageComponent, Module, NamedSymbol, Operation, Parameter, Struct,
+        Symbol, TypeAlias, TypeRef, TypeRefDefinition, Types,
     },
     slice_file::{Location, SliceFile, Span},
     visitor::Visitor,
@@ -54,11 +54,12 @@ impl JumpVisitor {
             comment
                 .overview
                 .as_ref()
-                .map(|overview| self.check_message_links(&overview.message));
+                .map(|overview| self.check_message_links(overview));
             comment
                 .returns
                 .iter()
                 .for_each(|returns| self.check_message_links(&returns.message));
+
             comment
                 .params
                 .iter()
@@ -75,9 +76,9 @@ impl JumpVisitor {
     }
 
     // This function checks to see if the search location is within the span of the link
-    fn check_message_links(&mut self, message: &Vec<MessageComponent>) {
-        for m in message.iter() {
-            if let MessageComponent::Link(l) = m {
+    fn check_message_links(&mut self, message: &Message) {
+        for component in &message.value {
+            if let MessageComponent::Link(l) = component {
                 self.check_and_set_span(l.linked_entity(), l.span());
             }
         }
