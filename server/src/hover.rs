@@ -1,5 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
+use crate::utils::convert_uri_to_slice_formated_url;
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -12,19 +13,8 @@ use slicec::{
 use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) -> Option<String> {
-    let file_path = uri
-        .to_file_path()
-        .ok()?
-        .to_path_buf()
-        .as_path()
-        .to_str()?
-        .to_owned();
-
-    let file =
-        state
-            .files
-            .get(&file_path)
-            .expect(&format!("{:?} {:?}", file_path, state.files.keys()));
+    let file_path = convert_uri_to_slice_formated_url(uri)?;
+    let file = state.files.get(&file_path)?;
 
     // Convert position to row and column 1 based
     let col = (position.character + 1) as usize;

@@ -64,25 +64,9 @@
       "type": "object",
       "title": "Slice",
       "properties": {
-        "slice.trace.server": {
-          "type": "string",
-          "scope": "window",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "enumDescriptions": [
-            "No traces",
-            "Error only",
-            "Full log"
-          ],
-          "default": "off",
-          "description": "Traces the communication between VS Code and the language server."
-        },
         "slice.sourceDirectory": {
           "type": "string",
-          "description": "The directory to search for Slice files.",
+          "description": "The directory containing the target Slice files.",
           "scope": "resource"
         }
       }

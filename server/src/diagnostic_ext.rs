@@ -55,23 +55,19 @@ pub fn try_into_lsp_diagnostic(
 fn try_into_lsp_diagnostic_related_information(
     note: &Note,
 ) -> Option<tower_lsp::lsp_types::DiagnosticRelatedInformation> {
-    if let Some(span) = note.span.as_ref() {
-        let file_path = Url::from_file_path(span.file.clone()).unwrap();
-        let start_position =
-            Position::new((span.start.row - 1) as u32, (span.start.col - 1) as u32);
-        let end_position = Position::new((span.end.row - 1) as u32, (span.end.col - 1) as u32);
+    let span = note.span.as_ref()?;
+    let file_path = Url::from_file_path(span.file.clone()).unwrap();
+    let start_position = Position::new((span.start.row - 1) as u32, (span.start.col - 1) as u32);
+    let end_position = Position::new((span.end.row - 1) as u32, (span.end.col - 1) as u32);
 
-        Some(DiagnosticRelatedInformation {
-            location: Location {
-                uri: file_path,
-                range: Range {
-                    start: start_position,
-                    end: end_position,
-                },
+    Some(DiagnosticRelatedInformation {
+        location: Location {
+            uri: file_path,
+            range: Range {
+                start: start_position,
+                end: end_position,
             },
-            message: note.message.clone(),
-        })
-    } else {
-        None
-    }
+        },
+        message: note.message.clone(),
+    })
 }

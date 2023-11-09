@@ -1,5 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
+use crate::utils::convert_uri_to_slice_formated_url;
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -13,13 +14,7 @@ use slicec::{
 use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_definition_span(state: &CompilationState, uri: Url, position: Position) -> Option<Span> {
-    let file_path = uri
-        .to_file_path()
-        .ok()?
-        .to_path_buf()
-        .as_path()
-        .to_str()?
-        .to_owned();
+    let file_path = convert_uri_to_slice_formated_url(uri)?;
 
     // Attempt to retrieve the file from the state
     let file = state.files.get(&file_path)?;
@@ -137,7 +132,7 @@ impl Visitor for JumpVisitor {
         for base_ref in &interface_def.bases {
             if self.search_location.is_within(&base_ref.span) {
                 let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
-                    return;
+                    continue;
                 };
                 self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
             };
@@ -153,7 +148,7 @@ impl Visitor for JumpVisitor {
         for base_ref in &operation_def.exception_specification {
             if self.search_location.is_within(&base_ref.span) {
                 let TypeRefDefinition::Patched(type_def) = &base_ref.definition else {
-                    return;
+                    continue;
                 };
                 self.found_span = Some(type_def.borrow().raw_identifier().span().clone());
             };

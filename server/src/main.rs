@@ -13,6 +13,7 @@ mod diagnostic_ext;
 mod hover;
 mod jump_definition;
 mod shared_state;
+mod utils;
 
 #[tokio::main]
 async fn main() {
@@ -60,9 +61,9 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Options(
                     TextDocumentSyncOptions {
                         open_close: Some(true),
-                        change: Some(TextDocumentSyncKind::FULL), // or TextDocumentSyncKind::INCREMENTAL
+                        change: Some(TextDocumentSyncKind::FULL),
                         save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
-                            include_text: Some(true),
+                            include_text: Some(false),
                         })),
                         ..Default::default()
                     },
@@ -84,7 +85,7 @@ impl LanguageServer for Backend {
     async fn initialized(&self, _: InitializedParams) {
         let workspace_uri = self.workspace_uri.lock().await;
 
-        // Fetch and set the search directory
+        // Fetch and set the sources directory
         let sources_directory = self.get_sources_directory(&workspace_uri, None).await.ok();
         let mut sources_uri = self.sources_uri.lock().await;
         *sources_uri = sources_directory;
@@ -96,11 +97,11 @@ impl LanguageServer for Backend {
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         self.client
-            .log_message(MessageType::INFO, "Slice language server config changed!")
+            .log_message(MessageType::INFO, "Slice language server config changed")
             .await;
         let workspace_uri = self.workspace_uri.lock().await;
 
-        // Update the search directory if it has changed
+        // Update the sources directory if it has changed
         let sources_directory = self
             .get_sources_directory(&workspace_uri, Some(params))
             .await
@@ -187,15 +188,12 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "file opened!")
-            .await;
         self.handle_file_change(params.text_document.uri).await;
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         self.client
-            .log_message(MessageType::INFO, "file saved!")
+            .log_message(MessageType::INFO, "file saved")
             .await;
         self.handle_file_change(params.text_document.uri).await;
     }
@@ -326,9 +324,9 @@ impl Backend {
                 ))
             })?;
 
-            let search_path = workspace_path.join(&sources_directory);
+            let sources_path = workspace_path.join(&sources_directory);
 
-            Url::from_file_path(search_path).map_err(|_| {
+            Url::from_file_path(sources_path).map_err(|_| {
                 Some(tower_lsp::jsonrpc::Error::invalid_params(
                     "Failed to convert search path to URL.",
                 ))

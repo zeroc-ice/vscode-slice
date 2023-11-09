@@ -82,7 +82,9 @@ export async function activate(context: ExtensionContext) {
           command = `${serverPath}x86_64-pc-windows-msvc/release/slice-language-server.exe`;
           break;
         case "linux": // Linux
-          command = `${serverPath}x86_64-unknown-linux-gnu/release/slice-language-server`;
+          command = `${serverPath}${
+            process.arch === "arm64" ? "aarch64" : "x86_64"
+          }-unknown-linux-gnu/release/slice-language-server`;
           break;
         default:
           throw new Error(`Unsupported platform: ${process.platform}`);
@@ -93,7 +95,9 @@ export async function activate(context: ExtensionContext) {
 
     const run: Executable = {
       command,
-      options: { env: { ...process.env, RUST_LOG: "debug" } },
+      options: {
+        env: { ...process.env, ...(isProduction ? {} : { RUST_LOG: "debug" }) },
+      },
     };
 
     const serverOptions: ServerOptions = { run, debug: run };
