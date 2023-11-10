@@ -45,11 +45,12 @@ const handleConfigurationChanges = (client: LanguageClient) => {
       // Retrieve the updated configuration settings.
       const config = workspace.getConfiguration("slice");
       const sourceDirectory = config.get<string>("sourceDirectory");
+      const referenceDirectory = config.get<string>("referenceDirectory");
 
       // Send the "workspace/didChangeConfiguration" notification to the server with the updated settings.
       client.sendNotification("workspace/didChangeConfiguration", {
         settings: {
-          slice: { sourceDirectory },
+          slice: { sourceDirectory, referenceDirectory },
         },
       });
     }
@@ -79,7 +80,7 @@ export async function activate(context: ExtensionContext) {
           }-apple-darwin/release/slice-language-server`;
           break;
         case "win32": // Windows
-          command = `${serverPath}x86_64-pc-windows-msvc/release/slice-language-server.exe`;
+          command = `${serverPath}x86_64-pc-windows-gnu/release/slice-language-server.exe`;
           break;
         case "linux": // Linux
           command = `${serverPath}${

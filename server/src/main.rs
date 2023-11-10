@@ -22,6 +22,7 @@ async fn main() {
 
     let (service, socket) = LspService::new(|client| Backend {
         sources_uri: Arc::new(Mutex::new(None)),
+        reference_uris: Arc::new(Mutex::new(None)),
         client,
         workspace_uri: Arc::new(Mutex::new(None)),
         shared_state: Arc::new(Mutex::new(SharedState::new())),
@@ -36,6 +37,7 @@ struct Backend {
     workspace_uri: Arc<Mutex<Option<Url>>>,
     // The sources URI is the URI of the directory containing the Slice files.
     sources_uri: Arc<Mutex<Option<Url>>>,
+    reference_uris: Arc<Mutex<Option<Vec<Url>>>>,
     shared_state: Arc<Mutex<SharedState>>,
 }
 
@@ -87,8 +89,14 @@ impl LanguageServer for Backend {
 
         // Fetch and set the sources directory
         let sources_directory = self.get_sources_directory(&workspace_uri, None).await.ok();
+        let references_directories = self
+            .get_reference_directories(&workspace_uri, None)
+            .await
+            .ok();
         let mut sources_uri = self.sources_uri.lock().await;
+        let mut references_uris = self.reference_uris.lock().await;
         *sources_uri = sources_directory;
+        *references_uris = references_directories;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -103,14 +111,26 @@ impl LanguageServer for Backend {
 
         // Update the sources directory if it has changed
         let sources_directory = self
-            .get_sources_directory(&workspace_uri, Some(params))
+            .get_sources_directory(&workspace_uri, Some(&params))
             .await
             .ok();
 
-        if sources_directory.is_some() {
-            *self.sources_uri.lock().await = sources_directory;
+        let reference_directories = self
+            .get_reference_directories(&workspace_uri, Some(&params))
+            .await
+            .ok();
 
-            // Re-compile the Slice files
+        // Check if either sources or reference directories have changed
+        if sources_directory.is_some() || reference_directories.is_some() {
+            if let Some(sources_dir) = sources_directory {
+                *self.sources_uri.lock().await = Some(sources_dir);
+            }
+
+            if let Some(ref_dirs) = reference_directories {
+                *self.reference_uris.lock().await = Some(ref_dirs);
+            }
+
+            // Re-compile the Slice files considering both sources and references
             let (updated_state, options) = self.compile_slice_files().await;
             let mut shared_state_lock = self.shared_state.lock().await;
 
@@ -264,16 +284,43 @@ impl Backend {
         self.client
             .log_message(MessageType::INFO, "compiling slice")
             .await;
-
+        let workspace_uri = self.workspace_uri.lock().await;
+        let workspace_path = workspace_uri
+            .as_ref()
+            .and_then(|uri| uri.to_file_path().ok());
         let sources_uri = self.sources_uri.lock().await;
-
-        let directory_path = sources_uri
+        let source_path = sources_uri
             .as_ref()
             .and_then(|uri| uri.to_file_path().ok())
             .map(|path| path.display().to_string());
 
+        let reference_uris = self.reference_uris.lock().await;
+        let reference_paths = reference_uris
+            .as_ref()
+            .map(|uris| {
+                uris.iter()
+                    .map(|uri| {
+                        if let Ok(path) = uri.to_file_path() {
+                            // If the path is already absolute, use it as is
+                            if path.is_absolute() {
+                                path.display().to_string()
+                            } else if let Some(workspace_path) = &workspace_path {
+                                // Otherwise, resolve it relative to the workspace root
+                                workspace_path.join(path).display().to_string()
+                            } else {
+                                String::new() // Empty string for paths that cannot be resolved
+                            }
+                        } else {
+                            String::new() // Empty string for invalid URIs
+                        }
+                    })
+                    .filter(|s| !s.is_empty()) // Filter out empty strings
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
         // This case should never happen during normal operation. In case it does, we log an error before unwrapping.
-        if directory_path.is_none() {
+        if source_path.is_none() {
             self.client.log_message(
                 MessageType::ERROR,
                 format!("Could not get sources directory path during slice compilation. Sources URI {:?}", sources_uri)
@@ -281,8 +328,14 @@ impl Backend {
             .await;
         }
 
+        // Combine the sources and references into a single vec of strings
+        let mut combined_paths = Vec::new();
+        if let Some(src_path) = source_path {
+            combined_paths.push(src_path);
+        }
+        combined_paths.extend(reference_paths);
         let options = SliceOptions {
-            references: vec![directory_path.unwrap()],
+            references: combined_paths,
             ..Default::default()
         };
         (
@@ -294,7 +347,7 @@ impl Backend {
     async fn get_sources_directory(
         &self,
         workspace_root: &Option<Url>,
-        config_params: Option<DidChangeConfigurationParams>,
+        config_params: Option<&DidChangeConfigurationParams>,
     ) -> Result<Url, Option<tower_lsp::jsonrpc::Error>> {
         let sources_directory = if let Some(params) = config_params {
             params
@@ -331,6 +384,70 @@ impl Backend {
                     "Failed to convert search path to URL.",
                 ))
             })
+        } else {
+            Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
+                "Workspace directory is not set.",
+            )))
+        }
+    }
+
+    async fn get_reference_directories(
+        &self,
+        workspace_root: &Option<Url>,
+        config_params: Option<&DidChangeConfigurationParams>,
+    ) -> Result<Vec<Url>, Option<tower_lsp::jsonrpc::Error>> {
+        let reference_directories: Vec<String> = if let Some(params) = config_params {
+            params
+                .settings
+                .get("slice")
+                .and_then(|v| v.get("referenceDirectory"))
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(String::from)
+                        .collect()
+                })
+                .ok_or(None)?
+        } else {
+            let params = vec![ConfigurationItem {
+                scope_uri: None,
+                section: Some("slice.referenceDirectory".to_string()),
+            }];
+
+            let result = self.client.configuration(params).await?;
+            result
+                .get(0)
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(String::from)
+                        .collect()
+                })
+                .ok_or(None)?
+        };
+
+        if let Some(workspace_dir) = workspace_root {
+            let workspace_path = workspace_dir.to_file_path().map_err(|_| {
+                Some(tower_lsp::jsonrpc::Error::invalid_params(
+                    "Failed to convert workspace URL to file path.",
+                ))
+            })?;
+
+            let urls = reference_directories
+                .iter()
+                .map(|dir| {
+                    let path = workspace_path.join(dir);
+                    Url::from_file_path(path).map_err(|_| {
+                        Some(tower_lsp::jsonrpc::Error::invalid_params(
+                            "Failed to convert reference path to URL.",
+                        ))
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok(urls)
         } else {
             Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
                 "Workspace directory is not set.",
