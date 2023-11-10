@@ -1,0 +1,23 @@
+{
+  "name": "slice-language-client",
+  "description": "VSCode client for the Slice language server",
+  "author": "ZeroC, Inc.",
+  "version": "0.1.0",
+  "publisher": "ZeroCInc",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zeroc-ice/vscode-slice"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.8",
+    "@types/vscode": "^1.75.1",
+    "@vscode/test-electron": "^2.2.3"
+  }
+}

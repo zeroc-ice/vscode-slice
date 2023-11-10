@@ -1,63 +1,115 @@
 {
-    "name": "slice",
-    "displayName": "Slice Highlighter",
-    "description": "Provides support for Slice syntax highlighting.",
-    "icon": "images/icon.png",
-    "version": "3.0.1",
-    "publisher": "ZeroCInc",
-    "license": "BSD-3-Clause",
-    "engines": {
-        "vscode": "^1.21.0"
-    },
-    "galleryBanner": {
-        "color": "#000030",
-        "theme": "dark"
-    },
-    "categories": [
-        "Programming Languages"
-    ],
-    "contributes": {
-        "languages": [
-            {
-                "id": "slice",
-                "aliases": ["icerpc"],
-                "extensions": [".slice"],
-                "configuration": "./language-configuration.json",
-                "icon": {
-                    "light": "./images/slice.svg",
-                    "dark": "./images/slice.svg"
-                }
-            },
-            {
-                "id": "ice",
-                "aliases": ["slice"],
-                "extensions": [".ice"],
-                "configuration": "./language-configuration.json",
-                "icon": {
-                    "light": "./images/ice.svg",
-                    "dark": "./images/ice.svg"
-                }
-            }
+  "name": "slice",
+  "displayName": "Slice",
+  "description": "Provides support for Slice syntax highlighting.",
+  "icon": "images/icon.png",
+  "version": "4.0.0",
+  "publisher": "ZeroCInc",
+  "license": "BSD-3-Clause",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "main": "./client/out/extension",
+  "galleryBanner": {
+    "color": "#000030",
+    "theme": "dark"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "slice",
+        "aliases": [
+          "icerpc"
         ],
-        "grammars": [
-            {
-                "language": "slice",
-                "scopeName": "source.slice",
-                "path": "./syntaxes/slice.tmLanguage.json"
-            },
-            {
-                "language": "ice",
-                "scopeName": "source.ice",
-                "path": "./syntaxes/ice.tmLanguage.json"
-            }
-        ]
-    },
-    "homepage": "https://zeroc.com/",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/zeroc-ice/vscode-slice.git"
-    },
-    "bugs": {
-        "url": "https://github.com/zeroc-ice/vscode-slice/issues"
+        "extensions": [
+          ".slice"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/slice.svg",
+          "dark": "./images/slice.svg"
+        }
+      },
+      {
+        "id": "ice",
+        "aliases": [
+          "slice"
+        ],
+        "extensions": [
+          ".ice"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/ice.svg",
+          "dark": "./images/ice.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "slice",
+        "scopeName": "source.slice",
+        "path": "./syntaxes/slice.tmLanguage.json"
+      },
+      {
+        "language": "ice",
+        "scopeName": "source.ice",
+        "path": "./syntaxes/ice.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Slice",
+      "properties": {
+        "slice.sourceDirectory": {
+          "type": "string",
+          "description": "The directory containing the target Slice files.",
+          "scope": "resource"
+        },
+        "slice.referenceDirectory": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The directories containing the target Slice reference files.",
+          "scope": "resource"
+        }
+      }
     }
+  },
+  "homepage": "https://zeroc.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zeroc-ice/vscode-slice"
+  },
+  "bugs": {
+    "url": "https://github.com/zeroc-ice/vscode-slice/issues"
+  },
+  "scripts": {
+    "build-rust-prod": "cd server && ./build.sh",
+    "build-client-prod": "npm run esbuild-base -- --minify",
+    "build:prod": "NODE_ENV=production tsc -b",
+    "compile": "tsc -b",
+    "esbuild-base": "esbuild ./client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --format=cjs --platform=node --define:process.env.SERVER_PATH='\"/server/target/\"'  --define:process.env.NODE_ENV='\"production\"'",
+    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+    "esbuild": "npm run esbuild-base -- --sourcemap",
+    "lint": "eslint ./client/src --ext .ts,.tsx",
+    "postinstall": "cd client && npm install",
+    "test-compile": "tsc -p ./",
+    "vscode:prepublish": "npm run build-client-prod && npm run build-rust-prod",
+    "watch": "tsc -b -w"
+  },
+  "devDependencies": {
+    "@types/mocha": "^9.1.0",
+    "@types/node": "^16.18.34",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "esbuild": "^0.19.5",
+    "eslint": "^8.35.0",
+    "mocha": "^9.2.1",
+    "typescript": "^5.2.2"
+  }
 }

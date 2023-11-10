@@ -1,2 +1,14 @@
 .vscode/**
 .gitignore
+node_modules
+tsconfig.json
+
+# Client
+client/**
+!client/src
+!client/out
+
+# Server
+server/**
+!server/target/*/release/slice-language-server
+!server/target/*/release/slice-language-server.exe

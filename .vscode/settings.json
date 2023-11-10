@@ -1,0 +1,16 @@
+{
+  "rust-analyzer.linkedProjects": ["./server/Cargo.toml"],
+  "rust-analyzer.rustfmt.extraArgs": ["+nightly"],
+  "[rust]": {
+    "editor.rulers": [120]
+  },
+  "cSpell.words": [
+    "canonicalize",
+    "Commentable",
+    "formated",
+    "outfile",
+    "slicec",
+    "typeref",
+    "vsix"
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Client",
+      "type": "npm",
+      "script": "compile",
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "never"
+      },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "type": "npm",
+      "script": "watch",
+      "isBackground": true,
+      "group": {
+        "kind": "build"
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "never"
+      },
+      "problemMatcher": ["$tsc-watch"]
+    },
+    {
+      "label": "Build Rust Server",
+      "type": "shell",
+      "command": "cargo build",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "Build All",
+      "dependsOn": ["Build Rust Server", "Build Client"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Build Rust Server (Production)",
+      "type": "shell",
+      "command": "./build.sh",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "Build Client (Production)",
+      "type": "npm",
+      "script": "build:prod",
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "never"
+      },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Build All (Production)",
+      "dependsOn": [
+        "Build Rust Server (Production)",
+        "Build Client (Production)"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    }
+  ]
+}

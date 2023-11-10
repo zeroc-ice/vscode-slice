@@ -2,8 +2,8 @@
 	<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 		<Metadata>
 			<Identity Language="en-US" Id="slice" Version="3.0.0" Publisher="ZeroCInc" />
-			<DisplayName>Slice Highlighter</DisplayName>
-			<Description xml:space="preserve">Provides support for Slice syntax highlighting.</Description>
+			<DisplayName>Slice</DisplayName>
+			<Description xml:space="preserve">Provides a Slice language server and support for Slice syntax highlighting.</Description>
 			<Tags>slice,Slice,ice,__ext_ice,__web_extension</Tags>
 			<Categories>Programming Languages</Categories>
 			<GalleryFlags>Public</GalleryFlags>
