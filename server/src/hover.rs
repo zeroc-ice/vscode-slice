@@ -80,13 +80,18 @@ impl Visitor for HoverVisitor {
             if !&self.search_location.is_within(underlying.span()) {
                 return;
             }
-            let (prefix, description) =
-                HoverVisitor::describe_primitive_type(underlying.definition()).to_owned();
-            self.found_message = if underlying.is_optional {
-                Some(format!("An optional {description}"))
-            } else {
-                Some(format!("{prefix} {description}"))
-            };
+            if let Some(underlying_def) = &enum_def.underlying {
+                let TypeRefDefinition::Patched(definition) = &underlying_def.definition else {
+                    return;
+                };
+                let (prefix, description) =
+                    HoverVisitor::describe_primitive_type(definition.borrow()).to_owned();
+                self.found_message = if underlying.is_optional {
+                    Some(format!("An optional {description}"))
+                } else {
+                    Some(format!("{prefix} {description}"))
+                };
+            }
         }
     }
 
@@ -116,12 +121,11 @@ impl Visitor for HoverVisitor {
         let type_description = match type_def.borrow().concrete_type() {
             Types::Primitive(x) => {
                 let (prefix, description) = HoverVisitor::describe_primitive_type(x).to_owned();
-                let message = if typeref.is_optional {
+                if typeref.is_optional {
                     Some(format!("An optional {description}"))
                 } else {
                     Some(format!("{prefix} {description}"))
-                };
-                message
+                }
             }
             _ => None,
         };

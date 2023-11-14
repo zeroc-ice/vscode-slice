@@ -5,9 +5,14 @@ use hover::get_hover_info;
 use jump_definition::get_definition_span;
 use shared_state::SharedState;
 use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 use tokio::sync::Mutex;
 use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
+use utils::convert_slice_url_to_uri;
 
 mod diagnostic_ext;
 mod hover;
@@ -85,18 +90,36 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        let workspace_uri = self.workspace_uri.lock().await;
+        // Update the sources and references directories
+        {
+            let workspace_uri = self.workspace_uri.lock().await;
 
-        // Fetch and set the sources directory
-        let sources_directory = self.get_sources_directory(&workspace_uri, None).await.ok();
-        let references_directories = self
-            .get_reference_directories(&workspace_uri, None)
-            .await
-            .ok();
-        let mut sources_uri = self.sources_uri.lock().await;
-        let mut references_uris = self.reference_uris.lock().await;
-        *sources_uri = sources_directory;
-        *references_uris = references_directories;
+            // Fetch and set the sources directory
+            let sources_directory = self.get_sources_directory(&workspace_uri, None).await.ok();
+            let references_directories = self
+                .get_reference_directories(&workspace_uri, None)
+                .await
+                .ok();
+            let mut sources_uri = self.sources_uri.lock().await;
+            let mut references_uris = self.reference_uris.lock().await;
+            *sources_uri = sources_directory;
+            *references_uris = references_directories;
+        }
+
+        let mut shared_state_lock = self.shared_state.lock().await;
+
+        // Compile the Slice files and publish diagnostics
+        let (updated_state, options) = self.compile_slice_files().await;
+
+        shared_state_lock.compilation_state = updated_state;
+        shared_state_lock.compilation_options = options;
+
+        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+            .await;
+
+        self.client
+            .log_message(MessageType::INFO, "Slice language server initialized")
+            .await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -107,35 +130,65 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "Slice language server config changed")
             .await;
-        let workspace_uri = self.workspace_uri.lock().await;
 
         // Update the sources directory if it has changed
-        let sources_directory = self
-            .get_sources_directory(&workspace_uri, Some(&params))
-            .await
-            .ok();
+        let (sources_directory, reference_directories) = {
+            let workspace_uri = self.workspace_uri.lock().await;
+            let s = self
+                .get_sources_directory(&workspace_uri, Some(&params))
+                .await
+                .ok();
 
-        let reference_directories = self
-            .get_reference_directories(&workspace_uri, Some(&params))
-            .await
-            .ok();
+            let r = self
+                .get_reference_directories(&workspace_uri, Some(&params))
+                .await
+                .ok();
+            (s, r)
+        };
 
         // Check if either sources or reference directories have changed
         if sources_directory.is_some() || reference_directories.is_some() {
-            if let Some(sources_dir) = sources_directory {
-                *self.sources_uri.lock().await = Some(sources_dir);
+            {
+                if let Some(sources_dir) = sources_directory {
+                    *self.sources_uri.lock().await = Some(sources_dir);
+                }
+
+                if let Some(ref_dirs) = reference_directories {
+                    *self.reference_uris.lock().await = Some(ref_dirs);
+                }
             }
 
-            if let Some(ref_dirs) = reference_directories {
-                *self.reference_uris.lock().await = Some(ref_dirs);
-            }
+            // Store the current files in the compilation state before re-compiling
+            let current_files = &self
+                .shared_state
+                .lock()
+                .await
+                .compilation_state
+                .files
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>();
 
             // Re-compile the Slice files considering both sources and references
             let (updated_state, options) = self.compile_slice_files().await;
+
+            // Clear the diagnostics from files that are no longer in the compilation state
+            let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
+
+            let clear_diagnostic_tasks = current_files
+                .difference(new_files)
+                .filter_map(|url| convert_slice_url_to_uri(url))
+                .map(|uri| self.client.publish_diagnostics(uri, vec![], None));
+
+            futures::future::join_all(clear_diagnostic_tasks).await;
+
             let mut shared_state_lock = self.shared_state.lock().await;
 
             shared_state_lock.compilation_state = updated_state;
             shared_state_lock.compilation_options = options;
+
+            self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+                .await;
         } else {
             self.client
                 .log_message(
@@ -163,7 +216,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         let compilation_state = &self.shared_state.lock().await.compilation_state;
 
-        let location = match get_definition_span(&compilation_state, param_uri, position) {
+        let location = match get_definition_span(compilation_state, param_uri, position) {
             Some(location) => location,
             None => return Ok(None),
         };
@@ -253,13 +306,6 @@ impl Backend {
             options,
         );
 
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("got {} diagnostics", diagnostics.len()),
-            )
-            .await;
-
         diagnostics
             .iter()
             .filter_map(|d| {
@@ -272,10 +318,10 @@ impl Backend {
                         let uri_path = uri.to_file_path().ok().map(|p| p.to_path_buf())?;
 
                         // Check if the paths match
-                        (span_path == uri_path).then(|| d)
+                        (span_path == uri_path).then_some(d)
                     })
                     // Convert to LSP diagnostic
-                    .and_then(|d| try_into_lsp_diagnostic(d))
+                    .and_then(try_into_lsp_diagnostic)
             })
             .collect::<Vec<_>>()
     }
@@ -334,6 +380,8 @@ impl Backend {
             combined_paths.push(src_path);
         }
         combined_paths.extend(reference_paths);
+
+        // Compile the Slice files
         let options = SliceOptions {
             references: combined_paths,
             ..Default::default()
@@ -365,7 +413,7 @@ impl Backend {
 
             let result = self.client.configuration(params).await?;
             result
-                .get(0)
+                .first()
                 .and_then(|v| v.as_str().map(|s| s.to_string()))
                 .ok_or(None)?
         };
@@ -377,7 +425,7 @@ impl Backend {
                 ))
             })?;
 
-            let sources_path = workspace_path.join(&sources_directory);
+            let sources_path = workspace_path.join(sources_directory);
 
             Url::from_file_path(sources_path).map_err(|_| {
                 Some(tower_lsp::jsonrpc::Error::invalid_params(
@@ -417,7 +465,7 @@ impl Backend {
 
             let result = self.client.configuration(params).await?;
             result
-                .get(0)
+                .first()
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
@@ -453,5 +501,52 @@ impl Backend {
                 "Workspace directory is not set.",
             )))
         }
+    }
+
+    async fn publish_diagnostics_for_all_files(&self, shared_state: &mut SharedState) {
+        let compilation_options = &shared_state.compilation_options;
+        let compilation_state = &mut shared_state.compilation_state;
+
+        let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
+            &compilation_state.ast,
+            &compilation_state.files,
+            compilation_options,
+        );
+
+        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
+        let mut map: HashMap<Url, Vec<Diagnostic>> = HashMap::new();
+
+        // Add an empty vector for each file in the compilation state so they all get updated
+        compilation_state
+            .files
+            .keys()
+            .map(|k| k.as_str())
+            .filter_map(convert_slice_url_to_uri)
+            .for_each(|url| {
+                map.insert(url, vec![]);
+            });
+
+        // Add the diagnostics to the map
+        for diagnostic in diagnostics {
+            let Some(span) = diagnostic.span() else {
+                continue;
+            };
+            let Some(uri) = convert_slice_url_to_uri(&span.file) else {
+                continue;
+            };
+            let Some(lsp_diagnostic) = try_into_lsp_diagnostic(&diagnostic) else {
+                continue;
+            };
+            map.entry(uri).or_default().push(lsp_diagnostic)
+        }
+
+        for (uri, lsp_diagnostics) in map {
+            self.client
+                .publish_diagnostics(uri, lsp_diagnostics, None)
+                .await;
+        }
+        self.client
+            .log_message(MessageType::LOG, "Updated diagnostics for all files")
+            .await;
     }
 }
