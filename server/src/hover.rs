@@ -4,8 +4,9 @@ use crate::utils::convert_uri_to_slice_formated_url;
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
-        Class, CustomType, Enum, Enumerator, Exception, Field, Interface, Module, Operation,
-        Parameter, Primitive, Struct, Symbol, TypeAlias, TypeRef, TypeRefDefinition, Types,
+        Class, CustomType, Element, Enum, Enumerator, Exception, Field, Interface, Module,
+        Operation, Parameter, Primitive, Struct, Symbol, TypeAlias, TypeRef, TypeRefDefinition,
+        Types,
     },
     slice_file::{Location, SliceFile},
     visitor::Visitor,
@@ -36,6 +37,18 @@ impl HoverVisitor {
         HoverVisitor {
             search_location,
             found_message: None,
+        }
+    }
+
+    fn construct_message<T: Element + ?Sized>(
+        primitive: &Primitive,
+        typeref: &TypeRef<T>,
+    ) -> Option<String> {
+        let (prefix, description) = Self::describe_primitive_type(primitive);
+        if typeref.is_optional {
+            Some(format!("An optional {description}"))
+        } else {
+            Some(format!("{prefix} {description}"))
         }
     }
 
@@ -84,13 +97,7 @@ impl Visitor for HoverVisitor {
                 let TypeRefDefinition::Patched(definition) = &underlying_def.definition else {
                     return;
                 };
-                let (prefix, description) =
-                    HoverVisitor::describe_primitive_type(definition.borrow()).to_owned();
-                self.found_message = if underlying.is_optional {
-                    Some(format!("An optional {description}"))
-                } else {
-                    Some(format!("{prefix} {description}"))
-                };
+                self.found_message = Self::construct_message(definition.borrow(), underlying)
             }
         }
     }
@@ -119,14 +126,7 @@ impl Visitor for HoverVisitor {
         };
 
         let type_description = match type_def.borrow().concrete_type() {
-            Types::Primitive(x) => {
-                let (prefix, description) = HoverVisitor::describe_primitive_type(x).to_owned();
-                if typeref.is_optional {
-                    Some(format!("An optional {description}"))
-                } else {
-                    Some(format!("{prefix} {description}"))
-                }
-            }
+            Types::Primitive(x) => Self::construct_message(x, typeref),
             _ => None,
         };
         self.found_message = type_description;

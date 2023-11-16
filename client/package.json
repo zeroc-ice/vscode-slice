@@ -1,6 +1,6 @@
 {
   "name": "slice-language-client",
-  "description": "VSCode client for the Slice language server",
+  "description": "VSCode client for the Slice Language Server",
   "author": "ZeroC, Inc.",
   "version": "0.1.0",
   "publisher": "ZeroCInc",

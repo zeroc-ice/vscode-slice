@@ -46,7 +46,7 @@ impl JumpVisitor {
     // and if it is, it checks to see if the comment contains a link to an entity.
     fn check_comment(&mut self, commentable: &dyn Commentable) {
         if let Some(comment) = commentable.comment() {
-            if let Some(overview) = comment.overview.as_ref() {
+            if let Some(overview) = &comment.overview {
                 self.check_message_links(overview)
             }
             comment

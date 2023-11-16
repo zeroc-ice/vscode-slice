@@ -1,5 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
+use config::SliceConfig;
 use diagnostic_ext::try_into_lsp_diagnostic;
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
@@ -14,6 +15,7 @@ use tokio::sync::Mutex;
 use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::convert_slice_url_to_uri;
 
+mod config;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
@@ -26,8 +28,7 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| Backend {
-        sources_uri: Arc::new(Mutex::new(None)),
-        reference_uris: Arc::new(Mutex::new(None)),
+        slice_config: Arc::new(Mutex::new(SliceConfig::default())),
         client,
         workspace_uri: Arc::new(Mutex::new(None)),
         shared_state: Arc::new(Mutex::new(SharedState::new())),
@@ -36,13 +37,11 @@ async fn main() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-struct Backend {
+pub struct Backend {
     client: Client,
     // The workspace URI is the URI of the VSCode workspace.
     workspace_uri: Arc<Mutex<Option<Url>>>,
-    // The sources URI is the URI of the directory containing the Slice files.
-    sources_uri: Arc<Mutex<Option<Url>>>,
-    reference_uris: Arc<Mutex<Option<Vec<Url>>>>,
+    slice_config: Arc<Mutex<SliceConfig>>,
     shared_state: Arc<Mutex<SharedState>>,
 }
 
@@ -60,7 +59,6 @@ impl LanguageServer for Backend {
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok());
         *self.workspace_uri.lock().await = fixed_uri.clone();
-        *self.sources_uri.lock().await = fixed_uri;
 
         Ok(InitializeResult {
             server_info: None,
@@ -90,20 +88,16 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Update the sources and references directories
+        // Update the references directories since this is the first time we can access the configuration
         {
             let workspace_uri = self.workspace_uri.lock().await;
 
-            // Fetch and set the sources directory
-            let sources_directory = self.get_sources_directory(&workspace_uri, None).await.ok();
+            // Fetch and set the reference directory
             let references_directories = self
                 .get_reference_directories(&workspace_uri, None)
                 .await
                 .ok();
-            let mut sources_uri = self.sources_uri.lock().await;
-            let mut references_uris = self.reference_uris.lock().await;
-            *sources_uri = sources_directory;
-            *references_uris = references_directories;
+            (*self.slice_config.lock().await).reference_urls = references_directories;
         }
 
         let mut shared_state_lock = self.shared_state.lock().await;
@@ -114,11 +108,8 @@ impl LanguageServer for Backend {
         shared_state_lock.compilation_state = updated_state;
         shared_state_lock.compilation_options = options;
 
-        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
-            .await;
-
         self.client
-            .log_message(MessageType::INFO, "Slice language server initialized")
+            .log_message(MessageType::INFO, "Slice Language Server initialized")
             .await;
     }
 
@@ -128,75 +119,54 @@ impl LanguageServer for Backend {
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         self.client
-            .log_message(MessageType::INFO, "Slice language server config changed")
+            .log_message(MessageType::INFO, "Slice Language Server config changed")
             .await;
 
-        // Update the sources directory if it has changed
-        let (sources_directory, reference_directories) = {
+        let reference_directories = {
             let workspace_uri = self.workspace_uri.lock().await;
-            let s = self
-                .get_sources_directory(&workspace_uri, Some(&params))
+            self.get_reference_directories(&workspace_uri, Some(&params))
                 .await
-                .ok();
-
-            let r = self
-                .get_reference_directories(&workspace_uri, Some(&params))
-                .await
-                .ok();
-            (s, r)
+                .ok()
         };
 
-        // Check if either sources or reference directories have changed
-        if sources_directory.is_some() || reference_directories.is_some() {
-            {
-                if let Some(sources_dir) = sources_directory {
-                    *self.sources_uri.lock().await = Some(sources_dir);
-                }
+        // Check if either sources or reference directories have changed, if so, update the compilation state.
 
-                if let Some(ref_dirs) = reference_directories {
-                    *self.reference_uris.lock().await = Some(ref_dirs);
-                }
+        {
+            if let Some(ref_dirs) = reference_directories {
+                (*self.slice_config.lock().await).reference_urls = Some(ref_dirs);
             }
-
-            // Store the current files in the compilation state before re-compiling
-            let current_files = &self
-                .shared_state
-                .lock()
-                .await
-                .compilation_state
-                .files
-                .keys()
-                .cloned()
-                .collect::<HashSet<_>>();
-
-            // Re-compile the Slice files considering both sources and references
-            let (updated_state, options) = self.compile_slice_files().await;
-
-            // Clear the diagnostics from files that are no longer in the compilation state
-            let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
-
-            let clear_diagnostic_tasks = current_files
-                .difference(new_files)
-                .filter_map(|url| convert_slice_url_to_uri(url))
-                .map(|uri| self.client.publish_diagnostics(uri, vec![], None));
-
-            futures::future::join_all(clear_diagnostic_tasks).await;
-
-            let mut shared_state_lock = self.shared_state.lock().await;
-
-            shared_state_lock.compilation_state = updated_state;
-            shared_state_lock.compilation_options = options;
-
-            self.publish_diagnostics_for_all_files(&mut shared_state_lock)
-                .await;
-        } else {
-            self.client
-                .log_message(
-                    MessageType::ERROR,
-                    "Failed to update sources directory. Please check your Slice language server configuration.",
-                )
-                .await;
         }
+
+        // Store the current files in the compilation state before re-compiling
+        let current_files = &self
+            .shared_state
+            .lock()
+            .await
+            .compilation_state
+            .files
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        // Re-compile the Slice files considering both sources and references
+        let (updated_state, options) = self.compile_slice_files().await;
+
+        // Clear the diagnostics from files that are no longer in the compilation state
+        let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
+        for url in current_files.difference(new_files) {
+            let Some(uri) = convert_slice_url_to_uri(url) else {
+                continue;
+            };
+            self.client.publish_diagnostics(uri, vec![], None).await;
+        }
+
+        let mut shared_state_lock = self.shared_state.lock().await;
+
+        shared_state_lock.compilation_state = updated_state;
+        shared_state_lock.compilation_options = options;
+
+        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+            .await;
     }
 
     async fn goto_definition(
@@ -330,60 +300,14 @@ impl Backend {
         self.client
             .log_message(MessageType::INFO, "compiling slice")
             .await;
+
+        // Get the workspace URI and slice config
         let workspace_uri = self.workspace_uri.lock().await;
-        let workspace_path = workspace_uri
-            .as_ref()
-            .and_then(|uri| uri.to_file_path().ok());
-        let sources_uri = self.sources_uri.lock().await;
-        let source_path = sources_uri
-            .as_ref()
-            .and_then(|uri| uri.to_file_path().ok())
-            .map(|path| path.display().to_string());
-
-        let reference_uris = self.reference_uris.lock().await;
-        let reference_paths = reference_uris
-            .as_ref()
-            .map(|uris| {
-                uris.iter()
-                    .map(|uri| {
-                        if let Ok(path) = uri.to_file_path() {
-                            // If the path is already absolute, use it as is
-                            if path.is_absolute() {
-                                path.display().to_string()
-                            } else if let Some(workspace_path) = &workspace_path {
-                                // Otherwise, resolve it relative to the workspace root
-                                workspace_path.join(path).display().to_string()
-                            } else {
-                                String::new() // Empty string for paths that cannot be resolved
-                            }
-                        } else {
-                            String::new() // Empty string for invalid URIs
-                        }
-                    })
-                    .filter(|s| !s.is_empty()) // Filter out empty strings
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-
-        // This case should never happen during normal operation. In case it does, we log an error before unwrapping.
-        if source_path.is_none() {
-            self.client.log_message(
-                MessageType::ERROR,
-                format!("Could not get sources directory path during slice compilation. Sources URI {:?}", sources_uri)
-            )
-            .await;
-        }
-
-        // Combine the sources and references into a single vec of strings
-        let mut combined_paths = Vec::new();
-        if let Some(src_path) = source_path {
-            combined_paths.push(src_path);
-        }
-        combined_paths.extend(reference_paths);
+        let slice_config = self.slice_config.lock().await;
 
         // Compile the Slice files
         let options = SliceOptions {
-            references: combined_paths,
+            references: slice_config.resolve_reference_paths(workspace_uri.as_ref()),
             ..Default::default()
         };
         (
@@ -392,115 +316,51 @@ impl Backend {
         )
     }
 
-    async fn get_sources_directory(
-        &self,
-        workspace_root: &Option<Url>,
-        config_params: Option<&DidChangeConfigurationParams>,
-    ) -> Result<Url, Option<tower_lsp::jsonrpc::Error>> {
-        let sources_directory = if let Some(params) = config_params {
-            params
-                .settings
-                .get("slice")
-                .and_then(|v| v.get("sourceDirectory"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .ok_or(None)?
-        } else {
-            let params = vec![ConfigurationItem {
-                scope_uri: None,
-                section: Some("slice.sourceDirectory".to_string()),
-            }];
-
-            let result = self.client.configuration(params).await?;
-            result
-                .first()
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
-                .ok_or(None)?
-        };
-
-        if let Some(workspace_dir) = workspace_root {
-            let workspace_path = workspace_dir.to_file_path().map_err(|_| {
-                Some(tower_lsp::jsonrpc::Error::invalid_params(
-                    "Failed to convert workspace URL to file path.",
-                ))
-            })?;
-
-            let sources_path = workspace_path.join(sources_directory);
-
-            Url::from_file_path(sources_path).map_err(|_| {
-                Some(tower_lsp::jsonrpc::Error::invalid_params(
-                    "Failed to convert search path to URL.",
-                ))
-            })
-        } else {
-            Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
-                "Workspace directory is not set.",
-            )))
-        }
-    }
-
     async fn get_reference_directories(
         &self,
         workspace_root: &Option<Url>,
         config_params: Option<&DidChangeConfigurationParams>,
     ) -> Result<Vec<Url>, Option<tower_lsp::jsonrpc::Error>> {
-        let reference_directories: Vec<String> = if let Some(params) = config_params {
-            params
-                .settings
-                .get("slice")
-                .and_then(|v| v.get("referenceDirectory"))
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .map(String::from)
-                        .collect()
-                })
-                .ok_or(None)?
-        } else {
-            let params = vec![ConfigurationItem {
-                scope_uri: None,
-                section: Some("slice.referenceDirectory".to_string()),
-            }];
-
-            let result = self.client.configuration(params).await?;
-            result
-                .first()
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .map(String::from)
-                        .collect()
-                })
-                .ok_or(None)?
+        // If no workspace root is set, we cannot resolve the reference directories
+        let Some(workspace_dir) = workspace_root else {
+            return Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
+                "Workspace directory is not set.",
+            )));
         };
 
-        if let Some(workspace_dir) = workspace_root {
-            let workspace_path = workspace_dir.to_file_path().map_err(|_| {
-                Some(tower_lsp::jsonrpc::Error::invalid_params(
-                    "Failed to convert workspace URL to file path.",
-                ))
-            })?;
-
-            let urls = reference_directories
-                .iter()
-                .map(|dir| {
-                    let path = workspace_path.join(dir);
-                    Url::from_file_path(path).map_err(|_| {
-                        Some(tower_lsp::jsonrpc::Error::invalid_params(
-                            "Failed to convert reference path to URL.",
-                        ))
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-
-            Ok(urls)
+        let reference_directories = if let Some(params) = config_params {
+            SliceConfig::from_configuration_parameters(params.clone(), workspace_dir)
+                .reference_urls
+                .unwrap_or_default()
         } else {
-            Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
-                "Workspace directory is not set.",
-            )))
-        }
+            SliceConfig::try_from_backend(self, workspace_dir)
+                .await?
+                .reference_urls
+                .unwrap_or_default()
+        };
+
+        let workspace_path = workspace_dir.to_file_path().map_err(|_| {
+            Some(tower_lsp::jsonrpc::Error::invalid_params(
+                "Failed to convert workspace URL to file path.",
+            ))
+        })?;
+
+        let urls = reference_directories
+            .iter()
+            .map(|dir| {
+                let path = workspace_path.join(
+                    dir.to_file_path()
+                        .expect("Could not covert reference directory to file path."),
+                );
+                Url::from_file_path(path).map_err(|_| {
+                    Some(tower_lsp::jsonrpc::Error::invalid_params(
+                        "Failed to convert reference path to URL.",
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(urls)
     }
 
     async fn publish_diagnostics_for_all_files(&self, shared_state: &mut SharedState) {
@@ -514,17 +374,11 @@ impl Backend {
         );
 
         // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
-        let mut map: HashMap<Url, Vec<Diagnostic>> = HashMap::new();
-
-        // Add an empty vector for each file in the compilation state so they all get updated
-        compilation_state
+        let mut map = compilation_state
             .files
             .keys()
-            .map(|k| k.as_str())
-            .filter_map(convert_slice_url_to_uri)
-            .for_each(|url| {
-                map.insert(url, vec![]);
-            });
+            .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
+            .collect::<HashMap<Url, Vec<Diagnostic>>>();
 
         // Add the diagnostics to the map
         for diagnostic in diagnostics {
@@ -537,7 +391,9 @@ impl Backend {
             let Some(lsp_diagnostic) = try_into_lsp_diagnostic(&diagnostic) else {
                 continue;
             };
-            map.entry(uri).or_default().push(lsp_diagnostic)
+            map.get_mut(&uri)
+                .expect("file not in map")
+                .push(lsp_diagnostic)
         }
 
         for (uri, lsp_diagnostics) in map {
