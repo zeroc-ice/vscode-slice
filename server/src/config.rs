@@ -8,9 +8,6 @@ pub struct SliceConfig {
     pub reference_urls: Option<Vec<Url>>,
 }
 
-unsafe impl Send for SliceConfig {}
-unsafe impl Sync for SliceConfig {}
-
 impl SliceConfig {
     // Attempt to create a SliceConfig from the backend with the provided workspace root.
     pub async fn try_from_backend(
