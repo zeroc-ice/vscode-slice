@@ -64,11 +64,6 @@
       "type": "object",
       "title": "Slice",
       "properties": {
-        "slice.sourceDirectory": {
-          "type": "string",
-          "description": "The directory containing the target Slice files.",
-          "scope": "resource"
-        },
         "slice.referenceDirectory": {
           "type": "array",
           "items": {

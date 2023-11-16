@@ -5,6 +5,7 @@ use tower_lsp::lsp_types::{
     DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
 };
 
+// A helper function that converts a slicec diagnostic into an lsp diagnostics
 pub fn try_into_lsp_diagnostic(
     diagnostic: &Diagnostic,
 ) -> Option<tower_lsp::lsp_types::Diagnostic> {

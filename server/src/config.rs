@@ -9,23 +9,22 @@ pub struct SliceConfig {
 }
 
 impl SliceConfig {
-    // Attempt to create a SliceConfig from the backend with the provided workspace root.
+    // Attempt to create a SliceConfig from the backend with the provided uri root.
     pub async fn try_from_backend(
         backend: &Backend,
-        workspace_root: &Url,
+        root_uri: &Url,
     ) -> tower_lsp::jsonrpc::Result<SliceConfig> {
         let reference_directories = Self::fetch_reference_directories(backend).await?;
-        Self::create_config_from_directories(reference_directories, workspace_root)
+        Self::create_config_from_directories(reference_directories, root_uri)
     }
 
-    // Creates a SliceConfig from the provided configuration parameters and workspace root.
+    // Creates a SliceConfig from the provided configuration parameters and uri root.
     pub fn from_configuration_parameters(
         params: DidChangeConfigurationParams,
-        workspace_root: &Url,
+        root_uri: &Url,
     ) -> Self {
         let reference_directories = Self::parse_reference_directories(&params);
-        Self::create_config_from_directories(reference_directories, workspace_root)
-            .unwrap_or_default()
+        Self::create_config_from_directories(reference_directories, root_uri).unwrap_or_default()
     }
 
     // Fetch reference directories from the backend.
@@ -66,14 +65,14 @@ impl SliceConfig {
             })
     }
 
-    // Create a SliceConfig from the provided reference directories and workspace root.
+    // Create a SliceConfig from the provided reference directories and uri_root.
     fn create_config_from_directories(
         reference_directories: Option<Vec<String>>,
-        workspace_root: &Url,
+        root_uri: &Url,
     ) -> Result<SliceConfig, tower_lsp::jsonrpc::Error> {
         match reference_directories {
             Some(dirs) => {
-                let reference_urls = Self::try_get_reference_urls(dirs, workspace_root)?;
+                let reference_urls = Self::try_get_reference_urls(dirs, root_uri)?;
                 Ok(SliceConfig {
                     reference_urls: Some(reference_urls),
                 })
@@ -85,18 +84,16 @@ impl SliceConfig {
     // Convert reference directory strings into URLs.
     fn try_get_reference_urls(
         reference_directories: Vec<String>,
-        workspace_root: &Url,
+        root_uri: &Url,
     ) -> Result<Vec<Url>, tower_lsp::jsonrpc::Error> {
-        let workspace_path = workspace_root.to_file_path().map_err(|_| {
-            tower_lsp::jsonrpc::Error::invalid_params(
-                "Failed to convert workspace URL to file path.",
-            )
+        let root_path = root_uri.to_file_path().map_err(|_| {
+            tower_lsp::jsonrpc::Error::invalid_params("Failed to convert root URL to file path.")
         })?;
 
         reference_directories
             .iter()
             .map(|dir| {
-                let path = workspace_path.join(dir);
+                let path = root_path.join(dir);
                 Url::from_file_path(path).map_err(|_| {
                     tower_lsp::jsonrpc::Error::invalid_params(
                         "Failed to convert reference path to URL.",
@@ -107,31 +104,37 @@ impl SliceConfig {
     }
 
     // Resolve reference URIs to file paths
-    pub fn resolve_reference_paths(&self, workspace_root: Option<&Url>) -> Vec<String> {
-        let workspace_path = match workspace_root {
-            Some(url) => match url.to_file_path() {
-                Ok(path) => Some(path),
-                Err(_) => return Vec::new(), // Handle error or return empty vector
-            },
-            None => None,
-        };
+    pub fn resolve_reference_paths(&self, root_uri: Option<&Url>) -> Vec<String> {
+        if self.reference_urls.as_ref().map_or(true, Vec::is_empty) {
+            // If self.reference_urls is None or empty, use the root_uri as the reference path.
+            return root_uri
+                .map(|url| {
+                    url.to_file_path()
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_default()
+                })
+                .into_iter()
+                .collect();
+        }
+
         self.reference_urls
             .as_ref()
-            .map(|uris| {
-                uris.iter()
-                    .filter_map(|uri| {
-                        uri.to_file_path().ok().and_then(|path| {
-                            if path.is_absolute() {
-                                Some(path.display().to_string())
-                            } else {
-                                workspace_path.as_ref().map(|workspace_path| {
-                                    workspace_path.join(&path).display().to_string()
-                                })
-                            }
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|uri| {
+                uri.to_file_path().ok().and_then(|path| {
+                    if path.is_absolute() {
+                        Some(path.display().to_string())
+                    } else {
+                        root_uri.and_then(|root_url| {
+                            root_url
+                                .to_file_path()
+                                .ok()
+                                .map(|root_path| root_path.join(&path).display().to_string())
                         })
-                    })
-                    .collect()
+                    }
+                })
             })
-            .unwrap_or_default()
+            .collect()
     }
 }

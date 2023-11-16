@@ -30,7 +30,7 @@ async fn main() {
     let (service, socket) = LspService::new(|client| Backend {
         slice_config: Arc::new(Mutex::new(SliceConfig::default())),
         client,
-        workspace_uri: Arc::new(Mutex::new(None)),
+        root_uri: Arc::new(Mutex::new(None)),
         shared_state: Arc::new(Mutex::new(SharedState::new())),
     });
 
@@ -39,8 +39,7 @@ async fn main() {
 
 pub struct Backend {
     client: Client,
-    // The workspace URI is the URI of the VSCode workspace.
-    workspace_uri: Arc<Mutex<Option<Url>>>,
+    root_uri: Arc<Mutex<Option<Url>>>,
     slice_config: Arc<Mutex<SliceConfig>>,
     shared_state: Arc<Mutex<SharedState>>,
 }
@@ -51,14 +50,14 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
-        // Use the workspace root if it exists temporarily as we cannot access configuration until
+        // Use the root_uri if it exists temporarily as we cannot access configuration until
         // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
         // drive letter. To fix this, we convert the path to a URL and then back to a path.
         let fixed_uri = params
             .root_uri
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok());
-        *self.workspace_uri.lock().await = fixed_uri.clone();
+        *self.root_uri.lock().await = fixed_uri.clone();
 
         Ok(InitializeResult {
             server_info: None,
@@ -90,13 +89,10 @@ impl LanguageServer for Backend {
     async fn initialized(&self, _: InitializedParams) {
         // Update the references directories since this is the first time we can access the configuration
         {
-            let workspace_uri = self.workspace_uri.lock().await;
+            let root_uri = self.root_uri.lock().await;
 
             // Fetch and set the reference directory
-            let references_directories = self
-                .get_reference_directories(&workspace_uri, None)
-                .await
-                .ok();
+            let references_directories = self.get_reference_directories(&root_uri, None).await.ok();
             (*self.slice_config.lock().await).reference_urls = references_directories;
         }
 
@@ -111,6 +107,9 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "Slice Language Server initialized")
             .await;
+
+        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+            .await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -123,8 +122,8 @@ impl LanguageServer for Backend {
             .await;
 
         let reference_directories = {
-            let workspace_uri = self.workspace_uri.lock().await;
-            self.get_reference_directories(&workspace_uri, Some(&params))
+            let root_uri = self.root_uri.lock().await;
+            self.get_reference_directories(&root_uri, Some(&params))
                 .await
                 .ok()
         };
@@ -299,13 +298,12 @@ impl Backend {
             .log_message(MessageType::INFO, "compiling slice")
             .await;
 
-        // Get the workspace URI and slice config
-        let workspace_uri = self.workspace_uri.lock().await;
+        let root_uri = self.root_uri.lock().await;
         let slice_config = self.slice_config.lock().await;
 
         // Compile the Slice files
         let options = SliceOptions {
-            references: slice_config.resolve_reference_paths(workspace_uri.as_ref()),
+            references: slice_config.resolve_reference_paths(root_uri.as_ref()),
             ..Default::default()
         };
         (
@@ -316,37 +314,37 @@ impl Backend {
 
     async fn get_reference_directories(
         &self,
-        workspace_root: &Option<Url>,
+        root_uri: &Option<Url>,
         config_params: Option<&DidChangeConfigurationParams>,
     ) -> Result<Vec<Url>, Option<tower_lsp::jsonrpc::Error>> {
-        // If no workspace root is set, we cannot resolve the reference directories
-        let Some(workspace_dir) = workspace_root else {
+        // If no root_uri is set, we cannot resolve the reference directories
+        let Some(root_uri) = root_uri else {
             return Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
-                "Workspace directory is not set.",
+                "Root directory is not set.",
             )));
         };
 
         let reference_directories = if let Some(params) = config_params {
-            SliceConfig::from_configuration_parameters(params.clone(), workspace_dir)
+            SliceConfig::from_configuration_parameters(params.clone(), root_uri)
                 .reference_urls
                 .unwrap_or_default()
         } else {
-            SliceConfig::try_from_backend(self, workspace_dir)
+            SliceConfig::try_from_backend(self, root_uri)
                 .await?
                 .reference_urls
                 .unwrap_or_default()
         };
 
-        let workspace_path = workspace_dir.to_file_path().map_err(|_| {
+        let root_uri = root_uri.to_file_path().map_err(|_| {
             Some(tower_lsp::jsonrpc::Error::invalid_params(
-                "Failed to convert workspace URL to file path.",
+                "Failed to convert root URL to file path.",
             ))
         })?;
 
         let urls = reference_directories
             .iter()
             .map(|dir| {
-                let path = workspace_path.join(
+                let path = root_uri.join(
                     dir.to_file_path()
                         .expect("Could not covert reference directory to file path."),
                 );
