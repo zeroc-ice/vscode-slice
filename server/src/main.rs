@@ -129,8 +129,6 @@ impl LanguageServer for Backend {
                 .ok()
         };
 
-        // Check if either sources or reference directories have changed, if so, update the compilation state.
-
         {
             if let Some(ref_dirs) = reference_directories {
                 (*self.slice_config.lock().await).reference_urls = Some(ref_dirs);
@@ -148,7 +146,7 @@ impl LanguageServer for Backend {
             .cloned()
             .collect::<HashSet<_>>();
 
-        // Re-compile the Slice files considering both sources and references
+        // Re-compile the Slice files considering the updated references
         let (updated_state, options) = self.compile_slice_files().await;
 
         // Clear the diagnostics from files that are no longer in the compilation state
