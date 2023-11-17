@@ -35,24 +35,48 @@ const createClient = (
   );
 };
 
+let restartLanguageServer = async (context: ExtensionContext) => {
+  if (client) {
+    await client.stop();
+    client = undefined;
+  }
+
+  await activate(context);
+};
+
 /**
  * Set up handling for configuration changes.
- * @param {LanguageClient} client - The language client.
  */
-const handleConfigurationChanges = (client: LanguageClient) => {
-  workspace.onDidChangeConfiguration((event) => {
+const handleConfigurationChanges = (context: ExtensionContext) => {
+  workspace.onDidChangeConfiguration(async (event) => {
+    // Check if any configuration under 'slice' has changed
     if (event.affectsConfiguration("slice")) {
-      // Retrieve the updated configuration settings.
       const config = workspace.getConfiguration("slice");
-      const sourceDirectory = config.get<string>("sourceDirectory");
+      const enableLanguageServer = config.get<boolean>(
+        "languageServer.enabled"
+      );
       const referenceDirectories = config.get<string>("referenceDirectories");
 
-      // Send the "workspace/didChangeConfiguration" notification to the server with the updated settings.
-      client.sendNotification("workspace/didChangeConfiguration", {
-        settings: {
-          slice: { sourceDirectory, referenceDirectories },
-        },
-      });
+      // Send the updated configuration to the language server
+      if (client) {
+        client.sendNotification("workspace/didChangeConfiguration", {
+          settings: {
+            slice: { referenceDirectories },
+          },
+        });
+      }
+
+      // Handle the enabling/disabling of the language server
+      if (event.affectsConfiguration("slice.languageServer.enabled")) {
+        if (enableLanguageServer && !client) {
+          traceOutputChannel.appendLine("Enabling language server...");
+          await restartLanguageServer(context);
+        } else if (!enableLanguageServer && client) {
+          traceOutputChannel.appendLine("Disabling language server...");
+          await client.stop();
+          client = undefined;
+        }
+      }
     }
   });
 };
@@ -62,9 +86,20 @@ const handleConfigurationChanges = (client: LanguageClient) => {
  * @param {ExtensionContext} context - The extension context.
  */
 export async function activate(context: ExtensionContext) {
-  try {
-    traceOutputChannel.appendLine("Activating extension...");
+  traceOutputChannel.appendLine("Activating extension...");
 
+  handleConfigurationChanges(context);
+
+  // Don't activate the extension if languageServer.enabled is false.
+  const config = workspace.getConfiguration("slice");
+  const enableLanguageServer = config.get<boolean>("languageServer.enabled");
+  if (!enableLanguageServer) {
+    traceOutputChannel.appendLine("Language server initially disabled.");
+    return;
+  }
+
+  // Start the language server.
+  try {
     // Determine the platform and architecture, then set the command
     let command: string;
 
@@ -117,9 +152,6 @@ export async function activate(context: ExtensionContext) {
     // Create and start the language client.
     client = createClient(serverOptions, clientOptions);
     traceOutputChannel.appendLine("Language client created");
-
-    // Set up configuration change handling.
-    handleConfigurationChanges(client);
 
     // Start the client.
     await client.start();
