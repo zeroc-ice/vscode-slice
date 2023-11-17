@@ -75,7 +75,7 @@
         "slice.languageServer.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable / Disable the Slice language server.",
+          "description": "Enables / Disables the Slice language server.",
           "scope": "resource"
         }
       }
