@@ -127,14 +127,6 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Slice Language Server config changed")
             .await;
 
-        // Check if disableLanguageServer is set to true
-        if !self.should_enable_language_server(params.clone()).await {
-            self.client
-                .log_message(MessageType::INFO, "Slice Language Server has been disabled")
-                .await;
-            return;
-        }
-
         // Update the slice configuration
         {
             // TODO: Log error
@@ -367,14 +359,5 @@ impl Backend {
         self.client
             .log_message(MessageType::LOG, "Updated diagnostics for all files")
             .await;
-    }
-
-    async fn should_enable_language_server(&self, params: DidChangeConfigurationParams) -> bool {
-        params
-            .settings
-            .get("slice")
-            .and_then(|v| v.get("languageServer.enabled"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true)
     }
 }

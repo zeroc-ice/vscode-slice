@@ -61,7 +61,7 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
       if (client) {
         client.sendNotification("workspace/didChangeConfiguration", {
           settings: {
-            slice: { enableLanguageServer, referenceDirectories },
+            slice: { referenceDirectories },
           },
         });
       }
@@ -69,14 +69,10 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
       // Handle the enabling/disabling of the language server
       if (event.affectsConfiguration("slice.languageServer.enabled")) {
         if (enableLanguageServer && !client) {
-          traceOutputChannel.appendLine(
-            "Enabling language server..."
-          );
+          traceOutputChannel.appendLine("Enabling language server...");
           await restartLanguageServer(context);
         } else if (!enableLanguageServer && client) {
-          traceOutputChannel.appendLine(
-            "Disabling language server..."
-          );
+          traceOutputChannel.appendLine("Disabling language server...");
           await client.stop();
           client = undefined;
         }
