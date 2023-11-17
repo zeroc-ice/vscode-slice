@@ -30,16 +30,14 @@ async fn main() {
     let (service, socket) = LspService::new(|client| Backend {
         slice_config: Arc::new(Mutex::new(SliceConfig::default())),
         client,
-        root_uri: Arc::new(Mutex::new(None)),
         shared_state: Arc::new(Mutex::new(SharedState::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-pub struct Backend {
+struct Backend {
     client: Client,
-    root_uri: Arc<Mutex<Option<Url>>>,
     slice_config: Arc<Mutex<SliceConfig>>,
     shared_state: Arc<Mutex<SharedState>>,
 }
@@ -53,11 +51,16 @@ impl LanguageServer for Backend {
         // Use the root_uri if it exists temporarily as we cannot access configuration until
         // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
         // drive letter. To fix this, we convert the path to a URL and then back to a path.
-        let fixed_uri = params
+        if let Some(root_uri) = params
             .root_uri
             .and_then(|uri| uri.to_file_path().ok())
-            .and_then(|path| Url::from_file_path(path).ok());
-        *self.root_uri.lock().await = fixed_uri.clone();
+            .and_then(|path| Url::from_file_path(path).ok())
+        {
+            *self.slice_config.lock().await = SliceConfig {
+                root_uri: Some(root_uri.clone()),
+                ..Default::default()
+            }
+        }
 
         Ok(InitializeResult {
             server_info: None,
@@ -87,13 +90,16 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Update the references directories since this is the first time we can access the configuration
+        // Update the slice configuration with new references directories since this is the first time we can access
+        // the slice extension configuration
         {
-            let root_uri = self.root_uri.lock().await;
-
-            // Fetch and set the reference directory
-            let references_directories = self.get_reference_directories(&root_uri, None).await.ok();
-            (*self.slice_config.lock().await).reference_urls = references_directories;
+            // TODO: Log error
+            let _ = self
+                .slice_config
+                .lock()
+                .await
+                .try_update(&self.client, None)
+                .await;
         }
 
         let mut shared_state_lock = self.shared_state.lock().await;
@@ -121,17 +127,15 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Slice Language Server config changed")
             .await;
 
-        let reference_directories = {
-            let root_uri = self.root_uri.lock().await;
-            self.get_reference_directories(&root_uri, Some(&params))
-                .await
-                .ok()
-        };
-
+        // Update the slice configuration
         {
-            if let Some(ref_dirs) = reference_directories {
-                (*self.slice_config.lock().await).reference_urls = Some(ref_dirs);
-            }
+            // TODO: Log error
+            let _ = self
+                .slice_config
+                .lock()
+                .await
+                .try_update(&self.client, Some(&params))
+                .await;
         }
 
         // Store the current files in the compilation state before re-compiling
@@ -298,65 +302,20 @@ impl Backend {
             .log_message(MessageType::INFO, "compiling slice")
             .await;
 
-        let root_uri = self.root_uri.lock().await;
-        let slice_config = self.slice_config.lock().await;
+        let references = self.slice_config.lock().await.resolve_reference_paths();
+        self.client
+            .log_message(MessageType::INFO, format!("references: {:?}", references))
+            .await;
 
         // Compile the Slice files
         let options = SliceOptions {
-            references: slice_config.resolve_reference_paths(root_uri.as_ref()),
+            references,
             ..Default::default()
         };
         (
             slicec::compile_from_options(&options, |_| {}, |_| {}),
             options,
         )
-    }
-
-    async fn get_reference_directories(
-        &self,
-        root_uri: &Option<Url>,
-        config_params: Option<&DidChangeConfigurationParams>,
-    ) -> Result<Vec<Url>, Option<tower_lsp::jsonrpc::Error>> {
-        // If no root_uri is set, we cannot resolve the reference directories
-        let Some(root_uri) = root_uri else {
-            return Err(Some(tower_lsp::jsonrpc::Error::invalid_params(
-                "Root directory is not set.",
-            )));
-        };
-
-        let reference_directories = if let Some(params) = config_params {
-            SliceConfig::from_configuration_parameters(params.clone(), root_uri)
-                .reference_urls
-                .unwrap_or_default()
-        } else {
-            SliceConfig::try_from_backend(self, root_uri)
-                .await?
-                .reference_urls
-                .unwrap_or_default()
-        };
-
-        let root_uri = root_uri.to_file_path().map_err(|_| {
-            Some(tower_lsp::jsonrpc::Error::invalid_params(
-                "Failed to convert root URL to file path.",
-            ))
-        })?;
-
-        let urls = reference_directories
-            .iter()
-            .map(|dir| {
-                let path = root_uri.join(
-                    dir.to_file_path()
-                        .expect("Could not covert reference directory to file path."),
-                );
-                Url::from_file_path(path).map_err(|_| {
-                    Some(tower_lsp::jsonrpc::Error::invalid_params(
-                        "Failed to convert reference path to URL.",
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(urls)
     }
 
     async fn publish_diagnostics_for_all_files(&self, shared_state: &mut SharedState) {

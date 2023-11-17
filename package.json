@@ -64,7 +64,7 @@
       "type": "object",
       "title": "Slice",
       "properties": {
-        "slice.referenceDirectory": {
+        "slice.referenceDirectories": {
           "type": "array",
           "items": {
             "type": "string"

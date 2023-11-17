@@ -43,12 +43,12 @@ impl HoverVisitor {
     fn construct_message<T: Element + ?Sized>(
         primitive: &Primitive,
         typeref: &TypeRef<T>,
-    ) -> Option<String> {
+    ) -> String {
         let (prefix, description) = Self::describe_primitive_type(primitive);
         if typeref.is_optional {
-            Some(format!("An optional {description}"))
+            format!("An optional {description}")
         } else {
-            Some(format!("{prefix} {description}"))
+            format!("{prefix} {description}")
         }
     }
 
@@ -97,7 +97,7 @@ impl Visitor for HoverVisitor {
                 let TypeRefDefinition::Patched(definition) = &underlying_def.definition else {
                     return;
                 };
-                self.found_message = Self::construct_message(definition.borrow(), underlying)
+                self.found_message = Some(Self::construct_message(definition.borrow(), underlying))
             }
         }
     }
@@ -126,7 +126,7 @@ impl Visitor for HoverVisitor {
         };
 
         let type_description = match type_def.borrow().concrete_type() {
-            Types::Primitive(x) => Self::construct_message(x, typeref),
+            Types::Primitive(x) => Some(Self::construct_message(x, typeref)),
             _ => None,
         };
         self.found_message = type_description;
