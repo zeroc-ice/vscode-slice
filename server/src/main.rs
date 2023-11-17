@@ -98,7 +98,7 @@ impl LanguageServer for Backend {
                 .slice_config
                 .lock()
                 .await
-                .try_update(&self.client, None)
+                .try_update_from_client(&self.client)
                 .await;
         }
 
@@ -134,7 +134,7 @@ impl LanguageServer for Backend {
                 .slice_config
                 .lock()
                 .await
-                .try_update(&self.client, Some(&params))
+                .try_update_from_params(&params)
                 .await;
         }
 

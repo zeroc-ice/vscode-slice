@@ -12,17 +12,19 @@ pub struct SliceConfig {
 }
 
 impl SliceConfig {
-    // Attempt to update the SliceConfig using the backend with the provided uri root.
-    pub async fn try_update(
+    pub async fn try_update_from_params(
+        &mut self,
+        params: &DidChangeConfigurationParams,
+    ) -> tower_lsp::jsonrpc::Result<()> {
+        self.references = Self::parse_reference_directories(params);
+        Ok(())
+    }
+
+    pub async fn try_update_from_client(
         &mut self,
         client: &Client,
-        params: Option<&DidChangeConfigurationParams>,
     ) -> tower_lsp::jsonrpc::Result<()> {
-        let reference_urls = match params {
-            Some(params) => Self::parse_reference_directories(params),
-            None => Self::fetch_reference_directories(client).await?,
-        };
-        self.references = reference_urls;
+        self.references = Self::fetch_reference_directories(client).await?;
         Ok(())
     }
 
