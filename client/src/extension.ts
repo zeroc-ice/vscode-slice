@@ -49,15 +49,15 @@ let restartLanguageServer = async (context: ExtensionContext) => {
  */
 const handleConfigurationChanges = (context: ExtensionContext) => {
   workspace.onDidChangeConfiguration(async (event) => {
+    // Check if any configuration under 'slice' has changed
     if (event.affectsConfiguration("slice")) {
-      // Retrieve the updated configuration settings.
       const config = workspace.getConfiguration("slice");
       const enableLanguageServer = config.get<boolean>(
         "languageServer.enabled"
       );
       const referenceDirectories = config.get<string>("referenceDirectories");
 
-      // Send the "workspace/didChangeConfiguration" notification to the server with the updated settings.
+      // Send the updated configuration to the language server
       if (client) {
         client.sendNotification("workspace/didChangeConfiguration", {
           settings: {
@@ -65,24 +65,21 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
           },
         });
       }
-    }
 
-    // Restart the language server if the languageServer.enabled setting has changed.
-    if (event.affectsConfiguration("slice.languageServer.enabled")) {
-      const config = workspace.getConfiguration("slice");
-      const enabled = config.get<boolean>("languageServer.enabled"); // Corrected the key
-
-      if (!enabled && client) {
-        traceOutputChannel.appendLine(
-          "Disabling language server as per configuration change..."
-        );
-        await client.stop();
-        client = undefined;
-      } else if (enabled && !client) {
-        traceOutputChannel.appendLine(
-          "Restarting language server as per configuration change..."
-        );
-        await restartLanguageServer(context);
+      // Handle the enabling/disabling of the language server
+      if (event.affectsConfiguration("slice.languageServer.enabled")) {
+        if (enableLanguageServer && !client) {
+          traceOutputChannel.appendLine(
+            "Enabling language server as per configuration change..."
+          );
+          await restartLanguageServer(context);
+        } else if (!enableLanguageServer && client) {
+          traceOutputChannel.appendLine(
+            "Disabling language server as per configuration change..."
+          );
+          await client.stop();
+          client = undefined;
+        }
       }
     }
   });
@@ -95,11 +92,13 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
 export async function activate(context: ExtensionContext) {
   traceOutputChannel.appendLine("Activating extension...");
 
+  handleConfigurationChanges(context);
+
   // Don't activate the extension if languageServer.enabled is false.
   const config = workspace.getConfiguration("slice");
-  const enableLanguageServer = config.get<boolean>("languageServer.enabled"); // Corrected the key
+  const enableLanguageServer = config.get<boolean>("languageServer.enabled");
   if (!enableLanguageServer) {
-    traceOutputChannel.appendLine("Language server disabled");
+    traceOutputChannel.appendLine("Language server initially disabled.");
     return;
   }
 
@@ -167,8 +166,6 @@ export async function activate(context: ExtensionContext) {
       "Slice Language Server failed to start. See the trace for more information."
     );
   }
-
-  handleConfigurationChanges(context);
 }
 
 /**
