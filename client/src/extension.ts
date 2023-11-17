@@ -45,12 +45,12 @@ const handleConfigurationChanges = (client: LanguageClient) => {
       // Retrieve the updated configuration settings.
       const config = workspace.getConfiguration("slice");
       const sourceDirectory = config.get<string>("sourceDirectory");
-      const referenceDirectory = config.get<string>("referenceDirectory");
+      const referenceDirectories = config.get<string>("referenceDirectories");
 
       // Send the "workspace/didChangeConfiguration" notification to the server with the updated settings.
       client.sendNotification("workspace/didChangeConfiguration", {
         settings: {
-          slice: { sourceDirectory, referenceDirectory },
+          slice: { sourceDirectory, referenceDirectories },
         },
       });
     }

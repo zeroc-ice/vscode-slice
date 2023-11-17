@@ -12,3 +12,7 @@ pub fn convert_uri_to_slice_formated_url(uri: Url) -> Option<String> {
             .to_owned(),
     )
 }
+
+pub fn convert_slice_url_to_uri(url: &str) -> Option<Url> {
+    Url::from_file_path(url).ok()
+}
