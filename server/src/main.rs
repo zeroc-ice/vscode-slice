@@ -130,7 +130,7 @@ impl LanguageServer for Backend {
         // Check if disableLanguageServer is set to true
         if !self.should_enable_language_server(params.clone()).await {
             self.client
-                .log_message(MessageType::INFO, "Slice Language Server has disabled")
+                .log_message(MessageType::INFO, "Slice Language Server has been disabled")
                 .await;
             return;
         }

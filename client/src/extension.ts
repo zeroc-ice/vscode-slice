@@ -70,12 +70,12 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
       if (event.affectsConfiguration("slice.languageServer.enabled")) {
         if (enableLanguageServer && !client) {
           traceOutputChannel.appendLine(
-            "Enabling language server as per configuration change..."
+            "Enabling language server..."
           );
           await restartLanguageServer(context);
         } else if (!enableLanguageServer && client) {
           traceOutputChannel.appendLine(
-            "Disabling language server as per configuration change..."
+            "Disabling language server..."
           );
           await client.stop();
           client = undefined;
