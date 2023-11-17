@@ -52,8 +52,8 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
     if (event.affectsConfiguration("slice")) {
       // Retrieve the updated configuration settings.
       const config = workspace.getConfiguration("slice");
-      const disableLanguageServer = config.get<boolean>(
-        "disableLanguageServer"
+      const enableLanguageServer = config.get<boolean>(
+        "languageServer.enabled"
       );
       const referenceDirectories = config.get<string>("referenceDirectories");
 
@@ -61,26 +61,24 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
       if (client) {
         client.sendNotification("workspace/didChangeConfiguration", {
           settings: {
-            slice: { disableLanguageServer, referenceDirectories },
+            slice: { enableLanguageServer, referenceDirectories },
           },
         });
       }
     }
 
-    // Restart the language server if the disableLanguageServer setting has changed.
-    if (event.affectsConfiguration("slice.disableLanguageServer")) {
+    // Restart the language server if the languageServer.enabled setting has changed.
+    if (event.affectsConfiguration("slice.languageServer.enabled")) {
       const config = workspace.getConfiguration("slice");
-      const disableLanguageServer = config.get<boolean>(
-        "disableLanguageServer"
-      );
+      const enabled = config.get<boolean>("languageServer.enabled"); // Corrected the key
 
-      if (disableLanguageServer && client) {
+      if (!enabled && client) {
         traceOutputChannel.appendLine(
           "Disabling language server as per configuration change..."
         );
         await client.stop();
         client = undefined;
-      } else if (!disableLanguageServer && !client) {
+      } else if (enabled && !client) {
         traceOutputChannel.appendLine(
           "Restarting language server as per configuration change..."
         );
@@ -97,10 +95,10 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
 export async function activate(context: ExtensionContext) {
   traceOutputChannel.appendLine("Activating extension...");
 
-  // Don't activate the extension if disableLanguageServer is true.
+  // Don't activate the extension if languageServer.enabled is false.
   const config = workspace.getConfiguration("slice");
-  const disableLanguageServer = config.get<boolean>("disableLanguageServer");
-  if (disableLanguageServer) {
+  const enableLanguageServer = config.get<boolean>("languageServer.enabled"); // Corrected the key
+  if (!enableLanguageServer) {
     traceOutputChannel.appendLine("Language server disabled");
     return;
   }

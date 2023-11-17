@@ -72,10 +72,10 @@
           "description": "The directories containing the target Slice reference files.",
           "scope": "resource"
         },
-        "slice.disableLanguageServer": {
+        "slice.languageServer.enabled": {
           "type": "boolean",
-          "default": false,
-          "description": "Disable the Slice language server.",
+          "default": true,
+          "description": "Enable / Disable the Slice language server.",
           "scope": "resource"
         }
       }
