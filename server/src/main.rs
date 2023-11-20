@@ -303,8 +303,11 @@ impl Backend {
             .await;
 
         let references = self.slice_config.lock().await.resolve_reference_paths();
+
+        // If debug is enabled, log the resolved references
+        #[cfg(debug_assertions)]
         self.client
-            .log_message(MessageType::INFO, format!("references: {:?}", references))
+            .log_message(MessageType::LOG, format!("references: {:?}", references))
             .await;
 
         // Compile the Slice files
