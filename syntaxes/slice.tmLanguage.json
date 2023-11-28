@@ -630,7 +630,7 @@
         "field": {
             "name": "meta.field.slice",
             "begin": "\\\\?\\w+",
-            "end": "(?=[,}])|$",
+            "end": "(?=[,}\\)])|$",
             "beginCaptures": {
                 "0": {
                     "name": "entity.name.variable.slice",
@@ -641,7 +641,7 @@
                 {"include": "#standard"},
                 {
                     "begin": ":",
-                    "end": "(?=[,}])|$",
+                    "end": "(?=[,}\\)])|$",
                     "beginCaptures": {
                         "0": {"name": "punctuation.separator.colon.slice"}
                     },
@@ -724,26 +724,46 @@
             "patterns": [
                 {"include": "#standard"},
                 {
-                    "begin": "=",
-                    "end": "(?=[,}])|$",
+                    "begin": "\\(",
+                    "end": "\\)",
                     "beginCaptures": {
-                        "0": {"name": "keyword.operator.assignment.slice"}
+                        "0": {"name": "punctuation.parenthesis.open.slice"}
+                    },
+                    "endCaptures": {
+                        "0": {"name": "punctuation.parenthesis.close.slice"}
                     },
                     "patterns": [
-                        {"include": "#standard"},
+                        {"include": "#tag"},
+                        {"include": "#field"},
                         {
-                            "begin": "(?=-|\\b)[\\w-]+\\b",
-                            "end": "(?=[,}])|$",
-                            "beginCaptures": {
-                                "0": {"patterns": [{"include": "#integer-literal"}]}
-                            },
-                            "patterns": [
-                                {"include": "#standard"}
-                            ]
+                            "name": "punctuation.separator.comma.slice",
+                            "match": ","
                         },
-                        {"include": "#error"}
+                        {"include": "#slice"}
                     ]
-                }
+                },
+                {"include": "#enumerator-value"}
+            ]
+        },
+        "enumerator-value": {
+            "begin": "=",
+            "end": "(?=[,}])|$",
+            "beginCaptures": {
+                "0": {"name": "keyword.operator.assignment.slice"}
+            },
+            "patterns": [
+                {"include": "#standard"},
+                {
+                    "begin": "(?=-|\\b)[\\w-]+\\b",
+                    "end": "(?=[,}])|$",
+                    "beginCaptures": {
+                        "0": {"patterns": [{"include": "#integer-literal"}]}
+                    },
+                    "patterns": [
+                        {"include": "#standard"}
+                    ]
+                },
+                {"include": "#error"}
             ]
         },
 
