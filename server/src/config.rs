@@ -79,7 +79,7 @@ impl SliceConfig {
         let Some(references) = &self.references else {
             let default_path = match root_path.is_absolute() {
                 true => root_path.display().to_string(),
-                false => root_path.join(&root_path).display().to_string(), // Is joining a path to itself correct?
+                false => root_path.join(&root_path).display().to_string(),
             };
             return vec![default_path];
         };
