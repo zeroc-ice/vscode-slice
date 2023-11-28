@@ -66,32 +66,24 @@ impl SliceConfig {
     }
 
     // Convert reference directory strings into URLs.
-    fn try_get_reference_urls(&self) -> Result<Vec<Url>, tower_lsp::jsonrpc::Error> {
+    fn try_get_reference_urls(&self) -> Result<Vec<Url>, ()> {
         // Convert the root_uri to a file path
-        let root_uri_error =
-            || tower_lsp::jsonrpc::Error::invalid_params("Failed to process URL or file path.");
         let root_path = self
             .root_uri
             .as_ref()
-            .ok_or_else(root_uri_error)?
+            .ok_or(())?
             .to_file_path()
-            .map_err(|_| root_uri_error())?;
+            .map_err(|_| ())?;
 
         // Convert reference directories to URLs or use root_uri if none are present
         let result_urls = match self.references.as_ref() {
             Some(dirs) => dirs
                 .iter()
                 .map(|dir| {
-                    Url::from_file_path(root_path.join(dir)).map_err(|_| {
-                        tower_lsp::jsonrpc::Error::invalid_params(
-                            "Failed to convert reference path to URL.",
-                        )
-                    })
+                    Url::from_file_path(root_path.join(dir)).map_err(|_| ())
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            None => vec![self.root_uri.clone().ok_or_else(|| {
-                tower_lsp::jsonrpc::Error::invalid_params("Root URI is not set.")
-            })?],
+            None => vec![self.root_uri.clone().ok_or(())?],
         };
 
         Ok(result_urls)
