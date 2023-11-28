@@ -65,63 +65,53 @@ impl SliceConfig {
             })
     }
 
-    // Convert reference directory strings into URLs.
-    fn try_get_reference_urls(&self) -> Vec<Url> {
-        // If no root_uri is set, return `None`, since this won't be able to resolve the reference urls.
+    // Resolve reference URIs to file paths to be used by the Slice compiler.
+    pub fn resolve_reference_paths(&self) -> Vec<String> {
+        // If `root_uri` isn't set, or doesn't represent a valid file path, path resolution is impossible, so we return.
         let Some(root_uri) = &self.root_uri else {
             return vec![];
         };
-
-        // If no references are set, default to using the root_uri.
-        let Some(references) = &self.references else {
-            return vec![root_uri.clone()];
-        };
-
-        // Convert the root_uri to a file path. If it fails, return `None`.
         let Ok(root_path) = root_uri.to_file_path() else {
             return vec![];
         };
 
-        // Convert reference directories to URLs or use root_uri if none are present
+        // If no references are set, default to using the workspace root.
+        let Some(references) = &self.references else {
+            let default_path = match root_path.is_absolute() {
+                true => root_path.display().to_string(),
+                false => root_path.join(&root_path).display().to_string(), // Is joining a path to itself correct?
+            };
+            return vec![default_path];
+        };
+
+        // Convert reference directories to URLs.
         let mut result_urls = Vec::new();
         for reference in references {
             match Url::from_file_path(root_path.join(reference)) {
-                Ok(full_path) => result_urls.push(full_path),
-                Err(_) => return vec![],
+                Ok(reference_url) => {
+                    // If this url doesn't represent a valid file path, skip it.
+                    let Ok(absolute_path) = reference_url.to_file_path() else {
+                        continue;
+                    };
+
+                    // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
+                    if absolute_path.is_absolute() {
+                        result_urls.push(absolute_path.display().to_string());
+                    } else {
+                        let other_path = root_path.join(&absolute_path);
+                        result_urls.push(other_path.display().to_string());
+                    }
+                }
+                Err(_) => return vec![root_path.display().to_string()],
             }
         }
-        result_urls
-    }
 
-    // Resolve reference URIs to file paths to be used by the Slice compiler.
-    pub fn resolve_reference_paths(&self) -> Vec<String> {
-        let reference_urls = self.try_get_reference_urls();
-
-        // If no reference directories are set, use the root_uri as the reference directory.
-        if reference_urls.is_empty() {
-            return self
-                .root_uri
-                .as_ref()
-                .and_then(|url| url.to_file_path().ok())
-                .map(|path| vec![path.display().to_string()])
-                .unwrap_or_default();
+        // If references was set to an empty list, or none of them represented a valid directory path, default to using
+        // the workspace root. Otherwise, if there's more than zero valid reference directories, return them.
+        if result_urls.is_empty() {
+            vec![root_path.display().to_string()]
+        } else {
+            result_urls
         }
-
-        // Convert reference URLs to file paths
-        reference_urls
-            .iter()
-            .filter_map(|uri| {
-                let path = uri.to_file_path().ok()?;
-                if path.is_absolute() {
-                    Some(path.display().to_string())
-                } else {
-                    self.root_uri
-                        .as_ref()?
-                        .to_file_path()
-                        .ok()
-                        .map(|root_path| root_path.join(&path).display().to_string())
-                }
-            })
-            .collect()
     }
 }
