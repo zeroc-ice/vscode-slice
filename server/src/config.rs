@@ -68,10 +68,7 @@ impl SliceConfig {
     // Resolve reference URIs to file paths to be used by the Slice compiler.
     pub fn resolve_reference_paths(&self) -> Vec<String> {
         // If `root_uri` isn't set, or doesn't represent a valid file path, path resolution is impossible, so we return.
-        let Some(root_uri) = &self.root_uri else {
-            return vec![];
-        };
-        let Ok(root_path) = root_uri.to_file_path() else {
+        let Some(Ok(root_path)) = self.root_uri.as_ref().map(Url::to_file_path) else {
             return vec![];
         };
 
