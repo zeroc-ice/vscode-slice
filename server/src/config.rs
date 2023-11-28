@@ -67,10 +67,12 @@ impl SliceConfig {
 
     // Convert reference directory strings into URLs.
     fn try_get_reference_urls(&self) -> Option<Vec<Url>> {
+        let Some(root_uri) = &self.root_uri else {
+            return None;
+        };
+
         // Convert the root_uri to a file path
-        let root_path = self
-            .root_uri
-            .as_ref()?
+        let root_path = root_uri
             .to_file_path()
             .ok()?;
 
@@ -82,7 +84,7 @@ impl SliceConfig {
                     Url::from_file_path(root_path.join(dir)).ok()
                 })
                 .collect::<Option<Vec<_>>>()?,
-            None => vec![self.root_uri.clone()?],
+            None => vec![root_uri.clone()],
         };
 
         Some(result_urls)
