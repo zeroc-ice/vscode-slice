@@ -66,27 +66,26 @@ impl SliceConfig {
     }
 
     // Convert reference directory strings into URLs.
-    fn try_get_reference_urls(&self) -> Result<Vec<Url>, ()> {
+    fn try_get_reference_urls(&self) -> Option<Vec<Url>> {
         // Convert the root_uri to a file path
         let root_path = self
             .root_uri
-            .as_ref()
-            .ok_or(())?
+            .as_ref()?
             .to_file_path()
-            .map_err(|_| ())?;
+            .ok()?;
 
         // Convert reference directories to URLs or use root_uri if none are present
         let result_urls = match self.references.as_ref() {
             Some(dirs) => dirs
                 .iter()
                 .map(|dir| {
-                    Url::from_file_path(root_path.join(dir)).map_err(|_| ())
+                    Url::from_file_path(root_path.join(dir)).ok()
                 })
-                .collect::<Result<Vec<_>, _>>()?,
-            None => vec![self.root_uri.clone().ok_or(())?],
+                .collect::<Option<Vec<_>>>()?,
+            None => vec![self.root_uri.clone()?],
         };
 
-        Ok(result_urls)
+        Some(result_urls)
     }
 
     // Resolve reference URIs to file paths to be used by the Slice compiler.
