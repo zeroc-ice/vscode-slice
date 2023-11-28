@@ -8,7 +8,6 @@ use shared_state::SharedState;
 use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
     sync::Arc,
 };
 use tokio::sync::Mutex;
@@ -231,20 +230,20 @@ impl LanguageServer for Backend {
         )
     }
 
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.handle_file_change(params.text_document.uri).await;
+    async fn did_open(&self, _: DidOpenTextDocumentParams) {
+        self.handle_file_change().await;
     }
 
-    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+    async fn did_save(&self, _: DidSaveTextDocumentParams) {
         self.client
             .log_message(MessageType::INFO, "file saved")
             .await;
-        self.handle_file_change(params.text_document.uri).await;
+        self.handle_file_change().await;
     }
 }
 
 impl Backend {
-    async fn handle_file_change(&self, uri: Url) {
+    async fn handle_file_change(&self) {
         let (updated_state, options) = self.compile_slice_files().await;
 
         let mut shared_state_lock = self.shared_state.lock().await;
@@ -252,49 +251,8 @@ impl Backend {
         shared_state_lock.compilation_state = updated_state;
         shared_state_lock.compilation_options = options;
 
-        let diagnostics = self
-            .get_diagnostics_for_uri(&uri, &mut shared_state_lock)
+        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
             .await;
-
-        self.client
-            .publish_diagnostics(uri, diagnostics, None)
-            .await;
-    }
-
-    // This will consume all of the diagnostics in the compilation state and return them as LSP diagnostics.
-    // If you need the diagnostics again you will need to recompile.
-    async fn get_diagnostics_for_uri(
-        &self,
-        uri: &Url,
-        shared_state: &mut SharedState,
-    ) -> Vec<Diagnostic> {
-        let compilation_state = &mut shared_state.compilation_state;
-
-        let options = &shared_state.compilation_options;
-        let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
-            &compilation_state.ast,
-            &compilation_state.files,
-            options,
-        );
-
-        diagnostics
-            .iter()
-            .filter_map(|d| {
-                d.span()
-                    .and_then(|s| {
-                        // Convert the span file path to a PathBuf
-                        let span_path = PathBuf::from(&s.file);
-
-                        // Convert the URI to a PathBuf, handling URL decoding
-                        let uri_path = uri.to_file_path().ok().map(|p| p.to_path_buf())?;
-
-                        // Check if the paths match
-                        (span_path == uri_path).then_some(d)
-                    })
-                    // Convert to LSP diagnostic
-                    .and_then(try_into_lsp_diagnostic)
-            })
-            .collect::<Vec<_>>()
     }
 
     async fn compile_slice_files(&self) -> (CompilationState, SliceOptions) {
