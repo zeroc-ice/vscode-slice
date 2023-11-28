@@ -71,21 +71,23 @@ impl SliceConfig {
             return None;
         };
 
+        // If no references are set, default to using the root_uri.
+        let Some(references) = &self.references else {
+            return Some(vec![root_uri.clone()]);
+        };
+
         // Convert the root_uri to a file path
         let root_path = root_uri
             .to_file_path()
             .ok()?;
 
         // Convert reference directories to URLs or use root_uri if none are present
-        let result_urls = match self.references.as_ref() {
-            Some(dirs) => dirs
-                .iter()
-                .map(|dir| {
-                    Url::from_file_path(root_path.join(dir)).ok()
-                })
-                .collect::<Option<Vec<_>>>()?,
-            None => vec![root_uri.clone()],
-        };
+        let result_urls = references
+            .iter()
+            .map(|dir| {
+                Url::from_file_path(root_path.join(dir)).ok()
+            })
+            .collect::<Option<Vec<_>>>()?;
 
         Some(result_urls)
     }
