@@ -128,13 +128,8 @@ impl LanguageServer for Backend {
 
         // Update the slice configuration
         {
-            // TODO: Log error
-            let _ = self
-                .slice_config
-                .lock()
-                .await
-                .try_update_from_params(&params)
-                .await;
+            let mut slice_config = self.slice_config.lock().await;
+            slice_config.try_update_from_params(&params);
         }
 
         // Store the current files in the compilation state before re-compiling

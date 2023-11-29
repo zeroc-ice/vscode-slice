@@ -12,12 +12,8 @@ pub struct SliceConfig {
 }
 
 impl SliceConfig {
-    pub async fn try_update_from_params(
-        &mut self,
-        params: &DidChangeConfigurationParams,
-    ) -> tower_lsp::jsonrpc::Result<()> {
+    pub fn try_update_from_params(&mut self, params: &DidChangeConfigurationParams) {
         self.references = Self::parse_reference_directories(params);
-        Ok(())
     }
 
     pub async fn try_update_from_client(
