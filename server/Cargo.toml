@@ -3,11 +3,9 @@ name = "slice-language-server"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 futures = "0.3.29"
-slicec  = { git = "https://github.com/icerpc/slicec", branch = "main" }
+slicec = "0.2.1"
 tokio = { version = "1.33.0", features = ["full"] }
 tower-lsp = "0.20.0"
 
