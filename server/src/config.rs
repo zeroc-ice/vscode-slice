@@ -1,5 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
+use slicec::slice_options::SliceOptions;
 use tower_lsp::{
     lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url},
     Client,
@@ -9,8 +10,9 @@ use tower_lsp::{
 pub struct SliceConfig {
     built_in_slice_path: String,
     references: Option<Vec<String>>,
-    resolved_references: Vec<String>,
     root_uri: Option<Url>,
+
+    cached_slice_options: SliceOptions,
 }
 
 impl SliceConfig {
@@ -77,7 +79,7 @@ impl SliceConfig {
     /// Resolve and cache reference URIs to file paths to be used by the Slice compiler.
     /// This function should be called whenever the configuration changes.
     fn refresh_reference_paths(&mut self) {
-        self.resolved_references = self.resolve_reference_paths();
+        self.cached_slice_options.references = self.resolve_reference_paths();
     }
 
     // Resolve reference URIs to file paths to be used by the Slice compiler.
@@ -130,7 +132,7 @@ impl SliceConfig {
         paths
     }
 
-    pub fn get_resolved_reference_paths(&self) -> &[String] {
-        &self.resolved_references
+    pub fn as_slice_options(&self) -> &SliceOptions {
+        &self.cached_slice_options
     }
 }

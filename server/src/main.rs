@@ -5,7 +5,7 @@ use diagnostic_ext::try_into_lsp_diagnostic;
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
 use shared_state::SharedState;
-use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
+use slicec::compilation_state::CompilationState;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -112,10 +112,8 @@ impl LanguageServer for Backend {
         let mut shared_state_lock = self.shared_state.lock().await;
 
         // Compile the Slice files and publish diagnostics
-        let (updated_state, options) = self.compile_slice_files().await;
-
+        let updated_state = self.compile_slice_files().await;
         shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
 
         self.client
             .log_message(MessageType::INFO, "Slice Language Server initialized")
@@ -152,7 +150,7 @@ impl LanguageServer for Backend {
             .collect::<HashSet<_>>();
 
         // Re-compile the Slice files considering the updated references
-        let (updated_state, options) = self.compile_slice_files().await;
+        let updated_state = self.compile_slice_files().await;
 
         // Clear the diagnostics from files that are no longer in the compilation state
         let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
@@ -166,7 +164,6 @@ impl LanguageServer for Backend {
         let mut shared_state_lock = self.shared_state.lock().await;
 
         shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
 
         self.publish_diagnostics_for_all_files(&mut shared_state_lock)
             .await;
@@ -247,49 +244,33 @@ impl LanguageServer for Backend {
 
 impl Backend {
     async fn handle_file_change(&self) {
-        let (updated_state, options) = self.compile_slice_files().await;
+        let updated_state = self.compile_slice_files().await;
 
         let mut shared_state_lock = self.shared_state.lock().await;
 
         shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
 
         self.publish_diagnostics_for_all_files(&mut shared_state_lock)
             .await;
     }
 
-    async fn compile_slice_files(&self) -> (CompilationState, SliceOptions) {
+    async fn compile_slice_files(&self) -> CompilationState {
         self.client
             .log_message(MessageType::INFO, "compiling slice")
             .await;
 
-        let references = self.slice_config.lock().await.get_resolved_reference_paths().to_vec();
-
-        // If debug is enabled, log the resolved references
-        #[cfg(debug_assertions)]
-        self.client
-            .log_message(MessageType::LOG, format!("references: {:?}", references))
-            .await;
-
-        // Compile the Slice files
-        let options = SliceOptions {
-            references,
-            ..Default::default()
-        };
-        (
-            slicec::compile_from_options(&options, |_| {}, |_| {}),
-            options,
-        )
+        let config = self.slice_config.lock().await;
+        slicec::compile_from_options(config.as_slice_options(), |_| {}, |_| {})
     }
 
     async fn publish_diagnostics_for_all_files(&self, shared_state: &mut SharedState) {
-        let compilation_options = &shared_state.compilation_options;
         let compilation_state = &mut shared_state.compilation_state;
+        let config = self.slice_config.lock().await;
 
         let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
             &compilation_state.ast,
             &compilation_state.files,
-            compilation_options,
+            config.as_slice_options(),
         );
 
         // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
