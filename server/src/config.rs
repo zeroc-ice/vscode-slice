@@ -11,7 +11,6 @@ pub struct SliceConfig {
     built_in_slice_path: String,
     references: Option<Vec<String>>,
     root_uri: Option<Url>,
-
     cached_slice_options: SliceOptions,
 }
 
