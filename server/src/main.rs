@@ -137,7 +137,7 @@ impl LanguageServer for Backend {
         // Update the slice configuration
         {
             let mut slice_config = self.slice_config.lock().await;
-            slice_config.try_update_from_params(&params);
+            slice_config.update_from_params(&params);
         }
 
         // Store the current files in the compilation state before re-compiling
@@ -263,7 +263,7 @@ impl Backend {
             .log_message(MessageType::INFO, "compiling slice")
             .await;
 
-        let references = self.slice_config.lock().await.resolve_reference_paths();
+        let references = self.slice_config.lock().await.get_resolved_reference_paths().to_vec();
 
         // If debug is enabled, log the resolved references
         #[cfg(debug_assertions)]
