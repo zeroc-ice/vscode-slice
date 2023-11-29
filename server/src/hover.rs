@@ -3,12 +3,8 @@
 use crate::utils::convert_uri_to_slice_formated_url;
 use slicec::{
     compilation_state::CompilationState,
-    grammar::{
-        Class, CustomType, Element, Enum, Enumerator, Exception, Field, Interface, Module,
-        Operation, Parameter, Primitive, Struct, Symbol, TypeAlias, TypeRef, TypeRefDefinition,
-        Types,
-    },
-    slice_file::{Location, SliceFile},
+    grammar::{Element, Enum, Primitive, Symbol, TypeRef, TypeRefDefinition, Types},
+    slice_file::Location,
     visitor::Visitor,
 };
 use tower_lsp::lsp_types::{Position, Url};
@@ -76,18 +72,6 @@ impl HoverVisitor {
 }
 
 impl Visitor for HoverVisitor {
-    fn visit_file(&mut self, _: &SliceFile) {}
-
-    fn visit_module(&mut self, _: &Module) {}
-
-    fn visit_struct(&mut self, _: &Struct) {}
-
-    fn visit_class(&mut self, _: &Class) {}
-
-    fn visit_exception(&mut self, _: &Exception) {}
-
-    fn visit_interface(&mut self, _: &Interface) {}
-
     fn visit_enum(&mut self, enum_def: &Enum) {
         if let Some(underlying) = &enum_def.underlying {
             if !&self.search_location.is_within(underlying.span()) {
@@ -101,18 +85,6 @@ impl Visitor for HoverVisitor {
             }
         }
     }
-
-    fn visit_operation(&mut self, _: &Operation) {}
-
-    fn visit_custom_type(&mut self, _: &CustomType) {}
-
-    fn visit_type_alias(&mut self, _: &TypeAlias) {}
-
-    fn visit_field(&mut self, _: &Field) {}
-
-    fn visit_parameter(&mut self, _: &Parameter) {}
-
-    fn visit_enumerator(&mut self, _: &Enumerator) {}
 
     fn visit_type_ref(&mut self, typeref: &TypeRef) {
         if self.found_message.is_some() {

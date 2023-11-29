@@ -5,10 +5,10 @@ use slicec::{
     compilation_state::CompilationState,
     grammar::{
         Class, Commentable, CustomType, Entity, Enum, Enumerator, Exception, Field, Identifier,
-        Interface, Message, MessageComponent, Module, NamedSymbol, Operation, Parameter, Struct,
-        Symbol, TypeAlias, TypeRef, TypeRefDefinition, Types,
+        Interface, Message, MessageComponent, NamedSymbol, Operation, Struct, Symbol, TypeAlias,
+        TypeRef, TypeRefDefinition, Types,
     },
-    slice_file::{Location, SliceFile, Span},
+    slice_file::{Location, Span},
     visitor::Visitor,
 };
 use tower_lsp::lsp_types::{Position, Url};
@@ -94,10 +94,6 @@ impl JumpVisitor {
 }
 
 impl Visitor for JumpVisitor {
-    fn visit_file(&mut self, _: &SliceFile) {}
-
-    fn visit_module(&mut self, _: &Module) {}
-
     fn visit_struct(&mut self, struct_def: &Struct) {
         self.check_comment(struct_def);
     }
@@ -166,8 +162,6 @@ impl Visitor for JumpVisitor {
         self.check_comment(field_def);
     }
 
-    fn visit_parameter(&mut self, _: &Parameter) {}
-
     fn visit_enumerator(&mut self, enumerator_def: &Enumerator) {
         self.check_comment(enumerator_def);
     }
@@ -180,7 +174,6 @@ impl Visitor for JumpVisitor {
             let entity_def: Option<&dyn Entity> = match type_def.borrow().concrete_type() {
                 Types::Struct(x) => Some(x),
                 Types::Class(x) => Some(x),
-                Types::Interface(x) => Some(x),
                 Types::Enum(x) => Some(x),
                 Types::CustomType(x) => Some(x),
                 _ => None,
