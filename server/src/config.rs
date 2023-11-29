@@ -65,67 +65,50 @@ impl SliceConfig {
             })
     }
 
-    // Convert reference directory strings into URLs.
-    fn try_get_reference_urls(&self) -> Result<Vec<Url>, tower_lsp::jsonrpc::Error> {
-        // Convert the root_uri to a file path
-        let root_uri_error =
-            || tower_lsp::jsonrpc::Error::invalid_params("Failed to process URL or file path.");
-        let root_path = self
-            .root_uri
-            .as_ref()
-            .ok_or_else(root_uri_error)?
-            .to_file_path()
-            .map_err(|_| root_uri_error())?;
-
-        // Convert reference directories to URLs or use root_uri if none are present
-        let result_urls = match self.references.as_ref() {
-            Some(dirs) => dirs
-                .iter()
-                .map(|dir| {
-                    Url::from_file_path(root_path.join(dir)).map_err(|_| {
-                        tower_lsp::jsonrpc::Error::invalid_params(
-                            "Failed to convert reference path to URL.",
-                        )
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            None => vec![self.root_uri.clone().ok_or_else(|| {
-                tower_lsp::jsonrpc::Error::invalid_params("Root URI is not set.")
-            })?],
-        };
-
-        Ok(result_urls)
-    }
-
     // Resolve reference URIs to file paths to be used by the Slice compiler.
     pub fn resolve_reference_paths(&self) -> Vec<String> {
-        let reference_urls: Vec<Url> = self.try_get_reference_urls().unwrap_or_default();
+        // If `root_uri` isn't set, or doesn't represent a valid file path, path resolution is impossible, so we return.
+        let Some(Ok(root_path)) = self.root_uri.as_ref().map(Url::to_file_path) else {
+            return vec![];
+        };
 
-        // If no reference directories are set, use the root_uri as the reference directory.
-        if reference_urls.is_empty() {
-            return self
-                .root_uri
-                .as_ref()
-                .and_then(|url| url.to_file_path().ok())
-                .map(|path| vec![path.display().to_string()])
-                .unwrap_or_default();
+        // If no references are set, default to using the workspace root.
+        let Some(references) = &self.references else {
+            let default_path = match root_path.is_absolute() {
+                true => root_path.display().to_string(),
+                false => root_path.join(&root_path).display().to_string(),
+            };
+            return vec![default_path];
+        };
+
+        // Convert reference directories to URLs.
+        let mut result_urls = Vec::new();
+        for reference in references {
+            match Url::from_file_path(root_path.join(reference)) {
+                Ok(reference_url) => {
+                    // If this url doesn't represent a valid file path, skip it.
+                    let Ok(absolute_path) = reference_url.to_file_path() else {
+                        continue;
+                    };
+
+                    // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
+                    if absolute_path.is_absolute() {
+                        result_urls.push(absolute_path.display().to_string());
+                    } else {
+                        let other_path = root_path.join(&absolute_path);
+                        result_urls.push(other_path.display().to_string());
+                    }
+                }
+                Err(_) => return vec![root_path.display().to_string()],
+            }
         }
 
-        // Convert reference URLs to file paths
-        reference_urls
-            .iter()
-            .filter_map(|uri| {
-                let path = uri.to_file_path().ok()?;
-                if path.is_absolute() {
-                    Some(path.display().to_string())
-                } else {
-                    self.root_uri
-                        .as_ref()?
-                        .to_file_path()
-                        .ok()
-                        .map(|root_path| root_path.join(&path).display().to_string())
-                }
-            })
-            .collect()
+        // If references was set to an empty list, or none of them represented a valid directory path, default to using
+        // the workspace root. Otherwise, if there's more than zero valid reference directories, return them.
+        if result_urls.is_empty() {
+            vec![root_path.display().to_string()]
+        } else {
+            result_urls
+        }
     }
 }
