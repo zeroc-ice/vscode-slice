@@ -75,8 +75,7 @@ impl SliceConfig {
             })
     }
 
-    /// Resolve and cache reference URIs to file paths to be used by the Slice compiler.
-    /// This function should be called whenever the configuration changes.
+    // This function should be called whenever the configuration changes.
     fn refresh_reference_paths(&mut self) {
         self.cached_slice_options.references = self.resolve_reference_paths();
     }
