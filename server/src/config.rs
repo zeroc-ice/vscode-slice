@@ -7,11 +7,15 @@ use tower_lsp::{
 
 #[derive(Default, Debug)]
 pub struct SliceConfig {
-    pub references: Option<Vec<String>>,
-    pub root_uri: Option<Url>,
+    references: Option<Vec<String>>,
+    root_uri: Option<Url>,
 }
 
 impl SliceConfig {
+    pub fn set_root_uri(&mut self, root: Url) {
+        self.root_uri = Some(root);
+    }
+
     pub fn try_update_from_params(&mut self, params: &DidChangeConfigurationParams) {
         self.references = Self::parse_reference_directories(params);
     }

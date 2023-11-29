@@ -55,10 +55,8 @@ impl LanguageServer for Backend {
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
         {
-            *self.slice_config.lock().await = SliceConfig {
-                root_uri: Some(root_uri.clone()),
-                ..Default::default()
-            }
+            let mut slice_config = self.slice_config.lock().await;
+            slice_config.set_root_uri(root_uri.clone());
         }
 
         Ok(InitializeResult {
