@@ -13,9 +13,6 @@ server/**
 !server/target/*/release/slice-language-server
 !server/target/*/release/slice-language-server.exe
 
-# Internal Slice files
-
-
-# Slice files
+# Slice
 slice/**/Internal
 slice/**/!(*.slice)
