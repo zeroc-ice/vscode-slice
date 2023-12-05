@@ -151,7 +151,7 @@ export async function activate(context: ExtensionContext) {
       outputChannel: traceOutputChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       initializationOptions: {
-        referenceSlicePath: slicePath,
+        builtInSlicePath: slicePath,
       },
     };
 

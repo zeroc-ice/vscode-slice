@@ -7,7 +7,7 @@ use tower_lsp::{
 
 #[derive(Default, Debug)]
 pub struct SliceConfig {
-    built_in_reference_path: String,
+    built_in_slice_path: String,
     references: Option<Vec<String>>,
     root_uri: Option<Url>,
 }
@@ -18,7 +18,7 @@ impl SliceConfig {
     }
 
     pub fn set_built_in_reference(&mut self, path: impl Into<String>) {
-        self.built_in_reference_path = path.into();
+        self.built_in_slice_path = path.into();
     }
 
     pub fn try_update_from_params(&mut self, params: &DidChangeConfigurationParams) {
@@ -110,14 +110,13 @@ impl SliceConfig {
 
         // If references was set to an empty list, or none of them represented a valid directory path, default to using
         // the workspace root. Otherwise, if there's more than zero valid reference directories, return them.
-
         let mut paths = if result_urls.is_empty() {
             vec![root_path.display().to_string()]
         } else {
             result_urls
         };
         // Add the built-in reference path to the end of the list.
-        paths.push(self.built_in_reference_path.clone());
+        paths.push(self.built_in_slice_path.clone());
         paths
     }
 }
