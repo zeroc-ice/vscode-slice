@@ -59,6 +59,16 @@ impl LanguageServer for Backend {
             slice_config.set_root_uri(root_uri.clone());
         }
 
+        // Update the slice configuration with the built-in reference path
+        if let Some(options) = params.initialization_options {
+            if let Some(slice_references_path) =
+                options.get("referenceSlicePath").and_then(|v| v.as_str())
+            {
+                let mut slice_config = self.slice_config.lock().await;
+                slice_config.set_built_in_reference(slice_references_path);
+            }
+        }
+
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {

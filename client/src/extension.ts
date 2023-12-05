@@ -107,6 +107,9 @@ export async function activate(context: ExtensionContext) {
     const serverPath = isProduction
       ? context.extensionPath + process.env.SERVER_PATH
       : process.env.SERVER_PATH + "debug/slice-language-server";
+    const slicePath = isProduction
+      ? context.extensionPath + process.env.SLICE_PATH
+      : process.env.SLICE_PATH;
     if (isProduction) {
       switch (process.platform) {
         case "darwin": // macOS
@@ -147,6 +150,9 @@ export async function activate(context: ExtensionContext) {
       traceOutputChannel,
       outputChannel: traceOutputChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
+      initializationOptions: {
+        referenceSlicePath: slicePath,
+      },
     };
 
     // Create and start the language client.
