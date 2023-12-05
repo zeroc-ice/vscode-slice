@@ -1,0 +1,40 @@
+// Copyright (c) ZeroC, Inc.
+
+module IceRpc
+
+/// The status code indicates whether the dispatch of a request has completed successfully, and, if not, which error
+/// occurred. It's carried by responses.
+unchecked enum StatusCode : varuint62 {
+    /// The dispatch completed successfully.
+    Ok = 0
+
+    /// The dispatch failed with an application-specific error.
+    ApplicationError
+
+    /// The dispatch could not find the target service or some other resource.
+    NotFound
+
+    /// The target service was found but it does not implement the requested operation.
+    NotImplemented
+
+    /// The server or the target service is currently unavailable and the caller can safely retry.
+    Unavailable
+
+    /// The dispatch failed due to an internal service or server error. This is typically caused by a bug in the server
+    /// or in the target service.
+    InternalError
+
+    /// The dispatch failed because the request payload could not be decoded or because a middleware could not decode
+    /// a request field. It is typically due to a mismatch in the IDL definitions used by the client and the server.
+    InvalidData
+
+    /// The dispatch failed because it received a truncated payload. This is usually caused by a failure of the invoker
+    /// while it was sending the payload.
+    TruncatedPayload
+
+    /// The dispatch detected the expiration of the request's deadline.
+    DeadlineExceeded
+
+    /// The caller is not authorized to access the requested resource.
+    Unauthorized
+}
