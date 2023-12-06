@@ -94,7 +94,7 @@
     "build-rust-prod": "cd server && ./build.sh",
     "build:prod": "NODE_ENV=production tsc -b",
     "compile": "tsc -b",
-    "esbuild-base": "esbuild ./client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --format=cjs --platform=node --define:process.env.SERVER_PATH='\"/server/target/\"' --define:process.env.SLICE_PATH='\"/slice/\"'  --define:process.env.NODE_ENV='\"production\"'",
+    "esbuild-base": "esbuild ./client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --format=cjs --platform=node --define:process.env.SERVER_PATH='\"/server/target/\"' --define:process.env.BUILT_IN_SLICE_PATH='\"/slice/\"'  --define:process.env.NODE_ENV='\"production\"'",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "lint": "eslint ./client/src --ext .ts,.tsx",

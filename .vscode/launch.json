@@ -18,7 +18,7 @@
       },
       "env": {
         "SERVER_PATH": "${workspaceRoot}/server/target/",
-        "SLICE_PATH": "${workspaceRoot}/slice/"
+        "BUILT_IN_SLICE_PATH": "${workspaceRoot}/slice/"
       }
     },
     {
@@ -32,7 +32,7 @@
       "env": {
         "NODE_ENV": "production",
         "SERVER_PATH": "${workspaceRoot}/server/target/",
-        "SLICE_PATH": "${workspaceRoot}/slice/"
+        "BUILT_IN_SLICE_PATH": "${workspaceRoot}/slice/"
       }
     }
   ]
