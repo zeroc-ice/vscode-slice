@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-import { workspace, ExtensionContext, window, Uri } from "vscode";
+import { workspace, ExtensionContext, window } from "vscode";
 import {
   Executable,
   LanguageClient,
@@ -110,6 +110,7 @@ export async function activate(context: ExtensionContext) {
     const slicePath = isProduction
       ? context.extensionPath + process.env.SLICE_PATH
       : process.env.SLICE_PATH;
+
     if (isProduction) {
       switch (process.platform) {
         case "darwin": // macOS
