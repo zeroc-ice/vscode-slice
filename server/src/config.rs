@@ -8,8 +8,8 @@ use tower_lsp::{
 
 #[derive(Default, Debug)]
 pub struct SliceConfig {
-    built_in_slice_path: String,
     references: Option<Vec<String>>,
+    built_in_slice_path: String,
     root_uri: Option<Url>,
     cached_slice_options: SliceOptions,
 }
@@ -20,8 +20,9 @@ impl SliceConfig {
         self.refresh_reference_paths();
     }
 
-    pub fn set_built_in_reference(&mut self, path: impl Into<String>) {
-        self.built_in_slice_path = path.into();
+    pub fn set_built_in_reference(&mut self, path: String) {
+        self.built_in_slice_path = path;
+        self.refresh_reference_paths();
     }
 
     pub fn update_from_params(&mut self, params: &DidChangeConfigurationParams) {

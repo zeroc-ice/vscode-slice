@@ -63,7 +63,7 @@ impl LanguageServer for Backend {
                 options.get("builtInSlicePath").and_then(|v| v.as_str())
             {
                 let mut slice_config = self.slice_config.lock().await;
-                slice_config.set_built_in_reference(built_in_slice_path);
+                slice_config.set_built_in_reference(built_in_slice_path.to_owned());
             }
         }
 
