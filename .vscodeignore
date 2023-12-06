@@ -12,3 +12,7 @@ client/**
 server/**
 !server/target/*/release/slice-language-server
 !server/target/*/release/slice-language-server.exe
+
+# Slice
+slice/**/Internal
+slice/**/!(*.slice)

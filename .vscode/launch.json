@@ -17,7 +17,8 @@
         "script": "watch"
       },
       "env": {
-        "SERVER_PATH": "${workspaceRoot}/server/target/"
+        "SERVER_PATH": "${workspaceRoot}/server/target/",
+        "BUILT_IN_SLICE_PATH": "${workspaceRoot}/slice/"
       }
     },
     {
@@ -30,7 +31,8 @@
       "preLaunchTask": "Build All (Production)",
       "env": {
         "NODE_ENV": "production",
-        "SERVER_PATH": "${workspaceRoot}/server/target/"
+        "SERVER_PATH": "${workspaceRoot}/server/target/",
+        "BUILT_IN_SLICE_PATH": "${workspaceRoot}/slice/"
       }
     }
   ]
