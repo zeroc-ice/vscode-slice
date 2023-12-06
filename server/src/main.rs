@@ -294,7 +294,7 @@ impl Backend {
                 .await;
         }
         self.client
-            .log_message(MessageType::LOG, "Updated diagnostics for all files")
+            .log_message(MessageType::INFO, "Updated diagnostics for all files")
             .await;
     }
 }
