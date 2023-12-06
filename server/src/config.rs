@@ -9,19 +9,21 @@ use tower_lsp::{
 #[derive(Default, Debug)]
 pub struct SliceConfig {
     references: Option<Vec<String>>,
-    built_in_slice_path: String,
+    built_in_slice_path: Option<String>,
     root_uri: Option<Url>,
     cached_slice_options: SliceOptions,
 }
 
 impl SliceConfig {
+    // Path must be absolute.
     pub fn set_root_uri(&mut self, root: Url) {
         self.root_uri = Some(root);
         self.refresh_reference_paths();
     }
 
-    pub fn set_built_in_reference(&mut self, path: String) {
-        self.built_in_slice_path = path;
+    // Path must be absolute.
+    pub fn set_built_in_reference_path(&mut self, path: String) {
+        self.built_in_slice_path = Some(path);
         self.refresh_reference_paths();
     }
 
@@ -90,11 +92,7 @@ impl SliceConfig {
 
         // If no references are set, default to using the workspace root.
         let Some(references) = &self.references else {
-            let default_path = match root_path.is_absolute() {
-                true => root_path.display().to_string(),
-                false => root_path.join(&root_path).display().to_string(),
-            };
-            return vec![default_path];
+            return vec![root_path.display().to_string()];
         };
 
         // Convert reference directories to URLs.
@@ -126,8 +124,11 @@ impl SliceConfig {
         } else {
             result_urls
         };
-        // Add the built-in reference path to the end of the list.
-        paths.push(self.built_in_slice_path.clone());
+
+        // Add the built-in reference path if it's present.
+        if let Some(built_in_slice_path) = &self.built_in_slice_path {
+            paths.push(built_in_slice_path.clone());
+        }
         paths
     }
 
