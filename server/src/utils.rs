@@ -1,3 +1,4 @@
+// Copyright (c) ZeroC, Inc.
 use tower_lsp::lsp_types::Url;
 
 // This helper function converts a Url from tower_lsp into a string that can be used to
