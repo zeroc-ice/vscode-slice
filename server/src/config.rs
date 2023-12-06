@@ -15,7 +15,7 @@ pub struct SliceConfig {
 }
 
 impl SliceConfig {
-    // Path must be absolute.
+    // root must be absolute.
     pub fn set_root_uri(&mut self, root: Url) {
         self.root_uri = Some(root);
         self.refresh_reference_paths();
