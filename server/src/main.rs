@@ -4,8 +4,7 @@ use config::SliceConfig;
 use diagnostic_ext::try_into_lsp_diagnostic;
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
-use shared_state::SharedState;
-use slicec::{compilation_state::CompilationState, slice_options::SliceOptions};
+use slicec::compilation_state::CompilationState;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -18,7 +17,6 @@ mod config;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
-mod shared_state;
 mod utils;
 
 #[tokio::main]
@@ -27,9 +25,9 @@ async fn main() {
     let stdout = tokio::io::stdout();
 
     let (service, socket) = LspService::new(|client| Backend {
-        slice_config: Arc::new(Mutex::new(SliceConfig::default())),
         client,
-        shared_state: Arc::new(Mutex::new(SharedState::new())),
+        slice_config: Arc::new(Mutex::new(SliceConfig::default())),
+        compilation_state: Arc::new(Mutex::new(CompilationState::create())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -38,7 +36,7 @@ async fn main() {
 struct Backend {
     client: Client,
     slice_config: Arc<Mutex<SliceConfig>>,
-    shared_state: Arc<Mutex<SharedState>>,
+    compilation_state: Arc<Mutex<CompilationState>>,
 }
 
 #[tower_lsp::async_trait]
@@ -65,7 +63,7 @@ impl LanguageServer for Backend {
                 options.get("builtInSlicePath").and_then(|v| v.as_str())
             {
                 let mut slice_config = self.slice_config.lock().await;
-                slice_config.set_built_in_reference(built_in_slice_path);
+                slice_config.set_built_in_reference(built_in_slice_path.to_owned());
             }
         }
 
@@ -109,19 +107,15 @@ impl LanguageServer for Backend {
                 .await;
         }
 
-        let mut shared_state_lock = self.shared_state.lock().await;
-
         // Compile the Slice files and publish diagnostics
-        let (updated_state, options) = self.compile_slice_files().await;
-
-        shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
+        let mut compilation_state_lock = self.compilation_state.lock().await;
+        *compilation_state_lock = self.compile_slice_files().await;
 
         self.client
             .log_message(MessageType::INFO, "Slice Language Server initialized")
             .await;
 
-        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
             .await;
     }
 
@@ -137,22 +131,21 @@ impl LanguageServer for Backend {
         // Update the slice configuration
         {
             let mut slice_config = self.slice_config.lock().await;
-            slice_config.try_update_from_params(&params);
+            slice_config.update_from_params(&params);
         }
 
         // Store the current files in the compilation state before re-compiling
         let current_files = &self
-            .shared_state
+            .compilation_state
             .lock()
             .await
-            .compilation_state
             .files
             .keys()
             .cloned()
             .collect::<HashSet<_>>();
 
         // Re-compile the Slice files considering the updated references
-        let (updated_state, options) = self.compile_slice_files().await;
+        let updated_state = self.compile_slice_files().await;
 
         // Clear the diagnostics from files that are no longer in the compilation state
         let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
@@ -163,12 +156,10 @@ impl LanguageServer for Backend {
             self.client.publish_diagnostics(uri, vec![], None).await;
         }
 
-        let mut shared_state_lock = self.shared_state.lock().await;
+        let mut compilation_state_lock = self.compilation_state.lock().await;
+        *compilation_state_lock = updated_state;
 
-        shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
-
-        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
             .await;
     }
 
@@ -187,7 +178,7 @@ impl LanguageServer for Backend {
         .unwrap();
 
         let position = params.text_document_position_params.position;
-        let compilation_state = &self.shared_state.lock().await.compilation_state;
+        let compilation_state = &self.compilation_state.lock().await;
 
         let location = match get_definition_span(compilation_state, param_uri, position) {
             Some(location) => location,
@@ -224,7 +215,7 @@ impl LanguageServer for Backend {
         )
         .unwrap();
         let position = params.text_document_position_params.position;
-        let compilation_state = &self.shared_state.lock().await.compilation_state;
+        let compilation_state = &self.compilation_state.lock().await;
         Ok(
             get_hover_info(compilation_state, uri, position).map(|info| Hover {
                 contents: HoverContents::Scalar(MarkedString::String(info)),
@@ -247,49 +238,31 @@ impl LanguageServer for Backend {
 
 impl Backend {
     async fn handle_file_change(&self) {
-        let (updated_state, options) = self.compile_slice_files().await;
+        let updated_state = self.compile_slice_files().await;
 
-        let mut shared_state_lock = self.shared_state.lock().await;
+        let mut compilation_state_lock = self.compilation_state.lock().await;
+        *compilation_state_lock = updated_state;
 
-        shared_state_lock.compilation_state = updated_state;
-        shared_state_lock.compilation_options = options;
-
-        self.publish_diagnostics_for_all_files(&mut shared_state_lock)
+        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
             .await;
     }
 
-    async fn compile_slice_files(&self) -> (CompilationState, SliceOptions) {
+    async fn compile_slice_files(&self) -> CompilationState {
         self.client
             .log_message(MessageType::INFO, "compiling slice")
             .await;
 
-        let references = self.slice_config.lock().await.resolve_reference_paths();
-
-        // If debug is enabled, log the resolved references
-        #[cfg(debug_assertions)]
-        self.client
-            .log_message(MessageType::LOG, format!("references: {:?}", references))
-            .await;
-
-        // Compile the Slice files
-        let options = SliceOptions {
-            references,
-            ..Default::default()
-        };
-        (
-            slicec::compile_from_options(&options, |_| {}, |_| {}),
-            options,
-        )
+        let config = self.slice_config.lock().await;
+        slicec::compile_from_options(config.as_slice_options(), |_| {}, |_| {})
     }
 
-    async fn publish_diagnostics_for_all_files(&self, shared_state: &mut SharedState) {
-        let compilation_options = &shared_state.compilation_options;
-        let compilation_state = &mut shared_state.compilation_state;
+    async fn publish_diagnostics_for_all_files(&self, compilation_state: &mut CompilationState) {
+        let config = self.slice_config.lock().await;
 
         let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
             &compilation_state.ast,
             &compilation_state.files,
-            compilation_options,
+            config.as_slice_options(),
         );
 
         // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
