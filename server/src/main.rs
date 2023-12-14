@@ -7,6 +7,7 @@ use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
 use std::{
     collections::{HashMap, HashSet},
+    default,
     sync::Arc,
 };
 use tokio::sync::Mutex;
@@ -26,8 +27,9 @@ async fn main() {
 
     let (service, socket) = LspService::new(|client| Backend {
         client,
-        slice_config: Arc::new(Mutex::new(SliceConfig::default())),
-        compilation_state: Arc::new(Mutex::new(CompilationState::create())),
+        configuration_sets: Arc::new(Mutex::new(HashMap::new())),
+        root_uri: Arc::new(Mutex::new(None)),
+        built_in_slice_path: Arc::new(Mutex::new(String::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -35,8 +37,28 @@ async fn main() {
 
 struct Backend {
     client: Client,
-    slice_config: Arc<Mutex<SliceConfig>>,
-    compilation_state: Arc<Mutex<CompilationState>>,
+    configuration_sets: Arc<Mutex<HashMap<SliceConfig, CompilationState>>>,
+    root_uri: Arc<Mutex<Option<Url>>>,
+    built_in_slice_path: Arc<Mutex<String>>,
+}
+
+struct ConfigurationSet {
+    configuration: SliceConfig,
+    compilation_state: CompilationState,
+}
+
+impl ConfigurationSet {
+    fn default(root_uri: Url, built_in_path: String) -> Self {
+        let mut configuration = SliceConfig::default();
+        configuration.set_root_uri(root_uri);
+        configuration.set_built_in_reference(built_in_path.to_owned());
+        let compilation_state =
+            slicec::compile_from_options(configuration.as_slice_options(), |_| {}, |_| {});
+        Self {
+            configuration,
+            compilation_state,
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -48,25 +70,45 @@ impl LanguageServer for Backend {
         // Use the root_uri if it exists temporarily as we cannot access configuration until
         // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
         // drive letter. To fix this, we convert the path to a URL and then back to a path.
+
         if let Some(root_uri) = params
             .root_uri
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
         {
-            let mut slice_config = self.slice_config.lock().await;
-            slice_config.set_root_uri(root_uri.clone());
-        }
-
-        // Update the slice configuration with the built-in reference path
-        if let Some(options) = params.initialization_options {
-            if let Some(built_in_slice_path) =
-                options.get("builtInSlicePath").and_then(|v| v.as_str())
+            // Store the root_uri in the backend
             {
-                let mut slice_config = self.slice_config.lock().await;
-                slice_config.set_built_in_reference(built_in_slice_path.to_owned());
+                let mut root_uri_lock = self.root_uri.lock().await;
+                *root_uri_lock = Some(root_uri.clone());
             }
-        }
 
+            // This is the path to the built-in Slice files that are included with the extension. It should always
+            // be present.
+            let built_in_slice_path = params
+                .initialization_options
+                .unwrap()
+                .get("builtInSlicePath")
+                .and_then(|v| v.as_str())
+                .unwrap()
+                .to_string();
+
+            // Store the built_in_slice_path in the backend
+            {
+                let mut built_in_slice_path_lock = self.built_in_slice_path.lock().await;
+                *built_in_slice_path_lock = built_in_slice_path.clone();
+            }
+
+            // Insert the default configuration set
+            let mut configuration_sets = self.configuration_sets.lock().await;
+
+            // Default configuration set
+            let mut slice_config = SliceConfig::default();
+            slice_config.set_root_uri(root_uri);
+            slice_config.set_built_in_reference(built_in_slice_path.to_owned());
+            let compilation_state =
+                slicec::compile_from_options(slice_config.as_slice_options(), |_| {}, |_| {});
+            configuration_sets.insert(slice_config, compilation_state);
+        }
         Ok(InitializeResult {
             server_info: None,
             capabilities: ServerCapabilities {
@@ -95,28 +137,109 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Update the slice configuration with new references directories since this is the first time we can access
-        // the slice extension configuration
+        // Fetch the configuration sets from the client
+        let found_configurations = {
+            // Fetch the entire `slice.configurations` array
+            let params = vec![ConfigurationItem {
+                scope_uri: None,
+                section: Some("slice.configurations".to_string()),
+            }];
+
+            // Send the configuration request to the client
+            let response = self.client.configuration(params).await;
+
+            let root_uri = self.root_uri.lock().await;
+
+            // Parse the slice configurations from the response and push them to the configuration sets
+            response
+                .unwrap()
+                .first()
+                .and_then(|v| v.as_array())
+                .map(|config_array| {
+                    config_array
+                        .iter()
+                        .filter_map(|config| config.as_object())
+                        .filter_map(|config_obj| {
+                            // Try to parse the reference directories from the configuration object
+                            let directories = config_obj
+                                .get("referenceDirectories")
+                                .and_then(|v| v.as_array())
+                                .map(|dirs_array| {
+                                    dirs_array
+                                        .iter()
+                                        .filter_map(|v| v.as_str())
+                                        .map(String::from)
+                                        .collect::<Vec<_>>()
+                                })
+                                .unwrap_or_default();
+
+                            // Try to parse the include built-in types boolean.
+                            let include_built_in = config_obj
+                                .get("includeBuiltInTypes")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default();
+
+                            Some((directories, include_built_in))
+                        })
+                        .map(|config| {
+                            let mut slice_config = SliceConfig::default();
+
+                            slice_config.set_root_uri(root_uri.clone().unwrap());
+                            slice_config.update_from_references(config.0);
+                            slice_config.update_include_built_in_reference(config.1);
+
+                            let options = slice_config.as_slice_options();
+
+                            let compilation_state =
+                                slicec::compile_from_options(options, |_| {}, |_| {});
+
+                            (slice_config, compilation_state)
+                        })
+                        .collect::<Vec<_>>()
+                })
+        }
+        .unwrap_or_default();
+
+        // TODO; Write comment
         {
-            // TODO: Log error
-            let _ = self
-                .slice_config
-                .lock()
-                .await
-                .try_update_from_client(&self.client)
+            let mut configuration_sets = self.configuration_sets.lock().await;
+            if !found_configurations.is_empty() {
+                // Remove the default configuration set
+                *configuration_sets = HashMap::new();
+            }
+            // Insert the found configurations into the configuration sets
+            for configuration in found_configurations {
+                configuration_sets.insert(configuration.0, configuration.1);
+            }
+        }
+
+        let mut configuration_sets = self.configuration_sets.lock().await;
+
+        // Update the diagnostics for all files in the configuration sets
+        for configuration_set in configuration_sets.iter_mut() {
+            self.publish_diagnostics_for_all_files(configuration_set)
                 .await;
         }
 
-        // Compile the Slice files and publish diagnostics
-        let mut compilation_state_lock = self.compilation_state.lock().await;
-        *compilation_state_lock = self.compile_slice_files().await;
+        {
+            // Get all the tracked files from all configuration sets
+            let tracked_files = configuration_sets
+                .iter()
+                .flat_map(|config| {
+                    // Get the files from the configuration set
+                    let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+                    files
+                })
+                .collect::<Vec<_>>();
 
-        self.client
-            .log_message(MessageType::INFO, "Slice Language Server initialized")
-            .await;
-
-        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
-            .await;
+            // Log the tracked files
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!("Tracked files: {:?}", tracked_files),
+                )
+                .await;
+        }
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -128,46 +251,124 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Slice Language Server config changed")
             .await;
 
+        let mut configuration_sets = self.configuration_sets.lock().await;
+
+        // Remove the diagnostics from all files in all configuration sets
+        {
+            //  We dont want to wipe the same file multiple times if it is in multiple configuration sets
+            // so we collect all the files in all configuration sets and deduplicate them first
+            let mut all_tracked_files = HashSet::new();
+            for configuration_set in configuration_sets.iter_mut() {
+                configuration_set
+                    .1
+                    .files
+                    .keys()
+                    .cloned()
+                    .filter_map(|uri| convert_slice_url_to_uri(&uri))
+                    .for_each(|uri| {
+                        all_tracked_files.insert(uri);
+                    });
+            }
+
+            // Remove the diagnostics from all files in all configuration sets
+            for uri in all_tracked_files {
+                self.client.publish_diagnostics(uri, vec![], None).await;
+            }
+        }
+
         // Update the slice configuration
         {
-            let mut slice_config = self.slice_config.lock().await;
-            slice_config.update_from_params(&params);
+            let settings = params.settings;
+            let root_uri = self.root_uri.lock().await;
+
+            let found_configurations = settings
+                .get("slice.configurations")
+                .and_then(|v| v.as_array())
+                .map(|config_array| {
+                    config_array
+                        .iter()
+                        .filter_map(|config| config.as_object())
+                        .filter_map(|config_obj| {
+                            let directories = config_obj
+                                .get("referenceDirectories")
+                                .and_then(|v| v.as_array())
+                                .map(|dirs_array| {
+                                    dirs_array
+                                        .iter()
+                                        .filter_map(|v| v.as_str())
+                                        .map(String::from)
+                                        .collect::<Vec<_>>()
+                                })
+                                .unwrap_or_default();
+
+                            let include_built_in = config_obj
+                                .get("includeBuiltInTypes")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default();
+
+                            Some((directories, include_built_in))
+                        })
+                        .map(|config| {
+                            let mut slice_config = SliceConfig::default();
+
+                            slice_config.set_root_uri(root_uri.clone().unwrap());
+                            slice_config.update_from_references(config.0);
+                            slice_config.update_include_built_in_reference(config.1);
+
+                            let options = slice_config.as_slice_options();
+
+                            let compilation_state =
+                                slicec::compile_from_options(options, |_| {}, |_| {});
+
+                            (slice_config, compilation_state)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            // Remove all configuration sets and replace them with the updated configuration sets
+            {
+                let mut configuration_sets = self.configuration_sets.lock().await;
+                // Remove all configuration sets
+                *configuration_sets = HashMap::new();
+
+                if found_configurations.is_empty() {
+                    // Add the default configuration set
+                    let root_uri = self.root_uri.lock().await;
+                    let mut slice_config = SliceConfig::default();
+
+                    let built_in_slice_path = self.built_in_slice_path.lock().await;
+
+                    slice_config.set_root_uri((*root_uri).clone().unwrap());
+                    slice_config.set_built_in_reference((*built_in_slice_path).to_owned());
+                    let compilation_state = slicec::compile_from_options(
+                        slice_config.as_slice_options(),
+                        |_| {},
+                        |_| {},
+                    );
+                    configuration_sets.insert(slice_config, compilation_state);
+
+                    *configuration_sets = HashMap::new();
+                } else {
+                    for configuration in found_configurations {
+                        configuration_sets.insert(configuration.0, configuration.1);
+                    }
+                }
+            }
         }
 
-        // Store the current files in the compilation state before re-compiling
-        let current_files = &self
-            .compilation_state
-            .lock()
-            .await
-            .files
-            .keys()
-            .cloned()
-            .collect::<HashSet<_>>();
-
-        // Re-compile the Slice files considering the updated references
-        let updated_state = self.compile_slice_files().await;
-
-        // Clear the diagnostics from files that are no longer in the compilation state
-        let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
-        for url in current_files.difference(new_files) {
-            let Some(uri) = convert_slice_url_to_uri(url) else {
-                continue;
-            };
-            self.client.publish_diagnostics(uri, vec![], None).await;
+        // Publish the new diagnostics for each file
+        for configuration_set in configuration_sets.iter_mut() {
+            self.publish_diagnostics_for_all_files(configuration_set)
+                .await;
         }
-
-        let mut compilation_state_lock = self.compilation_state.lock().await;
-        *compilation_state_lock = updated_state;
-
-        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
-            .await;
     }
 
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        let param_uri = Url::from_file_path(
+        let uri = Url::from_file_path(
             params
                 .text_document_position_params
                 .text_document
@@ -177,10 +378,29 @@ impl LanguageServer for Backend {
         )
         .unwrap();
 
-        let position = params.text_document_position_params.position;
-        let compilation_state = &self.compilation_state.lock().await;
+        let file_name = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .to_file_path()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
 
-        let location = match get_definition_span(compilation_state, param_uri, position) {
+        let position = params.text_document_position_params.position;
+
+        // Find the configuration set that contains the file
+        let configuration_sets = self.configuration_sets.lock().await;
+
+        let configuration_set = configuration_sets.iter().find(|config| {
+            // Find the configuration set that matches the current configuration
+            let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+            files.contains(&file_name.to_owned())
+        });
+        let compilation_state = configuration_set.map(|config| config.1).unwrap();
+
+        let location = match get_definition_span(compilation_state, uri, position) {
             Some(location) => location,
             None => return Ok(None),
         };
@@ -214,55 +434,175 @@ impl LanguageServer for Backend {
                 .unwrap(),
         )
         .unwrap();
+
+        let file_name = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .to_file_path()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+
         let position = params.text_document_position_params.position;
-        let compilation_state = &self.compilation_state.lock().await;
-        Ok(
-            get_hover_info(compilation_state, uri, position).map(|info| Hover {
-                contents: HoverContents::Scalar(MarkedString::String(info)),
-                range: None,
-            }),
-        )
+
+        // Find the configuration set that contains the file
+        let configuration_sets = self.configuration_sets.lock().await;
+
+        let configuration_set = configuration_sets.iter().find(|config| {
+            // Find the configuration set that matches the current configuration
+            let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+            files.contains(&file_name.to_owned())
+        });
+
+        // Log the configuration_set
+        if let Some(compilation_state) = configuration_set.map(|config| config.1) {
+            Ok(
+                get_hover_info(compilation_state, uri, position).map(|info| Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(info)),
+                    range: None,
+                }),
+            )
+        } else {
+            // Log the configuration_set
+            Ok(None)
+        }
     }
 
-    async fn did_open(&self, _: DidOpenTextDocumentParams) {
-        self.handle_file_change().await;
+    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        let file_name = params
+            .text_document
+            .uri
+            .to_file_path()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        self.handle_file_change(&file_name).await;
     }
 
-    async fn did_save(&self, _: DidSaveTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "file saved")
-            .await;
-        self.handle_file_change().await;
+    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+        let file_name = params
+            .text_document
+            .uri
+            .to_file_path()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        self.handle_file_change(&file_name).await;
     }
 }
 
 impl Backend {
-    async fn handle_file_change(&self) {
-        let updated_state = self.compile_slice_files().await;
-
-        let mut compilation_state_lock = self.compilation_state.lock().await;
-        *compilation_state_lock = updated_state;
-
-        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
-            .await;
-    }
-
-    async fn compile_slice_files(&self) -> CompilationState {
+    async fn handle_file_change(&self, file_name: &str) {
         self.client
-            .log_message(MessageType::INFO, "compiling slice")
+            .log_message(MessageType::INFO, format!("File {} changed", file_name))
             .await;
 
-        let config = self.slice_config.lock().await;
-        slicec::compile_from_options(config.as_slice_options(), |_| {}, |_| {})
+        let mut configuration_sets = self.configuration_sets.lock().await;
+
+        // Update the compilation state for the any impacted configuration set
+        configuration_sets
+            .iter_mut()
+            .filter(|config| {
+                // Find the configuration set that matches the current configuration
+                let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+                files.contains(&file_name.to_owned())
+            })
+            .for_each(|configuration_set| {
+                // Update the value of the compilation state in the configuration set in the HashMap
+                *(configuration_set).1 = slicec::compile_from_options(
+                    configuration_set.0.as_slice_options(),
+                    |_| {},
+                    |_| {},
+                );
+            });
+
+        // TEMP
+        let mut publish_map = HashMap::new();
+
+        // The diagnostics for each configuration set
+        let diagnostic_sets = configuration_sets
+            .iter_mut()
+            .filter(|config| {
+                // Find the configuration set that matches the current configuration
+                let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+                files.contains(&file_name.to_owned())
+            })
+            .map(|configuration_set| {
+                let compilation_state = configuration_set.1;
+
+                // Find the diagnostics for the config set
+                let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
+                    &compilation_state.ast,
+                    &compilation_state.files,
+                    configuration_set.0.as_slice_options(),
+                );
+
+                // Store all files in the configuration set
+                compilation_state
+                    .files
+                    .keys()
+                    .filter_map(|uri| convert_slice_url_to_uri(uri))
+                    .for_each(|uri| {
+                        publish_map.insert(uri, vec![]);
+                    });
+                diagnostics
+            })
+            .collect::<Vec<_>>();
+
+        // Flatten and deduplicate the diagnostics based on their span
+        let mut diagnostics = diagnostic_sets.iter().flatten().collect::<Vec<_>>();
+        diagnostics.dedup_by(|d1, d2| d1.span() == d2.span());
+
+        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
+        for diagnostic in diagnostics {
+            let Some(span) = diagnostic.span() else {
+                continue;
+            };
+            let Some(uri) = convert_slice_url_to_uri(&span.file) else {
+                continue;
+            };
+            let Some(lsp_diagnostic) = try_into_lsp_diagnostic(diagnostic) else {
+                continue;
+            };
+            publish_map
+                .get_mut(&uri)
+                .expect("file not in map")
+                .push(lsp_diagnostic)
+        }
+
+        self.client
+            .log_message(MessageType::INFO, format!("publish_map {:?}", publish_map))
+            .await;
+
+        // Publish the diagnostics for each file
+        for (uri, lsp_diagnostics) in publish_map {
+            self.client
+                .publish_diagnostics(uri, lsp_diagnostics, None)
+                .await;
+        }
+
+        self.client
+            .log_message(MessageType::INFO, "Updated diagnostics for all files")
+            .await;
     }
 
-    async fn publish_diagnostics_for_all_files(&self, compilation_state: &mut CompilationState) {
-        let config = self.slice_config.lock().await;
+    async fn publish_diagnostics_for_all_files(
+        &self,
+        configuration_set: (&SliceConfig, &mut CompilationState),
+    ) {
+        self.client
+            .log_message(MessageType::INFO, "Publishing diagnostics...")
+            .await;
+        let compilation_state = configuration_set.1;
 
         let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
             &compilation_state.ast,
             &compilation_state.files,
-            config.as_slice_options(),
+            configuration_set.0.as_slice_options(),
         );
 
         // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL

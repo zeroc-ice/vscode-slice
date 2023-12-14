@@ -9,6 +9,7 @@
     "canonicalize",
     "Commentable",
     "formated",
+    "Hasher",
     "outfile",
     "slicec",
     "typeref",

@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.29"
-slicec = "0.2.1"
+slicec  = { git = "https://github.com/icerpc/slicec", branch = "main" }
 tokio = { version = "1.33.0", features = ["full"] }
 tower-lsp = "0.20.0"
 

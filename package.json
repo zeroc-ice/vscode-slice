@@ -62,15 +62,33 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "Slice",
+      "title": "Slice Settings",
       "properties": {
-        "slice.referenceDirectories": {
+        "slice.configurations": {
           "type": "array",
+          "title": "Slice Configurations",
+          "description": "Array of Slice configuration sets.",
           "items": {
-            "type": "string"
-          },
-          "description": "The directories containing the target Slice reference files.",
-          "scope": "resource"
+            "type": "object",
+            "properties": {
+              "referenceDirectories": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The directories containing the target Slice reference files."
+              },
+              "includeBuiltInTypes": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enables / Disables the built-in Slice types."
+              }
+            },
+            "required": [
+              "referenceDirectories",
+              "includeBuiltInTypes"
+            ]
+          }
         },
         "slice.languageServer.enabled": {
           "type": "boolean",
