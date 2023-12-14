@@ -3,6 +3,7 @@
 use slicec::slice_options::SliceOptions;
 use tower_lsp::lsp_types::Url;
 
+// This struct holds the configuration for a single compilation set.
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
 pub struct SliceConfig {
     pub references: Option<Vec<String>>,
@@ -31,11 +32,6 @@ impl SliceConfig {
     pub fn update_include_built_in_reference(&mut self, include: bool) {
         self.include_built_in_reference = include;
         self.refresh_reference_paths();
-    }
-
-    // This function should be called whenever the configuration changes.
-    fn refresh_reference_paths(&mut self) {
-        self.cached_slice_options.references = self.resolve_reference_paths();
     }
 
     // Resolve reference URIs to file paths to be used by the Slice compiler.
@@ -92,5 +88,10 @@ impl SliceConfig {
 
     pub fn as_slice_options(&self) -> &SliceOptions {
         &self.cached_slice_options
+    }
+
+    // This function should be called whenever the configuration changes.
+    fn refresh_reference_paths(&mut self) {
+        self.cached_slice_options.references = self.resolve_reference_paths();
     }
 }
