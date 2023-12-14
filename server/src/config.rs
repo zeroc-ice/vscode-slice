@@ -1,10 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 use slicec::slice_options::SliceOptions;
-use tower_lsp::{
-    lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url},
-    Client,
-};
+use tower_lsp::lsp_types::Url;
 
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
 pub struct SliceConfig {
@@ -26,27 +23,9 @@ impl SliceConfig {
         self.refresh_reference_paths();
     }
 
-    pub fn update_from_params(&mut self, params: &DidChangeConfigurationParams) {
-        self.references = Self::parse_reference_directories(params);
-        self.refresh_reference_paths();
-    }
-
-    pub async fn try_update_from_client(
-        &mut self,
-        client: &Client,
-    ) -> tower_lsp::jsonrpc::Result<()> {
-        self.references = Self::fetch_reference_directories(client).await?;
-        self.refresh_reference_paths();
-        Ok(())
-    }
-
-    pub fn update_from_references(
-        &mut self,
-        references: Vec<String>,
-    ) -> tower_lsp::jsonrpc::Result<()> {
+    pub fn update_from_references(&mut self, references: Vec<String>) {
         self.references = Some(references);
         self.refresh_reference_paths();
-        Ok(())
     }
 
     pub fn update_include_built_in_reference(&mut self, include: bool) {
@@ -54,50 +33,13 @@ impl SliceConfig {
         self.refresh_reference_paths();
     }
 
-    // Fetch reference directories from the backend.
-    async fn fetch_reference_directories(
-        client: &Client,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<String>>> {
-        let params = vec![ConfigurationItem {
-            scope_uri: None,
-            section: Some("slice.referenceDirectories".to_string()),
-        }];
-
-        Ok(client
-            .configuration(params)
-            .await?
-            .first()
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(String::from)
-                    .collect::<Vec<_>>()
-            }))
-    }
-
-    // Parse reference directories from configuration parameters.
-    fn parse_reference_directories(params: &DidChangeConfigurationParams) -> Option<Vec<String>> {
-        params
-            .settings
-            .get("slice")
-            .and_then(|v| v.get("referenceDirectories"))
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(String::from)
-                    .collect::<Vec<String>>()
-            })
-    }
-
     // This function should be called whenever the configuration changes.
     fn refresh_reference_paths(&mut self) {
-        self.cached_slice_options.references = self.resolve_reference_paths(false);
+        self.cached_slice_options.references = self.resolve_reference_paths();
     }
 
     // Resolve reference URIs to file paths to be used by the Slice compiler.
-    pub fn resolve_reference_paths(&self, from_goto: bool) -> Vec<String> {
+    pub fn resolve_reference_paths(&self) -> Vec<String> {
         // If `root_uri` isn't set, or doesn't represent a valid file path, path resolution is impossible, so we return.
         let Some(Ok(root_path)) = self.root_uri.as_ref().map(Url::to_file_path) else {
             return vec![];

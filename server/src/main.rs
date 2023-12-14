@@ -4,10 +4,10 @@ use config::SliceConfig;
 use diagnostic_ext::try_into_lsp_diagnostic;
 use hover::get_hover_info;
 use jump_definition::get_definition_span;
+use serde_json::Value;
 use slicec::compilation_state::CompilationState;
 use std::{
     collections::{HashMap, HashSet},
-    default,
     sync::Arc,
 };
 use tokio::sync::Mutex;
@@ -42,25 +42,6 @@ struct Backend {
     built_in_slice_path: Arc<Mutex<String>>,
 }
 
-struct ConfigurationSet {
-    configuration: SliceConfig,
-    compilation_state: CompilationState,
-}
-
-impl ConfigurationSet {
-    fn default(root_uri: Url, built_in_path: String) -> Self {
-        let mut configuration = SliceConfig::default();
-        configuration.set_root_uri(root_uri);
-        configuration.set_built_in_reference(built_in_path.to_owned());
-        let compilation_state =
-            slicec::compile_from_options(configuration.as_slice_options(), |_| {}, |_| {});
-        Self {
-            configuration,
-            compilation_state,
-        }
-    }
-}
-
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(
@@ -77,10 +58,8 @@ impl LanguageServer for Backend {
             .and_then(|path| Url::from_file_path(path).ok())
         {
             // Store the root_uri in the backend
-            {
-                let mut root_uri_lock = self.root_uri.lock().await;
-                *root_uri_lock = Some(root_uri.clone());
-            }
+            let mut root_uri_lock = self.root_uri.lock().await;
+            *root_uri_lock = Some(root_uri.clone());
 
             // This is the path to the built-in Slice files that are included with the extension. It should always
             // be present.
@@ -93,21 +72,16 @@ impl LanguageServer for Backend {
                 .to_string();
 
             // Store the built_in_slice_path in the backend
-            {
-                let mut built_in_slice_path_lock = self.built_in_slice_path.lock().await;
-                *built_in_slice_path_lock = built_in_slice_path.clone();
-            }
+            let mut built_in_slice_path_lock = self.built_in_slice_path.lock().await;
+            *built_in_slice_path_lock = built_in_slice_path.clone();
 
             // Insert the default configuration set
             let mut configuration_sets = self.configuration_sets.lock().await;
 
             // Default configuration set
-            let mut slice_config = SliceConfig::default();
-            slice_config.set_root_uri(root_uri);
-            slice_config.set_built_in_reference(built_in_slice_path.to_owned());
-            let compilation_state =
-                slicec::compile_from_options(slice_config.as_slice_options(), |_| {}, |_| {});
-            configuration_sets.insert(slice_config, compilation_state);
+            let default =
+                new_default_configuration_set(root_uri.clone(), built_in_slice_path.clone());
+            configuration_sets.insert(default.0, default.1);
         }
         Ok(InitializeResult {
             server_info: None,
@@ -137,109 +111,9 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Fetch the configuration sets from the client
-        let found_configurations = {
-            // Fetch the entire `slice.configurations` array
-            let params = vec![ConfigurationItem {
-                scope_uri: None,
-                section: Some("slice.configurations".to_string()),
-            }];
-
-            // Send the configuration request to the client
-            let response = self.client.configuration(params).await;
-
-            let root_uri = self.root_uri.lock().await;
-
-            // Parse the slice configurations from the response and push them to the configuration sets
-            response
-                .unwrap()
-                .first()
-                .and_then(|v| v.as_array())
-                .map(|config_array| {
-                    config_array
-                        .iter()
-                        .filter_map(|config| config.as_object())
-                        .filter_map(|config_obj| {
-                            // Try to parse the reference directories from the configuration object
-                            let directories = config_obj
-                                .get("referenceDirectories")
-                                .and_then(|v| v.as_array())
-                                .map(|dirs_array| {
-                                    dirs_array
-                                        .iter()
-                                        .filter_map(|v| v.as_str())
-                                        .map(String::from)
-                                        .collect::<Vec<_>>()
-                                })
-                                .unwrap_or_default();
-
-                            // Try to parse the include built-in types boolean.
-                            let include_built_in = config_obj
-                                .get("includeBuiltInTypes")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or_default();
-
-                            Some((directories, include_built_in))
-                        })
-                        .map(|config| {
-                            let mut slice_config = SliceConfig::default();
-
-                            slice_config.set_root_uri(root_uri.clone().unwrap());
-                            slice_config.update_from_references(config.0);
-                            slice_config.update_include_built_in_reference(config.1);
-
-                            let options = slice_config.as_slice_options();
-
-                            let compilation_state =
-                                slicec::compile_from_options(options, |_| {}, |_| {});
-
-                            (slice_config, compilation_state)
-                        })
-                        .collect::<Vec<_>>()
-                })
-        }
-        .unwrap_or_default();
-
-        // TODO; Write comment
-        {
-            let mut configuration_sets = self.configuration_sets.lock().await;
-            if !found_configurations.is_empty() {
-                // Remove the default configuration set
-                *configuration_sets = HashMap::new();
-            }
-            // Insert the found configurations into the configuration sets
-            for configuration in found_configurations {
-                configuration_sets.insert(configuration.0, configuration.1);
-            }
-        }
-
-        let mut configuration_sets = self.configuration_sets.lock().await;
-
-        // Update the diagnostics for all files in the configuration sets
-        for configuration_set in configuration_sets.iter_mut() {
-            self.publish_diagnostics_for_all_files(configuration_set)
-                .await;
-        }
-
-        {
-            // Get all the tracked files from all configuration sets
-            let tracked_files = configuration_sets
-                .iter()
-                .flat_map(|config| {
-                    // Get the files from the configuration set
-                    let files = config.1.files.keys().cloned().collect::<Vec<_>>();
-                    files
-                })
-                .collect::<Vec<_>>();
-
-            // Log the tracked files
-            self.client
-                .log_message(
-                    MessageType::INFO,
-                    format!("Tracked files: {:?}", tracked_files),
-                )
-                .await;
-        }
+        let found_configurations = self.fetch_configurations().await.unwrap_or_default();
+        self.update_configuration_sets(found_configurations).await;
+        self.publish_diagnostics().await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -250,118 +124,10 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "Slice Language Server config changed")
             .await;
-
-        let mut configuration_sets = self.configuration_sets.lock().await;
-
-        // Remove the diagnostics from all files in all configuration sets
-        {
-            //  We dont want to wipe the same file multiple times if it is in multiple configuration sets
-            // so we collect all the files in all configuration sets and deduplicate them first
-            let mut all_tracked_files = HashSet::new();
-            for configuration_set in configuration_sets.iter_mut() {
-                configuration_set
-                    .1
-                    .files
-                    .keys()
-                    .cloned()
-                    .filter_map(|uri| convert_slice_url_to_uri(&uri))
-                    .for_each(|uri| {
-                        all_tracked_files.insert(uri);
-                    });
-            }
-
-            // Remove the diagnostics from all files in all configuration sets
-            for uri in all_tracked_files {
-                self.client.publish_diagnostics(uri, vec![], None).await;
-            }
-        }
-
-        // Update the slice configuration
-        {
-            let settings = params.settings;
-            let root_uri = self.root_uri.lock().await;
-
-            let found_configurations = settings
-                .get("slice.configurations")
-                .and_then(|v| v.as_array())
-                .map(|config_array| {
-                    config_array
-                        .iter()
-                        .filter_map(|config| config.as_object())
-                        .filter_map(|config_obj| {
-                            let directories = config_obj
-                                .get("referenceDirectories")
-                                .and_then(|v| v.as_array())
-                                .map(|dirs_array| {
-                                    dirs_array
-                                        .iter()
-                                        .filter_map(|v| v.as_str())
-                                        .map(String::from)
-                                        .collect::<Vec<_>>()
-                                })
-                                .unwrap_or_default();
-
-                            let include_built_in = config_obj
-                                .get("includeBuiltInTypes")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or_default();
-
-                            Some((directories, include_built_in))
-                        })
-                        .map(|config| {
-                            let mut slice_config = SliceConfig::default();
-
-                            slice_config.set_root_uri(root_uri.clone().unwrap());
-                            slice_config.update_from_references(config.0);
-                            slice_config.update_include_built_in_reference(config.1);
-
-                            let options = slice_config.as_slice_options();
-
-                            let compilation_state =
-                                slicec::compile_from_options(options, |_| {}, |_| {});
-
-                            (slice_config, compilation_state)
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            // Remove all configuration sets and replace them with the updated configuration sets
-            {
-                let mut configuration_sets = self.configuration_sets.lock().await;
-                // Remove all configuration sets
-                *configuration_sets = HashMap::new();
-
-                if found_configurations.is_empty() {
-                    // Add the default configuration set
-                    let root_uri = self.root_uri.lock().await;
-                    let mut slice_config = SliceConfig::default();
-
-                    let built_in_slice_path = self.built_in_slice_path.lock().await;
-
-                    slice_config.set_root_uri((*root_uri).clone().unwrap());
-                    slice_config.set_built_in_reference((*built_in_slice_path).to_owned());
-                    let compilation_state = slicec::compile_from_options(
-                        slice_config.as_slice_options(),
-                        |_| {},
-                        |_| {},
-                    );
-                    configuration_sets.insert(slice_config, compilation_state);
-
-                    *configuration_sets = HashMap::new();
-                } else {
-                    for configuration in found_configurations {
-                        configuration_sets.insert(configuration.0, configuration.1);
-                    }
-                }
-            }
-        }
-
-        // Publish the new diagnostics for each file
-        for configuration_set in configuration_sets.iter_mut() {
-            self.publish_diagnostics_for_all_files(configuration_set)
-                .await;
-        }
+        self.clear_diagnostics().await;
+        let found_configurations = self.parse_configuration(params).await.unwrap_or_default();
+        self.update_configuration_sets(found_configurations).await;
+        self.clear_diagnostics().await;
     }
 
     async fn goto_definition(
@@ -637,4 +403,126 @@ impl Backend {
             .log_message(MessageType::INFO, "Updated diagnostics for all files")
             .await;
     }
+
+    async fn fetch_configurations(&self) -> Option<Vec<(SliceConfig, CompilationState)>> {
+        let params = vec![ConfigurationItem {
+            scope_uri: None,
+            section: Some("slice.configurations".to_string()),
+        }];
+
+        let response = self.client.configuration(params).await.ok()?;
+        let root_uri = self.root_uri.lock().await;
+        Some(parse_slice_configuration_sets(
+            response.first()?.as_array()?.to_vec(),
+            &((*root_uri).clone().unwrap()),
+        ))
+    }
+
+    // New function to update configuration sets
+    async fn update_configuration_sets(
+        &self,
+        configurations: Vec<(SliceConfig, CompilationState)>,
+    ) {
+        let mut configuration_sets = self.configuration_sets.lock().await;
+        *configuration_sets = configurations.into_iter().collect();
+    }
+
+    // New function to update diagnostics for all files
+    async fn publish_diagnostics(&self) {
+        let mut configuration_sets = self.configuration_sets.lock().await;
+        for configuration_set in configuration_sets.iter_mut() {
+            self.publish_diagnostics_for_all_files(configuration_set)
+                .await;
+        }
+    }
+
+    // Clear the diagnostics for all tracked files
+    async fn clear_diagnostics(&self) {
+        let configuration_sets = self.configuration_sets.lock().await;
+        let mut all_tracked_files = HashSet::new();
+        for configuration_set in configuration_sets.iter() {
+            configuration_set
+                .1
+                .files
+                .keys()
+                .cloned()
+                .filter_map(|uri| convert_slice_url_to_uri(&uri))
+                .for_each(|uri| {
+                    all_tracked_files.insert(uri);
+                });
+        }
+
+        for uri in all_tracked_files {
+            self.client.publish_diagnostics(uri, vec![], None).await;
+        }
+    }
+
+    async fn parse_configuration(
+        &self,
+        params: DidChangeConfigurationParams,
+    ) -> Option<Vec<(SliceConfig, CompilationState)>> {
+        let root_uri = self.root_uri.lock().await;
+        params
+            .settings
+            .get("slice.configurations")
+            .and_then(|v| v.as_array())
+            .map(|config_array| {
+                parse_slice_configuration_sets(config_array.to_vec(), &(*root_uri).clone().unwrap())
+            })
+    }
+}
+
+fn new_default_configuration_set(
+    root_uri: Url,
+    built_in_path: String,
+) -> (SliceConfig, CompilationState) {
+    let mut configuration = SliceConfig::default();
+    configuration.set_root_uri(root_uri);
+    configuration.set_built_in_reference(built_in_path.to_owned());
+    let compilation_state =
+        slicec::compile_from_options(configuration.as_slice_options(), |_| {}, |_| {});
+    (configuration, compilation_state)
+}
+
+fn parse_slice_configuration_sets(
+    config_array: Vec<Value>,
+    root_uri: &Url,
+) -> Vec<(SliceConfig, CompilationState)> {
+    config_array
+        .iter()
+        .filter_map(|config| config.as_object())
+        .map(|config_obj| {
+            let directories = config_obj
+                .get("referenceDirectories")
+                .and_then(|v| v.as_array())
+                .map(|dirs_array| {
+                    dirs_array
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .map(String::from)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            let include_built_in = config_obj
+                .get("includeBuiltInTypes")
+                .and_then(|v| v.as_bool())
+                .unwrap_or_default();
+
+            (directories, include_built_in)
+        })
+        .map(|config| {
+            let mut slice_config = SliceConfig::default();
+
+            slice_config.set_root_uri(root_uri.clone());
+            slice_config.update_from_references(config.0);
+            slice_config.update_include_built_in_reference(config.1);
+
+            let options = slice_config.as_slice_options();
+
+            let compilation_state = slicec::compile_from_options(options, |_| {}, |_| {});
+
+            (slice_config, compilation_state)
+        })
+        .collect::<Vec<_>>()
 }
