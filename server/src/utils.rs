@@ -43,7 +43,7 @@ pub fn url_to_file_path(url: Url) -> Option<String> {
     Some(url.to_file_path().ok()?.to_str()?.to_owned())
 }
 
-pub fn new_default_configuration_set(
+pub fn new_configuration_set(
     root_uri: Url,
     built_in_path: String,
 ) -> (SliceConfig, CompilationState) {
@@ -61,7 +61,6 @@ pub fn parse_slice_configuration_sets(
 ) -> Vec<(SliceConfig, CompilationState)> {
     config_array
         .iter()
-        .filter_map(|config| config.as_object())
         .map(|config_obj| {
             let directories = config_obj
                 .get("referenceDirectories")
@@ -90,7 +89,6 @@ pub fn parse_slice_configuration_sets(
             slice_config.update_include_built_in_reference(config.1);
 
             let options = slice_config.as_slice_options();
-
             let compilation_state = slicec::compile_from_options(options, |_| {}, |_| {});
 
             (slice_config, compilation_state)

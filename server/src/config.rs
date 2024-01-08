@@ -52,6 +52,7 @@ impl SliceConfig {
 
         // Convert reference directories to URLs.
         let mut result_urls = Vec::new();
+
         for reference in references {
             match Url::from_file_path(root_path.join(reference)) {
                 Ok(reference_url) => {
@@ -74,13 +75,16 @@ impl SliceConfig {
 
         // If references was set to an empty list, or none of them represented a valid directory path, default to using
         // the workspace root. Otherwise, if there's more than zero valid reference directories, return them.
+
         let mut paths = if result_urls.is_empty() {
             vec![root_path.display().to_string()]
         } else {
             result_urls
         };
         // Add the built-in reference path to the end of the list.
-        if self.include_built_in_reference {
+        // TODO: Weird case where self.include_built_in_reference is true but self.built_in_slice_path is empty.
+        // We should probably handle this case better or make sure it never happens.
+        if self.include_built_in_reference && !self.built_in_slice_path.is_empty() {
             paths.push(self.built_in_slice_path.clone());
         }
         paths

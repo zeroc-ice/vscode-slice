@@ -61,6 +61,7 @@ pub async fn publish_diagnostics(
     configuration_sets: &Arc<Mutex<HashMap<SliceConfig, CompilationState>>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
+
     for configuration_set in configuration_sets.iter_mut() {
         publish_diagnostics_for_all_files(client, configuration_set).await;
     }

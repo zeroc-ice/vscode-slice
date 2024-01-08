@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{
-    convert_slice_url_to_uri, new_default_configuration_set, parse_slice_configuration_sets,
+    convert_slice_url_to_uri, new_configuration_set, parse_slice_configuration_sets,
     url_to_file_path,
 };
 
@@ -63,30 +63,22 @@ impl LanguageServer for Backend {
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
         {
-            // Store the root_uri in the backend
-            let mut root_uri_lock = self.root_uri.lock().await;
-            *root_uri_lock = Some(root_uri.clone());
+            *self.root_uri.lock().await = Some(root_uri.clone());
 
             // This is the path to the built-in Slice files that are included with the extension. It should always
             // be present.
             let built_in_slice_path = params
                 .initialization_options
-                .unwrap()
-                .get("builtInSlicePath")
-                .and_then(|v| v.as_str())
-                .unwrap()
-                .to_string();
-
-            // Store the built_in_slice_path in the backend
-            let mut built_in_slice_path_lock = self.built_in_slice_path.lock().await;
-            *built_in_slice_path_lock = built_in_slice_path.clone();
+                .and_then(|opts| opts.get("builtInSlicePath").cloned())
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_default();
+            *self.built_in_slice_path.lock().await = built_in_slice_path.clone();
 
             // Insert the default configuration set
             let mut configuration_sets = self.configuration_sets.lock().await;
 
             // Default configuration set
-            let default =
-                new_default_configuration_set(root_uri.clone(), built_in_slice_path.clone());
+            let default = new_configuration_set(root_uri.clone(), built_in_slice_path.clone());
             configuration_sets.insert(default.0, default.1);
         }
         Ok(InitializeResult {
@@ -122,6 +114,11 @@ impl LanguageServer for Backend {
         // Update the configuration sets with the new configurations if any were found. Otherwise, leave the default
         // configuration set in place.
         if !found_configurations.is_empty() {
+            // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
+            // clear the diagnostics for all files and then re-publish them.
+            clear_diagnostics(&self.client, &self.configuration_sets).await;
+
+            // Update the configuration sets
             self.update_configuration_sets(found_configurations).await;
             publish_diagnostics(&self.client, &self.configuration_sets).await;
         }
@@ -135,6 +132,7 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "Slice Language Server settings changed")
             .await;
+
         // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
         // clear the diagnostics for all files and then re-publish them.
         clear_diagnostics(&self.client, &self.configuration_sets).await;
@@ -304,9 +302,17 @@ impl Backend {
             .await
             .ok()
             .and_then(|response| {
-                root_uri
-                    .as_ref()
-                    .map(|uri| parse_slice_configuration_sets(response, uri))
+                root_uri.as_ref().map(|uri| {
+                    parse_slice_configuration_sets(
+                        response
+                            .iter()
+                            .filter_map(|config| config.as_array())
+                            .flatten()
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                        uri,
+                    )
+                })
             })
             .unwrap_or_default()
     }
@@ -318,9 +324,11 @@ impl Backend {
         params: DidChangeConfigurationParams,
     ) -> Vec<ConfigurationSet> {
         let root_uri = self.root_uri.lock().await;
+
         params
             .settings
-            .get("slice.configurations")
+            .get("slice")
+            .and_then(|v| v.get("configurations"))
             .and_then(|v| v.as_array())
             .map(|config_array| {
                 parse_slice_configuration_sets(config_array.to_vec(), &(*root_uri).clone().unwrap())
@@ -338,10 +346,8 @@ impl Backend {
         if configuration_sets.is_empty() {
             let root_uri = self.root_uri.lock().await;
             let built_in_slice_path = self.built_in_slice_path.lock().await;
-            let default = new_default_configuration_set(
-                root_uri.clone().unwrap(),
-                built_in_slice_path.clone(),
-            );
+            let default =
+                new_configuration_set(root_uri.clone().unwrap(), built_in_slice_path.clone());
             configuration_sets.insert(default.0, default.1);
         }
     }
