@@ -26,7 +26,7 @@
       "problemMatcher": ["$tsc-watch"]
     },
     {
-      "label": "Build Rust Server",
+      "label": "Build Server",
       "type": "shell",
       "command": "cargo build",
       "options": {
@@ -41,38 +41,6 @@
       "group": {
         "kind": "build",
         "isDefault": true
-      }
-    },
-    {
-      "label": "Build Rust Server (Production)",
-      "type": "shell",
-      "command": "./build.sh",
-      "options": {
-        "cwd": "${workspaceFolder}/server"
-      },
-      "group": "build",
-      "problemMatcher": ["$rustc"]
-    },
-    {
-      "label": "Build Client (Production)",
-      "type": "npm",
-      "script": "build:prod",
-      "group": "build",
-      "presentation": {
-        "panel": "dedicated",
-        "reveal": "never"
-      },
-      "problemMatcher": ["$tsc"]
-    },
-    {
-      "label": "Build All (Production)",
-      "dependsOn": [
-        "Build Rust Server (Production)",
-        "Build Client (Production)"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": false
       }
     }
   ]
