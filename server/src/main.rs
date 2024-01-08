@@ -3,7 +3,7 @@
 use crate::utils::FindFile;
 use config::SliceConfig;
 use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics};
-use hover::get_hover_info;
+use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
 use std::{collections::HashMap, sync::Arc};
@@ -140,7 +140,7 @@ impl LanguageServer for Backend {
         clear_diagnostics(&self.client, &self.configuration_sets).await;
 
         // Parse the new configurations and update the configuration sets
-        let found_configurations = self.parse_settings(params).await.unwrap_or_default();
+        let found_configurations = self.parse_updated_settings(params).await;
         self.update_configuration_sets(found_configurations).await;
 
         // Publish the diagnostics for all files
@@ -195,20 +195,11 @@ impl LanguageServer for Backend {
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.configuration_sets.lock().await;
-        Ok(
-            if let Some(compilation_state) = configuration_sets
-                .iter()
-                .find_file(&file_name)
-                .map(|config| config.1)
-            {
-                get_hover_info(compilation_state, url, position).map(|info| Hover {
-                    contents: HoverContents::Scalar(MarkedString::String(info)),
-                    range: None,
-                })
-            } else {
-                None
-            },
-        )
+        Ok(configuration_sets
+            .iter()
+            .find_file(&file_name)
+            .map(|config| config.1)
+            .and_then(|compilation_state| try_into_hover_result(compilation_state, url, position)))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -286,10 +277,6 @@ impl Backend {
         // Process diagnostics and update publish_map
         process_diagnostics(diagnostics, &mut publish_map);
 
-        self.client
-            .log_message(MessageType::INFO, format!("publish_map {:?}", publish_map))
-            .await;
-
         // Publish the diagnostics for each file
         for (uri, lsp_diagnostics) in publish_map {
             self.client
@@ -324,6 +311,23 @@ impl Backend {
             .unwrap_or_default()
     }
 
+    // Parse the updated settings and return the configuration sets. If no configurations are found, return an empty
+    // vector.
+    async fn parse_updated_settings(
+        &self,
+        params: DidChangeConfigurationParams,
+    ) -> Vec<ConfigurationSet> {
+        let root_uri = self.root_uri.lock().await;
+        params
+            .settings
+            .get("slice.configurations")
+            .and_then(|v| v.as_array())
+            .map(|config_array| {
+                parse_slice_configuration_sets(config_array.to_vec(), &(*root_uri).clone().unwrap())
+            })
+            .unwrap_or_default()
+    }
+
     // Update the configuration sets with the new configurations. If there are no configuration sets after updating,
     // insert the default configuration set.
     async fn update_configuration_sets(&self, configurations: Vec<ConfigurationSet>) {
@@ -340,19 +344,5 @@ impl Backend {
             );
             configuration_sets.insert(default.0, default.1);
         }
-    }
-
-    async fn parse_settings(
-        &self,
-        params: DidChangeConfigurationParams,
-    ) -> Option<Vec<ConfigurationSet>> {
-        let root_uri = self.root_uri.lock().await;
-        params
-            .settings
-            .get("slice.configurations")
-            .and_then(|v| v.as_array())
-            .map(|config_array| {
-                parse_slice_configuration_sets(config_array.to_vec(), &(*root_uri).clone().unwrap())
-            })
     }
 }

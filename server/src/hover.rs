@@ -7,9 +7,13 @@ use slicec::{
     slice_file::Location,
     visitor::Visitor,
 };
-use tower_lsp::lsp_types::{Position, Url};
+use tower_lsp::lsp_types::{Hover, HoverContents, MarkedString, Position, Url};
 
-pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) -> Option<String> {
+pub fn try_into_hover_result(
+    state: &CompilationState,
+    uri: Url,
+    position: Position,
+) -> Option<Hover> {
     let file_path = convert_uri_to_slice_formated_url(uri)?;
     let file = state.files.get(&file_path)?;
 
@@ -20,7 +24,11 @@ pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) ->
     let mut visitor = HoverVisitor::new(Location { row, col });
     file.visit_with(&mut visitor);
 
-    visitor.found_message
+    // If we found a message, return it as a hover result, otherwise return None.
+    visitor.found_message.map(|message| Hover {
+        contents: HoverContents::Scalar(MarkedString::String(message)),
+        range: None,
+    })
 }
 
 struct HoverVisitor {
