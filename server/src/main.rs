@@ -67,11 +67,13 @@ impl LanguageServer for Backend {
 
             // This is the path to the built-in Slice files that are included with the extension. It should always
             // be present.
+
             let built_in_slice_path = params
                 .initialization_options
                 .and_then(|opts| opts.get("builtInSlicePath").cloned())
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .unwrap_or_default();
+
             *self.built_in_slice_path.lock().await = built_in_slice_path.clone();
 
             // Insert the default configuration set
@@ -290,6 +292,7 @@ impl Backend {
     // Fetch the configurations from the client and parse them into configuration sets.
     async fn fetch_settings(&self) -> Vec<ConfigurationSet> {
         let root_uri = self.root_uri.lock().await;
+        let built_in_slice_path = &self.built_in_slice_path.lock().await;
         let params = vec![ConfigurationItem {
             scope_uri: None,
             section: Some("slice.configurations".to_string()),
@@ -311,6 +314,7 @@ impl Backend {
                             .cloned()
                             .collect::<Vec<_>>(),
                         uri,
+                        built_in_slice_path,
                     )
                 })
             })
@@ -324,6 +328,7 @@ impl Backend {
         params: DidChangeConfigurationParams,
     ) -> Vec<ConfigurationSet> {
         let root_uri = self.root_uri.lock().await;
+        let built_in_slice_path = &self.built_in_slice_path.lock().await;
 
         params
             .settings
@@ -331,7 +336,11 @@ impl Backend {
             .and_then(|v| v.get("configurations"))
             .and_then(|v| v.as_array())
             .map(|config_array| {
-                parse_slice_configuration_sets(config_array.to_vec(), &(*root_uri).clone().unwrap())
+                parse_slice_configuration_sets(
+                    config_array.to_vec(),
+                    &(*root_uri).clone().unwrap(),
+                    built_in_slice_path,
+                )
             })
             .unwrap_or_default()
     }

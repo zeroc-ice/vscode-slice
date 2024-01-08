@@ -58,6 +58,7 @@ pub fn new_configuration_set(
 pub fn parse_slice_configuration_sets(
     config_array: Vec<Value>,
     root_uri: &Url,
+    built_in_path: &str,
 ) -> Vec<(SliceConfig, CompilationState)> {
     config_array
         .iter()
@@ -74,10 +75,11 @@ pub fn parse_slice_configuration_sets(
                 })
                 .unwrap_or_default();
 
+            // If the includeBuiltInTypes is not specified, default to true
             let include_built_in = config_obj
                 .get("includeBuiltInTypes")
                 .and_then(|v| v.as_bool())
-                .unwrap_or_default();
+                .unwrap_or(true);
 
             (directories, include_built_in)
         })
@@ -85,6 +87,7 @@ pub fn parse_slice_configuration_sets(
             let mut slice_config = SliceConfig::default();
 
             slice_config.set_root_uri(root_uri.clone());
+            slice_config.set_built_in_reference(built_in_path.to_owned());
             slice_config.update_from_references(config.0);
             slice_config.update_include_built_in_reference(config.1);
 

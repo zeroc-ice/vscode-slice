@@ -85,8 +85,7 @@
               }
             },
             "required": [
-              "referenceDirectories",
-              "includeBuiltInTypes"
+              "referenceDirectories"
             ]
           }
         },
