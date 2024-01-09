@@ -3,7 +3,7 @@ use crate::configuration_set::ConfigurationSet;
 use slicec::compilation_state::CompilationState;
 use tower_lsp::lsp_types::Url;
 
-// A helper trait that allows us to find a file in an iterator of (&SliceConfig, &CompilationState)
+// A helper trait that allows us to find a file in an iterator of ConfigurationSet.
 pub trait FindFile<'a> {
     fn find_file(self, file_name: &str) -> Option<&'a CompilationState>;
 }
