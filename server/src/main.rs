@@ -37,6 +37,38 @@ async fn main() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
+fn capabilities() -> ServerCapabilities {
+    let definition_provider = Some(OneOf::Left(true));
+    let hover_provider = Some(HoverProviderCapability::Simple(true));
+
+    let text_document_sync = Some(TextDocumentSyncCapability::Options(
+        TextDocumentSyncOptions {
+            open_close: Some(true),
+            change: Some(TextDocumentSyncKind::FULL),
+            save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                include_text: Some(false),
+            })),
+            ..Default::default()
+        },
+    ));
+
+    let workspace = Some(WorkspaceServerCapabilities {
+        workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+            supported: Some(true),
+            change_notifications: Some(OneOf::Left(true)),
+        }),
+        ..Default::default()
+    });
+
+    ServerCapabilities {
+        text_document_sync,
+        workspace,
+        definition_provider,
+        hover_provider,
+        ..Default::default()
+    }
+}
+
 struct Backend {
     client: Client,
     // This HashMap contains all of the configuration sets for the language server. The key is the SliceConfig and the
@@ -55,62 +87,36 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
+        // This is the path to the built-in Slice files that are included with the extension. It should always
+        // be present.
+        let built_in_slice_path = params
+            .initialization_options
+            .and_then(|opts| opts.get("builtInSlicePath").cloned())
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .expect("builtInSlicePath not found in initialization options");
+        *self.built_in_slice_path.lock().await = built_in_slice_path.clone();
+
         // Use the root_uri if it exists temporarily as we cannot access configuration until
         // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
         // drive letter. To fix this, we convert the path to a URL and then back to a path.
-        if let Some(root_uri) = params
+        let root_uri = params
             .root_uri
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
-            .map(|uri| async {
-                *self.root_uri.lock().await = Some(uri.clone());
-                uri
-            })
-        {
-            // Wait for the root_uri to be set
-            let root_uri = root_uri.await;
+            .expect("root_uri not found in initialization parameters");
+        *self.root_uri.lock().await = Some(root_uri.clone());
 
-            // This is the path to the built-in Slice files that are included with the extension. It should always
-            // be present.
-            let built_in_slice_path = params
-                .initialization_options
-                .and_then(|opts| opts.get("builtInSlicePath").cloned())
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .expect("builtInSlicePath not found in initialization options");
+        // Insert the default configuration set into the HashMap. This will be updated later if the client provides
+        // configurations.
+        let mut configuration_sets = self.configuration_sets.lock().await;
+        let default = new_configuration_set(root_uri, built_in_slice_path);
+        configuration_sets.insert(default.0, default.1);
 
-            *self.built_in_slice_path.lock().await = built_in_slice_path.clone();
+        let capabilities = capabilities();
 
-            // Insert the default configuration set
-            let mut configuration_sets = self.configuration_sets.lock().await;
-
-            // Default configuration set
-            let default = new_configuration_set(root_uri.clone(), built_in_slice_path.clone());
-            configuration_sets.insert(default.0, default.1);
-        }
         Ok(InitializeResult {
-            server_info: None,
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Options(
-                    TextDocumentSyncOptions {
-                        open_close: Some(true),
-                        change: Some(TextDocumentSyncKind::FULL),
-                        save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
-                            include_text: Some(false),
-                        })),
-                        ..Default::default()
-                    },
-                )),
-                workspace: Some(WorkspaceServerCapabilities {
-                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-                        supported: Some(true),
-                        change_notifications: Some(OneOf::Left(true)),
-                    }),
-                    ..Default::default()
-                }),
-                definition_provider: Some(OneOf::Left(true)),
-                hover_provider: Some(HoverProviderCapability::Simple(true)),
-                ..ServerCapabilities::default()
-            },
+            capabilities,
+            ..InitializeResult::default()
         })
     }
 
