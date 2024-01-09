@@ -1,23 +1,20 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::utils::FindFile;
 use config::SliceConfig;
 use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics};
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
-use utils::{
-    convert_slice_url_to_uri, new_configuration_set, parse_slice_configuration_sets,
-    url_to_file_path,
-};
+use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
 
 mod config;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
+mod session;
 mod utils;
 
 type ConfigurationSet = (SliceConfig, CompilationState);
@@ -27,58 +24,52 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend {
-        client,
-        configuration_sets: Arc::new(Mutex::new(HashMap::new())),
-        root_uri: Arc::new(Mutex::new(None)),
-        built_in_slice_path: Arc::new(Mutex::new(String::new())),
-    });
-
+    let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
-}
-
-fn capabilities() -> ServerCapabilities {
-    let definition_provider = Some(OneOf::Left(true));
-    let hover_provider = Some(HoverProviderCapability::Simple(true));
-
-    let text_document_sync = Some(TextDocumentSyncCapability::Options(
-        TextDocumentSyncOptions {
-            open_close: Some(true),
-            change: Some(TextDocumentSyncKind::FULL),
-            save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
-                include_text: Some(false),
-            })),
-            ..Default::default()
-        },
-    ));
-
-    let workspace = Some(WorkspaceServerCapabilities {
-        workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-            supported: Some(true),
-            change_notifications: Some(OneOf::Left(true)),
-        }),
-        ..Default::default()
-    });
-
-    ServerCapabilities {
-        text_document_sync,
-        workspace,
-        definition_provider,
-        hover_provider,
-        ..Default::default()
-    }
 }
 
 struct Backend {
     client: Client,
-    // This HashMap contains all of the configuration sets for the language server. The key is the SliceConfig and the
-    // value is the CompilationState. The SliceConfig is used to determine which configuration set to use when
-    // publishing diagnostics. The CompilationState is used to retrieve the diagnostics for a given file.
-    configuration_sets: Arc<Mutex<HashMap<SliceConfig, CompilationState>>>,
-    // This is the root URI of the workspace. It is used to resolve relative paths in the configuration.
-    root_uri: Arc<Mutex<Option<Url>>>,
-    // This is the path to the built-in Slice files that are included with the extension.
-    built_in_slice_path: Arc<Mutex<String>>,
+    session: Arc<crate::session::Session>,
+}
+
+impl Backend {
+    pub fn new(client: tower_lsp::Client) -> Self {
+        let session = Arc::new(crate::session::Session::new(client.clone()));
+        Self { client, session }
+    }
+
+    fn capabilities() -> ServerCapabilities {
+        let definition_provider = Some(OneOf::Left(true));
+        let hover_provider = Some(HoverProviderCapability::Simple(true));
+
+        let text_document_sync = Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::FULL),
+                save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                    include_text: Some(false),
+                })),
+                ..Default::default()
+            },
+        ));
+
+        let workspace = Some(WorkspaceServerCapabilities {
+            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(true)),
+            }),
+            ..Default::default()
+        });
+
+        ServerCapabilities {
+            text_document_sync,
+            workspace,
+            definition_provider,
+            hover_provider,
+            ..Default::default()
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -87,32 +78,8 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
-        // This is the path to the built-in Slice files that are included with the extension. It should always
-        // be present.
-        let built_in_slice_path = params
-            .initialization_options
-            .and_then(|opts| opts.get("builtInSlicePath").cloned())
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .expect("builtInSlicePath not found in initialization options");
-        *self.built_in_slice_path.lock().await = built_in_slice_path.clone();
-
-        // Use the root_uri if it exists temporarily as we cannot access configuration until
-        // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
-        // drive letter. To fix this, we convert the path to a URL and then back to a path.
-        let root_uri = params
-            .root_uri
-            .and_then(|uri| uri.to_file_path().ok())
-            .and_then(|path| Url::from_file_path(path).ok())
-            .expect("root_uri not found in initialization parameters");
-        *self.root_uri.lock().await = Some(root_uri.clone());
-
-        // Insert the default configuration set into the HashMap. This will be updated later if the client provides
-        // configurations.
-        let mut configuration_sets = self.configuration_sets.lock().await;
-        let default = new_configuration_set(root_uri, built_in_slice_path);
-        configuration_sets.insert(default.0, default.1);
-
-        let capabilities = capabilities();
+        self.session.update_from_initialize_params(params).await;
+        let capabilities = Backend::capabilities();
 
         Ok(InitializeResult {
             capabilities,
@@ -121,19 +88,16 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        let found_configurations = self.fetch_settings().await;
+        // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
+        // clear the diagnostics for all files and then re-publish them.
+        clear_diagnostics(&self.client, &self.session.configuration_sets).await;
 
-        // Update the configuration sets with the new configurations if any were found. Otherwise, leave the default
-        // configuration set in place.
-        if !found_configurations.is_empty() {
-            // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
-            // clear the diagnostics for all files and then re-publish them.
-            clear_diagnostics(&self.client, &self.configuration_sets).await;
+        // Update the configuration sets by fetching the configurations from the client. This is performed after
+        // initialization because the client may not be ready to provide configurations before initialization.
+        self.session.fetch_configurations().await;
 
-            // Update the configuration sets
-            self.update_configuration_sets(found_configurations).await;
-            publish_diagnostics(&self.client, &self.configuration_sets).await;
-        }
+        // Publish the diagnostics for all files
+        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -147,14 +111,13 @@ impl LanguageServer for Backend {
 
         // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
         // clear the diagnostics for all files and then re-publish them.
-        clear_diagnostics(&self.client, &self.configuration_sets).await;
+        clear_diagnostics(&self.client, &self.session.configuration_sets).await;
 
-        // Parse the new configurations and update the configuration sets
-        let found_configurations = self.parse_updated_settings(params).await;
-        self.update_configuration_sets(found_configurations).await;
+        // Update the stored configuration sets from the data provided in the client notification
+        self.session.update_configurations_from(params).await;
 
         // Publish the diagnostics for all files
-        publish_diagnostics(&self.client, &self.configuration_sets).await;
+        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn goto_definition(
@@ -172,7 +135,7 @@ impl LanguageServer for Backend {
             .map_err(|_| Error::internal_error())?;
 
         // Find the configuration set that contains the file
-        let configuration_sets = self.configuration_sets.lock().await;
+        let configuration_sets = self.session.configuration_sets.lock().await;
         let compilation_state = configuration_sets
             .iter()
             .find_file(&file_name)
@@ -212,7 +175,7 @@ impl LanguageServer for Backend {
             .map_err(|_| Error::internal_error())?;
 
         // Find the configuration set that contains the file and get the hover info
-        let configuration_sets = self.configuration_sets.lock().await;
+        let configuration_sets = self.session.configuration_sets.lock().await;
         Ok(configuration_sets
             .iter()
             .find_file(&file_name)
@@ -240,7 +203,7 @@ impl Backend {
             .await;
 
         let mut publish_map = HashMap::new();
-        let mut configuration_sets = self.configuration_sets.lock().await;
+        let mut configuration_sets = self.session.configuration_sets.lock().await;
 
         // Update the compilation state for the any impacted configuration set
         configuration_sets
@@ -307,77 +270,5 @@ impl Backend {
         self.client
             .log_message(MessageType::INFO, "Updated diagnostics for all files")
             .await;
-    }
-
-    // Fetch the configurations from the client and parse them into configuration sets.
-    async fn fetch_settings(&self) -> Vec<ConfigurationSet> {
-        let root_uri = self.root_uri.lock().await;
-        let built_in_slice_path = &self.built_in_slice_path.lock().await;
-        let params = vec![ConfigurationItem {
-            scope_uri: None,
-            section: Some("slice.configurations".to_string()),
-        }];
-
-        // Fetch the configurations from the client, parse them, and return the configuration sets. If no configurations
-        // are found, return an empty vector.
-        self.client
-            .configuration(params)
-            .await
-            .ok()
-            .and_then(|response| {
-                root_uri.as_ref().map(|uri| {
-                    parse_slice_configuration_sets(
-                        &response
-                            .iter()
-                            .filter_map(|config| config.as_array())
-                            .flatten()
-                            .cloned()
-                            .collect::<Vec<_>>(),
-                        uri,
-                        built_in_slice_path,
-                    )
-                })
-            })
-            .unwrap_or_default()
-    }
-
-    // Parse the updated settings and return the configuration sets. If no configurations are found, return an empty
-    // vector.
-    async fn parse_updated_settings(
-        &self,
-        params: DidChangeConfigurationParams,
-    ) -> Vec<ConfigurationSet> {
-        let root_uri = self.root_uri.lock().await;
-        let built_in_slice_path = &self.built_in_slice_path.lock().await;
-
-        params
-            .settings
-            .get("slice")
-            .and_then(|v| v.get("configurations"))
-            .and_then(|v| v.as_array())
-            .map(|config_array| {
-                parse_slice_configuration_sets(
-                    config_array,
-                    &(*root_uri).clone().unwrap(),
-                    built_in_slice_path,
-                )
-            })
-            .unwrap_or_default()
-    }
-
-    // Update the configuration sets with the new configurations. If there are no configuration sets after updating,
-    // insert the default configuration set.
-    async fn update_configuration_sets(&self, configurations: Vec<ConfigurationSet>) {
-        let mut configuration_sets = self.configuration_sets.lock().await;
-        *configuration_sets = configurations.into_iter().collect();
-
-        // Insert the default configuration set if needed
-        if configuration_sets.is_empty() {
-            let root_uri = self.root_uri.lock().await;
-            let built_in_slice_path = self.built_in_slice_path.lock().await;
-            let default =
-                new_configuration_set(root_uri.clone().unwrap(), built_in_slice_path.clone());
-            configuration_sets.insert(default.0, default.1);
-        }
     }
 }

@@ -6,7 +6,6 @@ use crate::utils::convert_slice_url_to_uri;
 use slicec::compilation_state::CompilationState;
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{
     DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
@@ -58,7 +57,7 @@ pub async fn publish_diagnostics_for_all_files(
 /// `publish_diagnostics_for_all_files` for each set.
 pub async fn publish_diagnostics(
     client: &Client,
-    configuration_sets: &Arc<Mutex<HashMap<SliceConfig, CompilationState>>>,
+    configuration_sets: &Mutex<HashMap<SliceConfig, CompilationState>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
@@ -93,7 +92,7 @@ pub fn process_diagnostics(
 /// and then publishes empty diagnostics to clear existing ones for each URI.
 pub async fn clear_diagnostics(
     client: &Client,
-    configuration_sets: &Arc<Mutex<HashMap<SliceConfig, CompilationState>>>,
+    configuration_sets: &Mutex<HashMap<SliceConfig, CompilationState>>,
 ) {
     let configuration_sets = configuration_sets.lock().await;
     let mut all_tracked_files = HashSet::new();

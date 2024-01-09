@@ -55,7 +55,7 @@ pub fn new_configuration_set(
     (configuration, compilation_state)
 }
 
-pub fn parse_slice_configuration_sets(
+pub fn parse_configuration_sets(
     config_array: &[Value],
     root_uri: &Url,
     built_in_path: &str,
