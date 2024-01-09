@@ -4,7 +4,7 @@ use slicec::slice_options::SliceOptions;
 use tower_lsp::lsp_types::Url;
 
 // This struct holds the configuration for a single compilation set.
-#[derive(Default, Debug, Hash, PartialEq, Eq)]
+#[derive(Default, Debug)]
 pub struct SliceConfig {
     pub references: Option<Vec<String>>,
     include_built_in_reference: bool,
