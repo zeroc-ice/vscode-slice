@@ -136,10 +136,7 @@ impl LanguageServer for Backend {
 
         // Find the configuration set that contains the file
         let configuration_sets = self.session.configuration_sets.lock().await;
-        let compilation_state = configuration_sets
-            .iter()
-            .find_file(&file_name)
-            .map(|config| config.1);
+        let compilation_state = configuration_sets.iter().find_file(&file_name);
 
         // Get the definition span and convert it to a GotoDefinitionResponse
         compilation_state
@@ -176,11 +173,11 @@ impl LanguageServer for Backend {
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.session.configuration_sets.lock().await;
-        Ok(configuration_sets
+        configuration_sets
             .iter()
             .find_file(&file_name)
-            .map(|config| config.1)
-            .and_then(|compilation_state| try_into_hover_result(compilation_state, url, position)))
+            .map(|compilation_state| try_into_hover_result(compilation_state, url, position))
+            .transpose()
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -215,7 +212,7 @@ impl Backend {
             })
             .for_each(|configuration_set| {
                 // Update the value of the compilation state in the configuration set in the HashMap
-                *(configuration_set).1 = slicec::compile_from_options(
+                (configuration_set).1 = slicec::compile_from_options(
                     configuration_set.0.as_slice_options(),
                     |_| {},
                     |_| {},
@@ -231,7 +228,7 @@ impl Backend {
                 files.contains(&file_name.to_owned())
             })
             .map(|configuration_set| {
-                let compilation_state = configuration_set.1;
+                let compilation_state = &mut configuration_set.1;
 
                 // Find the diagnostics for the config set
                 let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(

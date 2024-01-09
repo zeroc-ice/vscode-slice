@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+// Copyright (c) ZeroC, Inc.
 
 use slicec::compilation_state::CompilationState;
 use tokio::sync::{Mutex, RwLock};
@@ -12,13 +12,13 @@ use crate::{
 
 pub struct Session {
     client: tower_lsp::Client,
-    // This HashMap contains all of the configuration sets for the language server. The key is the SliceConfig and the
-    // value is the CompilationState. The SliceConfig is used to determine which configuration set to use when
-    // publishing diagnostics. The CompilationState is used to retrieve the diagnostics for a given file.
-    pub configuration_sets: Mutex<HashMap<SliceConfig, CompilationState>>,
-    // This is the root URI of the workspace. It is used to resolve relative paths in the configuration.
+    /// This HashMap contains all of the configuration sets for the language server. The key is the SliceConfig and the
+    /// value is the CompilationState. The SliceConfig is used to determine which configuration set to use when
+    /// publishing diagnostics. The CompilationState is used to retrieve the diagnostics for a given file.
+    pub configuration_sets: Mutex<Vec<(SliceConfig, CompilationState)>>,
+    /// This is the root URI of the workspace. It is used to resolve relative paths in the configuration.
     pub root_uri: RwLock<Option<Url>>,
-    // This is the path to the built-in Slice files that are included with the extension.
+    /// This is the path to the built-in Slice files that are included with the extension.
     pub built_in_slice_path: RwLock<String>,
 }
 
@@ -26,7 +26,7 @@ impl Session {
     pub fn new(client: tower_lsp::Client) -> Self {
         Self {
             client,
-            configuration_sets: Mutex::new(HashMap::new()),
+            configuration_sets: Mutex::new(Vec::new()),
             root_uri: RwLock::new(None),
             built_in_slice_path: RwLock::new(String::new()),
         }
@@ -55,12 +55,6 @@ impl Session {
             .and_then(|path| Url::from_file_path(path).ok())
             .expect("root_uri not found in initialization parameters");
         *self.root_uri.write().await = Some(root_uri.clone());
-
-        // // Insert the default configuration set into the HashMap. This will be updated later if the client provides
-        // // configurations.
-        // let mut configuration_sets = self.configuration_sets.lock().await;
-        // let default = new_configuration_set(root_uri, built_in_slice_path);
-        // configuration_sets.insert(default.0, default.1);
     }
 
     // Update the stored configuration sets by fetching them from the client.
@@ -132,7 +126,7 @@ impl Session {
             let built_in_slice_path = self.built_in_slice_path.read().await;
             let default =
                 new_configuration_set(root_uri.clone().unwrap(), built_in_slice_path.clone());
-            configuration_sets.insert(default.0, default.1);
+            configuration_sets.push((default.0, default.1));
         }
     }
 }

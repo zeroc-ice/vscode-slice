@@ -18,12 +18,12 @@ use tower_lsp::{lsp_types::*, Client};
 /// and then publishes these diagnostics to the LSP client.
 pub async fn publish_diagnostics_for_all_files(
     client: &Client,
-    configuration_set: (&SliceConfig, &mut CompilationState),
+    configuration_set: &mut (SliceConfig, CompilationState),
 ) {
     client
         .log_message(MessageType::INFO, "Publishing diagnostics...")
         .await;
-    let compilation_state = configuration_set.1;
+    let compilation_state = &mut configuration_set.1;
 
     // Extract and update diagnostics from the compilation state
     let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
@@ -57,7 +57,7 @@ pub async fn publish_diagnostics_for_all_files(
 /// `publish_diagnostics_for_all_files` for each set.
 pub async fn publish_diagnostics(
     client: &Client,
-    configuration_sets: &Mutex<HashMap<SliceConfig, CompilationState>>,
+    configuration_sets: &Mutex<Vec<(SliceConfig, CompilationState)>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
@@ -92,7 +92,7 @@ pub fn process_diagnostics(
 /// and then publishes empty diagnostics to clear existing ones for each URI.
 pub async fn clear_diagnostics(
     client: &Client,
-    configuration_sets: &Mutex<HashMap<SliceConfig, CompilationState>>,
+    configuration_sets: &Mutex<Vec<(SliceConfig, CompilationState)>>,
 ) {
     let configuration_sets = configuration_sets.lock().await;
     let mut all_tracked_files = HashSet::new();

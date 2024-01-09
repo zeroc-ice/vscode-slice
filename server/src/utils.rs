@@ -6,19 +6,16 @@ use tower_lsp::lsp_types::Url;
 
 // A helper trait that allows us to find a file in an iterator of (&SliceConfig, &CompilationState)
 pub trait FindFile<'a> {
-    type Item;
-    fn find_file(self, file_name: &str) -> Option<Self::Item>;
+    fn find_file(self, file_name: &str) -> Option<&'a CompilationState>;
 }
 
-// Implement the trait for all types that implement Iterator<Item = (&'a SliceConfig, &'a CompilationState)>
 impl<'a, I> FindFile<'a> for I
 where
-    I: Iterator<Item = (&'a SliceConfig, &'a CompilationState)>,
+    I: Iterator<Item = &'a (SliceConfig, CompilationState)>,
 {
-    type Item = (&'a SliceConfig, &'a CompilationState);
-
-    fn find_file(mut self, file_name: &str) -> Option<Self::Item> {
-        self.find(|(_config, state)| state.files.keys().any(|key| key == file_name))
+    fn find_file(mut self, file_name: &str) -> Option<&'a CompilationState> {
+        self.find(|(_, state)| state.files.keys().any(|key| key == file_name))
+            .map(|(_, state)| state)
     }
 }
 
