@@ -1,16 +1,15 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::config::SliceConfig;
+use crate::configuration_set::ConfigurationSet;
 use crate::utils::convert_slice_url_to_uri;
 
-use slicec::compilation_state::CompilationState;
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{
-    DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
+    DiagnosticRelatedInformation, Location, MessageType, NumberOrString, Position, Range, Url,
 };
-use tower_lsp::{lsp_types::*, Client};
+use tower_lsp::Client;
 
 /// Publishes diagnostics for all files in a given configuration set.
 ///
@@ -18,18 +17,18 @@ use tower_lsp::{lsp_types::*, Client};
 /// and then publishes these diagnostics to the LSP client.
 pub async fn publish_diagnostics_for_all_files(
     client: &Client,
-    configuration_set: &mut (SliceConfig, CompilationState),
+    configuration_set: &mut ConfigurationSet,
 ) {
     client
         .log_message(MessageType::INFO, "Publishing diagnostics...")
         .await;
-    let compilation_state = &mut configuration_set.1;
+    let compilation_state = &mut configuration_set.compilation_state;
 
     // Extract and update diagnostics from the compilation state
     let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
         &compilation_state.ast,
         &compilation_state.files,
-        configuration_set.0.as_slice_options(),
+        configuration_set.slice_config.as_slice_options(),
     );
 
     // Initialize a map to hold diagnostics grouped by file (URL)
@@ -57,7 +56,7 @@ pub async fn publish_diagnostics_for_all_files(
 /// `publish_diagnostics_for_all_files` for each set.
 pub async fn publish_diagnostics(
     client: &Client,
-    configuration_sets: &Mutex<Vec<(SliceConfig, CompilationState)>>,
+    configuration_sets: &Mutex<Vec<ConfigurationSet>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
@@ -90,15 +89,12 @@ pub fn process_diagnostics(
 ///
 /// This function iterates over all configuration sets, collects all tracked file URIs,
 /// and then publishes empty diagnostics to clear existing ones for each URI.
-pub async fn clear_diagnostics(
-    client: &Client,
-    configuration_sets: &Mutex<Vec<(SliceConfig, CompilationState)>>,
-) {
+pub async fn clear_diagnostics(client: &Client, configuration_sets: &Mutex<Vec<ConfigurationSet>>) {
     let configuration_sets = configuration_sets.lock().await;
     let mut all_tracked_files = HashSet::new();
     for configuration_set in configuration_sets.iter() {
         configuration_set
-            .1
+            .compilation_state
             .files
             .keys()
             .cloned()

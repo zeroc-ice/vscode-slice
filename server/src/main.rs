@@ -1,23 +1,20 @@
 // Copyright (c) ZeroC, Inc.
 
-use config::SliceConfig;
 use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics};
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
-use slicec::compilation_state::CompilationState;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
 
-mod config;
+mod configuration_set;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
 mod session;
+mod slice_config;
 mod utils;
-
-type ConfigurationSet = (SliceConfig, CompilationState);
 
 #[tokio::main]
 async fn main() {
@@ -207,13 +204,18 @@ impl Backend {
             .iter_mut()
             .filter(|config| {
                 // Find the configuration set that matches the current configuration
-                let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+                let files = config
+                    .compilation_state
+                    .files
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 files.contains(&file_name.to_owned())
             })
             .for_each(|configuration_set| {
                 // Update the value of the compilation state in the configuration set in the HashMap
-                (configuration_set).1 = slicec::compile_from_options(
-                    configuration_set.0.as_slice_options(),
+                (configuration_set).compilation_state = slicec::compile_from_options(
+                    configuration_set.slice_config.as_slice_options(),
                     |_| {},
                     |_| {},
                 );
@@ -224,17 +226,22 @@ impl Backend {
             .iter_mut()
             .filter(|config| {
                 // Find the configuration set that matches the current configuration
-                let files = config.1.files.keys().cloned().collect::<Vec<_>>();
+                let files = config
+                    .compilation_state
+                    .files
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 files.contains(&file_name.to_owned())
             })
             .map(|configuration_set| {
-                let compilation_state = &mut configuration_set.1;
+                let compilation_state = &mut configuration_set.compilation_state;
 
                 // Find the diagnostics for the config set
                 let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
                     &compilation_state.ast,
                     &compilation_state.files,
-                    configuration_set.0.as_slice_options(),
+                    configuration_set.slice_config.as_slice_options(),
                 );
 
                 // Store all files in the configuration set

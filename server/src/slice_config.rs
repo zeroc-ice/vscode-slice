@@ -7,9 +7,9 @@ use tower_lsp::lsp_types::Url;
 #[derive(Default, Debug)]
 pub struct SliceConfig {
     pub references: Option<Vec<String>>,
+    pub root_uri: Option<Url>,
     include_built_in_reference: bool,
     built_in_slice_path: String,
-    pub root_uri: Option<Url>,
     cached_slice_options: SliceOptions,
 }
 

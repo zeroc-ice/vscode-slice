@@ -1,21 +1,15 @@
 // Copyright (c) ZeroC, Inc.
 
-use slicec::compilation_state::CompilationState;
+use crate::configuration_set::ConfigurationSet;
 use tokio::sync::{Mutex, RwLock};
 use tower_lsp::lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url};
-
-use crate::{
-    config::SliceConfig,
-    utils::{new_configuration_set, parse_configuration_sets},
-    ConfigurationSet,
-};
 
 pub struct Session {
     client: tower_lsp::Client,
     /// This HashMap contains all of the configuration sets for the language server. The key is the SliceConfig and the
     /// value is the CompilationState. The SliceConfig is used to determine which configuration set to use when
     /// publishing diagnostics. The CompilationState is used to retrieve the diagnostics for a given file.
-    pub configuration_sets: Mutex<Vec<(SliceConfig, CompilationState)>>,
+    pub configuration_sets: Mutex<Vec<ConfigurationSet>>,
     /// This is the root URI of the workspace. It is used to resolve relative paths in the configuration.
     pub root_uri: RwLock<Option<Url>>,
     /// This is the path to the built-in Slice files that are included with the extension.
@@ -59,7 +53,7 @@ impl Session {
 
     // Update the stored configuration sets by fetching them from the client.
     pub async fn fetch_configurations(&self) {
-        let built_in_slice_path = &self.built_in_slice_path.read().await;
+        let built_in_path = &self.built_in_slice_path.read().await;
         let root_uri_guard = self.root_uri.read().await;
         let root_uri = (*root_uri_guard).clone().expect("root_uri not set");
 
@@ -75,16 +69,13 @@ impl Session {
             .await
             .ok()
             .map(|response| {
-                parse_configuration_sets(
-                    &response
-                        .iter()
-                        .filter_map(|config| config.as_array())
-                        .flatten()
-                        .cloned()
-                        .collect::<Vec<_>>(),
-                    &root_uri,
-                    built_in_slice_path,
-                )
+                let config_array = &response
+                    .iter()
+                    .filter_map(|config| config.as_array())
+                    .flatten()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                ConfigurationSet::parse_configuration_sets(config_array, &root_uri, built_in_path)
             })
             .unwrap_or_default();
 
@@ -95,18 +86,15 @@ impl Session {
     // Update the configuration sets from the `DidChangeConfigurationParams` notification.
     pub async fn update_configurations_from(&self, params: DidChangeConfigurationParams) {
         let root_uri = self.root_uri.read().await;
-        let built_in_slice_path = &self.built_in_slice_path.read().await;
+        let built_in_path = &self.built_in_slice_path.read().await;
         let configurations = params
             .settings
             .get("slice")
             .and_then(|v| v.get("configurations"))
             .and_then(|v| v.as_array())
             .map(|config_array| {
-                parse_configuration_sets(
-                    config_array,
-                    &(*root_uri).clone().unwrap(),
-                    built_in_slice_path,
-                )
+                let url = &(*root_uri).clone().unwrap();
+                ConfigurationSet::parse_configuration_sets(config_array, url, built_in_path)
             })
             .unwrap_or_default();
 
@@ -125,8 +113,8 @@ impl Session {
             let root_uri = self.root_uri.read().await;
             let built_in_slice_path = self.built_in_slice_path.read().await;
             let default =
-                new_configuration_set(root_uri.clone().unwrap(), built_in_slice_path.clone());
-            configuration_sets.push((default.0, default.1));
+                ConfigurationSet::new(root_uri.clone().unwrap(), built_in_slice_path.clone());
+            configuration_sets.push(default);
         }
     }
 }
