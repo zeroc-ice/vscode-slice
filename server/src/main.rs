@@ -8,7 +8,7 @@ use jump_definition::get_definition_span;
 use slicec::compilation_state::CompilationState;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
-use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
+use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{
     convert_slice_url_to_uri, new_configuration_set, parse_slice_configuration_sets,
     url_to_file_path,
@@ -62,17 +62,21 @@ impl LanguageServer for Backend {
             .root_uri
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
+            .map(|uri| async {
+                *self.root_uri.lock().await = Some(uri.clone());
+                uri
+            })
         {
-            *self.root_uri.lock().await = Some(root_uri.clone());
+            // Wait for the root_uri to be set
+            let root_uri = root_uri.await;
 
             // This is the path to the built-in Slice files that are included with the extension. It should always
             // be present.
-
             let built_in_slice_path = params
                 .initialization_options
                 .and_then(|opts| opts.get("builtInSlicePath").cloned())
                 .and_then(|v| v.as_str().map(str::to_owned))
-                .unwrap_or_default();
+                .expect("builtInSlicePath not found in initialization options");
 
             *self.built_in_slice_path.lock().await = built_in_slice_path.clone();
 
@@ -151,11 +155,15 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly
         let uri = params.text_document_position_params.text_document.uri;
-        let url = Url::from_file_path(uri.to_file_path().unwrap()).unwrap();
-        let file_name = url_to_file_path(uri).unwrap();
         let position = params.text_document_position_params.position;
+
+        // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
+        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
+        let url = uri
+            .to_file_path()
+            .and_then(Url::from_file_path)
+            .map_err(|_| Error::internal_error())?;
 
         // Find the configuration set that contains the file
         let configuration_sets = self.configuration_sets.lock().await;
@@ -187,11 +195,15 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
-        // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly
         let uri = params.text_document_position_params.text_document.uri;
-        let url = Url::from_file_path(uri.to_file_path().unwrap()).unwrap();
-        let file_name = url_to_file_path(uri).unwrap();
         let position = params.text_document_position_params.position;
+
+        // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
+        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
+        let url = uri
+            .to_file_path()
+            .and_then(Url::from_file_path)
+            .map_err(|_| Error::internal_error())?;
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.configuration_sets.lock().await;
@@ -203,13 +215,15 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let file_name = url_to_file_path(params.text_document.uri).unwrap();
-        self.handle_file_change(&file_name).await;
+        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_name).await;
+        }
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        let file_name = url_to_file_path(params.text_document.uri).unwrap();
-        self.handle_file_change(&file_name).await;
+        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_name).await;
+        }
     }
 }
 
@@ -307,7 +321,7 @@ impl Backend {
             .and_then(|response| {
                 root_uri.as_ref().map(|uri| {
                     parse_slice_configuration_sets(
-                        response
+                        &response
                             .iter()
                             .filter_map(|config| config.as_array())
                             .flatten()
@@ -337,7 +351,7 @@ impl Backend {
             .and_then(|v| v.as_array())
             .map(|config_array| {
                 parse_slice_configuration_sets(
-                    config_array.to_vec(),
+                    config_array,
                     &(*root_uri).clone().unwrap(),
                     built_in_slice_path,
                 )

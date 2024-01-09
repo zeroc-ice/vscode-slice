@@ -39,7 +39,7 @@ pub fn convert_slice_url_to_uri(url: &str) -> Option<Url> {
     Url::from_file_path(url).ok()
 }
 
-pub fn url_to_file_path(url: Url) -> Option<String> {
+pub fn url_to_file_path(url: &Url) -> Option<String> {
     Some(url.to_file_path().ok()?.to_str()?.to_owned())
 }
 
@@ -56,7 +56,7 @@ pub fn new_configuration_set(
 }
 
 pub fn parse_slice_configuration_sets(
-    config_array: Vec<Value>,
+    config_array: &[Value],
     root_uri: &Url,
     built_in_path: &str,
 ) -> Vec<(SliceConfig, CompilationState)> {
