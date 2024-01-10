@@ -71,12 +71,12 @@
           "items": {
             "type": "object",
             "properties": {
-              "referenceDirectories": {
+              "paths": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "The directories containing the target Slice reference files."
+                "description": "The paths containing the target Slice reference files."
               },
               "includeBuiltInTypes": {
                 "type": "boolean",
@@ -85,7 +85,7 @@
               }
             },
             "required": [
-              "referenceDirectories"
+              "paths"
             ]
           }
         },

@@ -39,7 +39,7 @@ pub async fn publish_diagnostics_for_all_files(
         .collect::<HashMap<Url, Vec<tower_lsp::lsp_types::Diagnostic>>>();
 
     // Process the diagnostics and populate the map
-    process_diagnostics(diagnostics.iter().collect(), &mut map);
+    process_diagnostics(diagnostics, &mut map);
 
     // Publish the diagnostics for each file
     for (uri, lsp_diagnostics) in map {
@@ -70,7 +70,7 @@ pub async fn publish_diagnostics(
 /// This function filters out any diagnostics that do not have a span or cannot be converted
 /// to an LSP diagnostic. It then updates the given publish map with the processed diagnostics.
 pub fn process_diagnostics(
-    diagnostics: Vec<&slicec::diagnostics::Diagnostic>,
+    diagnostics: Vec<slicec::diagnostics::Diagnostic>,
     publish_map: &mut HashMap<Url, Vec<tower_lsp::lsp_types::Diagnostic>>,
 ) {
     diagnostics
@@ -78,7 +78,7 @@ pub fn process_diagnostics(
         .filter_map(|diagnostic| {
             let span = diagnostic.span()?;
             let uri = convert_slice_url_to_uri(&span.file)?;
-            try_into_lsp_diagnostic(diagnostic).map(|lsp_diagnostic| (uri, lsp_diagnostic))
+            try_into_lsp_diagnostic(&diagnostic).map(|lsp_diagnostic| (uri, lsp_diagnostic))
         })
         .for_each(|(uri, lsp_diagnostic)| {
             publish_map.entry(uri).or_default().push(lsp_diagnostic);

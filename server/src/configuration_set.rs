@@ -32,21 +32,21 @@ impl ConfigurationSet {
     ) -> Vec<ConfigurationSet> {
         config_array
             .iter()
-            .map(|value| ConfigurationSet::from_value(value, root_uri, built_in_path))
+            .map(|value| ConfigurationSet::from_json(value, root_uri, built_in_path))
             .collect::<Vec<_>>()
     }
 
     /// Constructs a `ConfigurationSet` from a JSON value.
-    fn from_value(value: &serde_json::Value, root_uri: &Url, built_in_path: &str) -> Self {
-        // Parse the reference directories and include built-in types from the configuration set
-        let directories = parse_reference_directories(value);
+    fn from_json(value: &serde_json::Value, root_uri: &Url, built_in_path: &str) -> Self {
+        // Parse the paths and `include_built_in_types` from the configuration set
+        let paths = parse_paths(value);
         let include_built_in = parse_include_built_in(value);
 
         // Create the SliceConfig and CompilationState
         let mut slice_config = SliceConfig::default();
         slice_config.set_root_uri(root_uri.clone());
         slice_config.set_built_in_reference(built_in_path.to_owned());
-        slice_config.update_from_references(directories);
+        slice_config.update_from_paths(paths);
         slice_config.update_include_built_in_reference(include_built_in);
 
         let options = slice_config.as_slice_options();
@@ -58,10 +58,10 @@ impl ConfigurationSet {
     }
 }
 
-/// Parses reference directories from a JSON value.
-fn parse_reference_directories(value: &serde_json::Value) -> Vec<String> {
+/// Parses paths from a JSON value.
+fn parse_paths(value: &serde_json::Value) -> Vec<String> {
     value
-        .get("referenceDirectories")
+        .get("paths")
         .and_then(|v| v.as_array())
         .map(|dirs_array| {
             dirs_array

@@ -111,7 +111,7 @@ impl LanguageServer for Backend {
         clear_diagnostics(&self.client, &self.session.configuration_sets).await;
 
         // Update the stored configuration sets from the data provided in the client notification
-        self.session.update_configurations_from(params).await;
+        self.session.update_configurations_from_params(params).await;
 
         // Publish the diagnostics for all files
         publish_diagnostics(&self.client, &self.session.configuration_sets).await;
@@ -193,72 +193,43 @@ impl LanguageServer for Backend {
 impl Backend {
     async fn handle_file_change(&self, file_name: &str) {
         self.client
-            .log_message(MessageType::INFO, format!("File {} changed", file_name))
+            .log_message(MessageType::INFO, format!("File '{file_name}' changed"))
             .await;
 
-        let mut publish_map = HashMap::new();
         let mut configuration_sets = self.session.configuration_sets.lock().await;
+        let mut publish_map = HashMap::new();
+        let mut diagnostics = Vec::new();
 
-        // Update the compilation state for the any impacted configuration set
-        configuration_sets
+        // Process each configuration set that contains the changed file
+        for set in configuration_sets
             .iter_mut()
-            .filter(|config| {
-                // Find the configuration set that matches the current configuration
-                let files = config
-                    .compilation_state
-                    .files
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                files.contains(&file_name.to_owned())
-            })
-            .for_each(|configuration_set| {
-                // Update the value of the compilation state in the configuration set in the HashMap
-                (configuration_set).compilation_state = slicec::compile_from_options(
-                    configuration_set.slice_config.as_slice_options(),
-                    |_| {},
-                    |_| {},
-                );
-            });
+            .filter(|set| set.compilation_state.files.contains_key(file_name))
+        {
+            // Update the compilation state of the configuration set
+            let slice_options = set.slice_config.as_slice_options();
+            set.compilation_state = slicec::compile_from_options(slice_options, |_| {}, |_| {});
 
-        // Collect the diagnostics for each configuration set
-        let diagnostic_sets = configuration_sets
-            .iter_mut()
-            .filter(|config| {
-                // Find the configuration set that matches the current configuration
-                let files = config
-                    .compilation_state
-                    .files
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                files.contains(&file_name.to_owned())
-            })
-            .map(|configuration_set| {
-                let compilation_state = &mut configuration_set.compilation_state;
+            // Collect the diagnostics of the compilation state
+            diagnostics.extend(
+                std::mem::take(&mut set.compilation_state.diagnostics).into_updated(
+                    &set.compilation_state.ast,
+                    &set.compilation_state.files,
+                    slice_options,
+                ),
+            );
 
-                // Find the diagnostics for the config set
-                let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
-                    &compilation_state.ast,
-                    &compilation_state.files,
-                    configuration_set.slice_config.as_slice_options(),
-                );
-
-                // Store all files in the configuration set
-                compilation_state
+            // Update publish_map with files to be updated
+            publish_map.extend(
+                set.compilation_state
                     .files
                     .keys()
                     .filter_map(|uri| convert_slice_url_to_uri(uri))
-                    .for_each(|uri| {
-                        publish_map.insert(uri, vec![]);
-                    });
-                diagnostics
-            })
-            .collect::<Vec<_>>();
+                    .map(|uri| (uri, vec![])),
+            );
+        }
 
-        // Flatten and deduplicate the diagnostics based on their span
-        let mut diagnostics = diagnostic_sets.iter().flatten().collect::<Vec<_>>();
-        diagnostics.dedup_by(|d1, d2| d1.span() == d2.span());
+        // If there are multiple diagnostics for the same span, that have the same message, deduplicate them
+        diagnostics.dedup_by(|d1, d2| d1.span() == d2.span() && d1.message() == d2.message());
 
         // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
         // Process diagnostics and update publish_map
