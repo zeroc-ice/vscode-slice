@@ -85,10 +85,6 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
-        // clear the diagnostics for all files and then re-publish them.
-        clear_diagnostics(&self.client, &self.session.configuration_sets).await;
-
         // Update the configuration sets by fetching the configurations from the client. This is performed after
         // initialization because the client may not be ready to provide configurations before initialization.
         self.session.fetch_configurations().await;
