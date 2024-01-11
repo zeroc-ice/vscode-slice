@@ -7,11 +7,16 @@ use slicec::{
     slice_file::Location,
     visitor::Visitor,
 };
-use tower_lsp::lsp_types::{Position, Url};
+use tower_lsp::lsp_types::{Hover, HoverContents, MarkedString, Position, Url};
 
-pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) -> Option<String> {
-    let file_path = convert_uri_to_slice_formated_url(uri)?;
-    let file = state.files.get(&file_path)?;
+pub fn try_into_hover_result(
+    state: &CompilationState,
+    uri: Url,
+    position: Position,
+) -> tower_lsp::jsonrpc::Result<Hover> {
+    let file = convert_uri_to_slice_formated_url(uri)
+        .and_then(|p| state.files.get(&p))
+        .expect("Could not convert URI to Slice formatted URL for hover request");
 
     // Convert position to row and column 1 based
     let col = (position.character + 1) as usize;
@@ -20,7 +25,16 @@ pub fn get_hover_info(state: &CompilationState, uri: Url, position: Position) ->
     let mut visitor = HoverVisitor::new(Location { row, col });
     file.visit_with(&mut visitor);
 
-    visitor.found_message
+    // If we found a message, return it as a hover result, otherwise return None.
+    visitor
+        .found_message
+        .map(|message| Hover {
+            contents: HoverContents::Scalar(MarkedString::String(message)),
+            range: None,
+        })
+        .ok_or(tower_lsp::jsonrpc::Error::invalid_params(
+            "No hover information found",
+        ))
 }
 
 struct HoverVisitor {

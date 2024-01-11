@@ -64,13 +64,30 @@
       "type": "object",
       "title": "Slice",
       "properties": {
-        "slice.referenceDirectories": {
+        "slice.configurations": {
           "type": "array",
+          "title": "Slice Configurations",
+          "description": "Array of Slice configuration sets.",
           "items": {
-            "type": "string"
-          },
-          "description": "The directories containing the target Slice reference files.",
-          "scope": "resource"
+            "type": "object",
+            "properties": {
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Specifies which paths the compiler should check for Slice files."
+              },
+              "addWellKnownTypes": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enables / Disables adding the IceRpc well-known Slice files during compilation."
+              }
+            },
+            "required": [
+              "paths"
+            ]
+          }
         },
         "slice.languageServer.enabled": {
           "type": "boolean",

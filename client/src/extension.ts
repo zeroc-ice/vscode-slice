@@ -55,13 +55,18 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
       const enableLanguageServer = config.get<boolean>(
         "languageServer.enabled"
       );
-      const referenceDirectories = config.get<string>("referenceDirectories");
+
+      // Retrieve the 'slice.configurations' setting
+      const configurations = config.get<any[]>("configurations");
 
       // Send the updated configuration to the language server
       if (client) {
         client.sendNotification("workspace/didChangeConfiguration", {
           settings: {
-            slice: { referenceDirectories },
+            slice: {
+              configurations,
+              enableLanguageServer,
+            },
           },
         });
       }

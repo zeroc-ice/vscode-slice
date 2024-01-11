@@ -1,22 +1,19 @@
 // Copyright (c) ZeroC, Inc.
 
-use config::SliceConfig;
-use diagnostic_ext::try_into_lsp_diagnostic;
-use hover::get_hover_info;
+use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics};
+use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
-use slicec::compilation_state::CompilationState;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
-use tokio::sync::Mutex;
-use tower_lsp::{lsp_types::*, Client, LanguageServer, LspService, Server};
-use utils::convert_slice_url_to_uri;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
+use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
 
-mod config;
+mod configuration_set;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
+mod session;
+mod slice_config;
 mod utils;
 
 #[tokio::main]
@@ -24,19 +21,52 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend {
-        client,
-        slice_config: Arc::new(Mutex::new(SliceConfig::default())),
-        compilation_state: Arc::new(Mutex::new(CompilationState::create())),
-    });
-
+    let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
 struct Backend {
     client: Client,
-    slice_config: Arc<Mutex<SliceConfig>>,
-    compilation_state: Arc<Mutex<CompilationState>>,
+    session: Arc<crate::session::Session>,
+}
+
+impl Backend {
+    pub fn new(client: tower_lsp::Client) -> Self {
+        let session = Arc::new(crate::session::Session::new(client.clone()));
+        Self { client, session }
+    }
+
+    fn capabilities() -> ServerCapabilities {
+        let definition_provider = Some(OneOf::Left(true));
+        let hover_provider = Some(HoverProviderCapability::Simple(true));
+
+        let text_document_sync = Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::FULL),
+                save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                    include_text: Some(false),
+                })),
+                ..Default::default()
+            },
+        ));
+
+        let workspace = Some(WorkspaceServerCapabilities {
+            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(true)),
+            }),
+            ..Default::default()
+        });
+
+        ServerCapabilities {
+            text_document_sync,
+            workspace,
+            definition_provider,
+            hover_provider,
+            ..Default::default()
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -45,78 +75,22 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
-        // Use the root_uri if it exists temporarily as we cannot access configuration until
-        // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
-        // drive letter. To fix this, we convert the path to a URL and then back to a path.
-        if let Some(root_uri) = params
-            .root_uri
-            .and_then(|uri| uri.to_file_path().ok())
-            .and_then(|path| Url::from_file_path(path).ok())
-        {
-            let mut slice_config = self.slice_config.lock().await;
-            slice_config.set_root_uri(root_uri.clone());
-        }
-
-        // Update the slice configuration with the built-in reference path
-        if let Some(options) = params.initialization_options {
-            if let Some(built_in_slice_path) =
-                options.get("builtInSlicePath").and_then(|v| v.as_str())
-            {
-                let mut slice_config = self.slice_config.lock().await;
-                slice_config.set_built_in_reference(built_in_slice_path.to_owned());
-            }
-        }
+        self.session.update_from_initialize_params(params).await;
+        let capabilities = Backend::capabilities();
 
         Ok(InitializeResult {
-            server_info: None,
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Options(
-                    TextDocumentSyncOptions {
-                        open_close: Some(true),
-                        change: Some(TextDocumentSyncKind::FULL),
-                        save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
-                            include_text: Some(false),
-                        })),
-                        ..Default::default()
-                    },
-                )),
-                workspace: Some(WorkspaceServerCapabilities {
-                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-                        supported: Some(true),
-                        change_notifications: Some(OneOf::Left(true)),
-                    }),
-                    ..Default::default()
-                }),
-                definition_provider: Some(OneOf::Left(true)),
-                hover_provider: Some(HoverProviderCapability::Simple(true)),
-                ..ServerCapabilities::default()
-            },
+            capabilities,
+            ..InitializeResult::default()
         })
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Update the slice configuration with new references directories since this is the first time we can access
-        // the slice extension configuration
-        {
-            // TODO: Log error
-            let _ = self
-                .slice_config
-                .lock()
-                .await
-                .try_update_from_client(&self.client)
-                .await;
-        }
+        // Update the configuration sets by fetching the configurations from the client. This is performed after
+        // initialization because the client may not be ready to provide configurations before initialization.
+        self.session.fetch_configurations().await;
 
-        // Compile the Slice files and publish diagnostics
-        let mut compilation_state_lock = self.compilation_state.lock().await;
-        *compilation_state_lock = self.compile_slice_files().await;
-
-        self.client
-            .log_message(MessageType::INFO, "Slice Language Server initialized")
-            .await;
-
-        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
-            .await;
+        // Publish the diagnostics for all files
+        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -125,174 +99,145 @@ impl LanguageServer for Backend {
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         self.client
-            .log_message(MessageType::INFO, "Slice Language Server config changed")
+            .log_message(MessageType::INFO, "Slice Language Server settings changed")
             .await;
 
-        // Update the slice configuration
-        {
-            let mut slice_config = self.slice_config.lock().await;
-            slice_config.update_from_params(&params);
-        }
+        // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
+        // clear the diagnostics for all files and then re-publish them.
+        clear_diagnostics(&self.client, &self.session.configuration_sets).await;
 
-        // Store the current files in the compilation state before re-compiling
-        let current_files = &self
-            .compilation_state
-            .lock()
-            .await
-            .files
-            .keys()
-            .cloned()
-            .collect::<HashSet<_>>();
+        // Update the stored configuration sets from the data provided in the client notification
+        self.session.update_configurations_from_params(params).await;
 
-        // Re-compile the Slice files considering the updated references
-        let updated_state = self.compile_slice_files().await;
-
-        // Clear the diagnostics from files that are no longer in the compilation state
-        let new_files = &updated_state.files.keys().cloned().collect::<HashSet<_>>();
-        for url in current_files.difference(new_files) {
-            let Some(uri) = convert_slice_url_to_uri(url) else {
-                continue;
-            };
-            self.client.publish_diagnostics(uri, vec![], None).await;
-        }
-
-        let mut compilation_state_lock = self.compilation_state.lock().await;
-        *compilation_state_lock = updated_state;
-
-        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
-            .await;
+        // Publish the diagnostics for all files
+        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        let param_uri = Url::from_file_path(
-            params
-                .text_document_position_params
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap(),
-        )
-        .unwrap();
-
+        let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let compilation_state = &self.compilation_state.lock().await;
 
-        let location = match get_definition_span(compilation_state, param_uri, position) {
-            Some(location) => location,
-            None => return Ok(None),
-        };
-        let start = Position {
-            line: (location.start.row - 1) as u32,
-            character: (location.start.col - 1) as u32,
-        };
+        // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
+        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
+        let url = uri
+            .to_file_path()
+            .and_then(Url::from_file_path)
+            .map_err(|_| Error::internal_error())?;
 
-        let end = Position {
-            line: (location.end.row - 1) as u32,
-            character: (location.end.col - 1) as u32,
-        };
+        // Find the configuration set that contains the file
+        let configuration_sets = self.session.configuration_sets.lock().await;
+        let compilation_state = configuration_sets.iter().find_file(&file_name);
 
-        let Ok(uri) = Url::from_file_path(location.file) else {
-            return Ok(None);
-        };
-
-        Ok(Some(GotoDefinitionResponse::Scalar(Location {
-            uri,
-            range: Range::new(start, end),
-        })))
+        // Get the definition span and convert it to a GotoDefinitionResponse
+        compilation_state
+            .and_then(|state| get_definition_span(state, url, position))
+            .and_then(|location| {
+                let start = Position {
+                    line: (location.start.row - 1) as u32,
+                    character: (location.start.col - 1) as u32,
+                };
+                let end = Position {
+                    line: (location.end.row - 1) as u32,
+                    character: (location.end.col - 1) as u32,
+                };
+                Url::from_file_path(location.file).ok().map(|uri| {
+                    GotoDefinitionResponse::Scalar(Location {
+                        uri,
+                        range: Range::new(start, end),
+                    })
+                })
+            })
+            .map_or(Ok(None), |resp| Ok(Some(resp)))
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
-        let uri = Url::from_file_path(
-            params
-                .text_document_position_params
-                .text_document
-                .uri
-                .to_file_path()
-                .unwrap(),
-        )
-        .unwrap();
+        let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let compilation_state = &self.compilation_state.lock().await;
-        Ok(
-            get_hover_info(compilation_state, uri, position).map(|info| Hover {
-                contents: HoverContents::Scalar(MarkedString::String(info)),
-                range: None,
-            }),
-        )
+
+        // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
+        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
+        let url = uri
+            .to_file_path()
+            .and_then(Url::from_file_path)
+            .map_err(|_| Error::internal_error())?;
+
+        // Find the configuration set that contains the file and get the hover info
+        let configuration_sets = self.session.configuration_sets.lock().await;
+        configuration_sets
+            .iter()
+            .find_file(&file_name)
+            .map(|compilation_state| try_into_hover_result(compilation_state, url, position))
+            .transpose()
     }
 
-    async fn did_open(&self, _: DidOpenTextDocumentParams) {
-        self.handle_file_change().await;
+    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_name).await;
+        }
     }
 
-    async fn did_save(&self, _: DidSaveTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "file saved")
-            .await;
-        self.handle_file_change().await;
+    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_name).await;
+        }
     }
 }
 
 impl Backend {
-    async fn handle_file_change(&self) {
-        let updated_state = self.compile_slice_files().await;
-
-        let mut compilation_state_lock = self.compilation_state.lock().await;
-        *compilation_state_lock = updated_state;
-
-        self.publish_diagnostics_for_all_files(&mut compilation_state_lock)
-            .await;
-    }
-
-    async fn compile_slice_files(&self) -> CompilationState {
+    async fn handle_file_change(&self, file_name: &str) {
         self.client
-            .log_message(MessageType::INFO, "compiling slice")
+            .log_message(MessageType::INFO, format!("File '{file_name}' changed"))
             .await;
 
-        let config = self.slice_config.lock().await;
-        slicec::compile_from_options(config.as_slice_options(), |_| {}, |_| {})
-    }
+        let mut configuration_sets = self.session.configuration_sets.lock().await;
+        let mut publish_map = HashMap::new();
+        let mut diagnostics = Vec::new();
 
-    async fn publish_diagnostics_for_all_files(&self, compilation_state: &mut CompilationState) {
-        let config = self.slice_config.lock().await;
+        // Process each configuration set that contains the changed file
+        for set in configuration_sets
+            .iter_mut()
+            .filter(|set| set.compilation_state.files.contains_key(file_name))
+        {
+            // Update the compilation state of the configuration set
+            let slice_options = set.slice_config.as_slice_options();
+            set.compilation_state = slicec::compile_from_options(slice_options, |_| {}, |_| {});
 
-        let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
-            &compilation_state.ast,
-            &compilation_state.files,
-            config.as_slice_options(),
-        );
+            // Collect the diagnostics of the compilation state
+            diagnostics.extend(
+                std::mem::take(&mut set.compilation_state.diagnostics).into_updated(
+                    &set.compilation_state.ast,
+                    &set.compilation_state.files,
+                    slice_options,
+                ),
+            );
 
-        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
-        let mut map = compilation_state
-            .files
-            .keys()
-            .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
-            .collect::<HashMap<Url, Vec<Diagnostic>>>();
-
-        // Add the diagnostics to the map
-        for diagnostic in diagnostics {
-            let Some(span) = diagnostic.span() else {
-                continue;
-            };
-            let Some(uri) = convert_slice_url_to_uri(&span.file) else {
-                continue;
-            };
-            let Some(lsp_diagnostic) = try_into_lsp_diagnostic(&diagnostic) else {
-                continue;
-            };
-            map.get_mut(&uri)
-                .expect("file not in map")
-                .push(lsp_diagnostic)
+            // Update publish_map with files to be updated
+            publish_map.extend(
+                set.compilation_state
+                    .files
+                    .keys()
+                    .filter_map(|uri| convert_slice_url_to_uri(uri))
+                    .map(|uri| (uri, vec![])),
+            );
         }
 
-        for (uri, lsp_diagnostics) in map {
+        // If there are multiple diagnostics for the same span, that have the same message, deduplicate them
+        diagnostics.dedup_by(|d1, d2| d1.span() == d2.span() && d1.message() == d2.message());
+
+        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
+        // Process diagnostics and update publish_map
+        process_diagnostics(diagnostics, &mut publish_map);
+
+        // Publish the diagnostics for each file
+        for (uri, lsp_diagnostics) in publish_map {
             self.client
                 .publish_diagnostics(uri, lsp_diagnostics, None)
                 .await;
         }
+
         self.client
             .log_message(MessageType::INFO, "Updated diagnostics for all files")
             .await;
