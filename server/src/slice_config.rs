@@ -8,7 +8,7 @@ use tower_lsp::lsp_types::Url;
 pub struct SliceConfig {
     paths: Option<Vec<String>>,
     root_uri: Option<Url>,
-    include_built_in_reference: bool,
+    include_built_in_path: bool,
     built_in_slice_path: String,
     cached_slice_options: SliceOptions,
 }
@@ -19,7 +19,7 @@ impl SliceConfig {
         self.refresh_paths();
     }
 
-    pub fn set_built_in_reference(&mut self, path: String) {
+    pub fn set_built_in_path(&mut self, path: String) {
         self.built_in_slice_path = path;
         self.refresh_paths();
     }
@@ -29,8 +29,8 @@ impl SliceConfig {
         self.refresh_paths();
     }
 
-    pub fn update_include_built_in_reference(&mut self, include: bool) {
-        self.include_built_in_reference = include;
+    pub fn update_include_built_in_path(&mut self, include: bool) {
+        self.include_built_in_path = include;
         self.refresh_paths();
     }
 
@@ -80,10 +80,10 @@ impl SliceConfig {
         } else {
             result_urls
         };
-        // Add the built-in reference path to the end of the list.
-        // TODO: Weird case where self.include_built_in_reference is true but self.built_in_slice_path is empty.
+        // Add the well known types path to the end of the list.
+        // TODO: Weird case where `include_built_in_path` is true but `built_in_slice_path` is empty.
         // We should probably handle this case better or make sure it never happens.
-        if self.include_built_in_reference && !self.built_in_slice_path.is_empty() {
+        if self.include_built_in_path && !self.built_in_slice_path.is_empty() {
             paths.push(self.built_in_slice_path.clone());
         }
         paths

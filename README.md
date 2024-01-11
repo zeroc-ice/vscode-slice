@@ -14,11 +14,12 @@ The Slice Language Server can be configured using the following settings:
 
 - `slice.languageServer.enabled`: A boolean indicating whether the Slice Language Server should be enabled. Defaults
   to `true`.
-- `slice.configurations`: An array of configuration sets. Each configuration set represents independent slice
-  compiler options alongside a corresponding compilation state. This allows you to have multiple files with different
-  compilation states in the same workspace.
+- `slice.configurations`: An array of configuration sets. Configuration sets are independently compiled, allowing each
+  to define its own files and options for compilation.
+  - **Each configuration set is an object with the following properties:**
   - `paths`: An array containing the paths to the target Slice reference files. Also supports directory paths.
-  - `includeBuiltInTypes`: A boolean indicating whether to include the built-in Slice reference files.
+  - `addWellKnownTypes`: A boolean indicating whether to include the
+    [IceRpc well-known Slice files](https://github.com/icerpc/icerpc-slice/tree/main/WellKnownTypes) during compilation.
 
 ### Example
 
@@ -27,10 +28,10 @@ The Slice Language Server can be configured using the following settings:
     "slice.configurations": [
         {
             "paths": [
-                "/path/to/slice/reference/files",
-                "/path/to/other/slice/reference/files"
+                "/path/to/slice/directory",
+                "/path/to/other/slice/file.slice"
             ],
-            "includeBuiltInTypes": true
+            "addWellKnownTypes": true
         }
     ]
 }

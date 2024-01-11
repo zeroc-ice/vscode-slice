@@ -85,9 +85,9 @@ impl Session {
 
     // Update the configuration sets from the `DidChangeConfigurationParams` notification.
     pub async fn update_configurations_from_params(&self, params: DidChangeConfigurationParams) {
+        let built_in_path = &self.built_in_slice_path.read().await;
         let root_uri_guard = self.root_uri.read().await;
         let root_uri = (*root_uri_guard).clone().expect("root_uri not set");
-        let built_in_path = &self.built_in_slice_path.read().await;
 
         // Parse the configurations from the notification
         let configurations = params

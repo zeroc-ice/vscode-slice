@@ -13,13 +13,8 @@ where
     I: Iterator<Item = &'a ConfigurationSet>,
 {
     fn find_file(mut self, file_name: &str) -> Option<&'a CompilationState> {
-        self.find(|set| {
-            set.compilation_state
-                .files
-                .keys()
-                .any(|key| key == file_name)
-        })
-        .map(|set| &set.compilation_state)
+        self.find(|set| set.compilation_state.files.contains_key(file_name))
+            .map(|set| &set.compilation_state)
     }
 }
 

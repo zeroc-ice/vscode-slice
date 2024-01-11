@@ -62,7 +62,7 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "Slice Settings",
+      "title": "Slice",
       "properties": {
         "slice.configurations": {
           "type": "array",
@@ -76,12 +76,12 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "The paths containing the target Slice reference files."
+                "description": "Specifies which paths the compiler should check for Slice files."
               },
-              "includeBuiltInTypes": {
+              "addWellKnownTypes": {
                 "type": "boolean",
                 "default": true,
-                "description": "Enables / Disables the built-in Slice types."
+                "description": "Enables / Disables adding the IceRpc well-known Slice files during compilation."
               }
             },
             "required": [
