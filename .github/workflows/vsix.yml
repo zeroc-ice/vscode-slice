@@ -60,7 +60,7 @@ jobs:
         run: |
           set -e
           for artifact in language-server-*; do
-            target=${artifact%%-*}}
+            target=${artifact%%-*}
             binary=${artifact#*-}
             mkdir -p ./server/target/${target}
             mv $artifact ./server/target/${target}/${binary}
