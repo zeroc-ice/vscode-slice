@@ -56,7 +56,7 @@ jobs:
       - name: Download language server
         uses: actions/download-artifact@v4
 
-      - name: Move language server to server folder
+      - name: Move language servers
         run: |
           set -e
           for artifact in *-language-server*; do
