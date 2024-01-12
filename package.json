@@ -3,7 +3,7 @@
   "displayName": "Slice",
   "description": "Slice language support for Visual Studio Code",
   "icon": "images/icon.png",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "publisher": "ZeroCInc",
   "license": "BSD-3-Clause",
   "engines": {
