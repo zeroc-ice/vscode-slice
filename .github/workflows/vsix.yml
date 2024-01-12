@@ -39,10 +39,11 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Upload language server
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: language-server-${{ matrix.target }}
           path: ./server/target/${{ matrix.target }}/release/${{ matrix.bin }}
+          if-no-files-found: error
 
   build-vsix:
     needs: build-language-server
@@ -53,15 +54,15 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Download language server
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Move language server to server folder
         run: |
           set -e
           for artifact in language-server-*; do
-            target = ${artifact#language-server-}
-            target = ${target%.exe}
-            binary = ${artifact%${target}}
+            target=${artifact#language-server-}
+            target=${target%.exe}
+            binary=${artifact%${target}}
             mkdir -p ./server/target/${target}
             mv $artifact ./server/target/${target}/${binary}
           done
@@ -74,6 +75,7 @@ jobs:
       - name: Build VSIX
         run: npx @vscode/vsce package
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: "*.vsix"
+          if-no-files-found: error
