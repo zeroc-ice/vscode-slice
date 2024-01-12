@@ -28,8 +28,9 @@ The Slice Language Server can be configured using the following settings:
     "slice.configurations": [
         {
             "paths": [
-                "/path/to/slice/directory",
-                "/path/to/other/slice/file.slice"
+                "path/to/slice/directory",
+                "path/to/other/slice/file.slice",
+                "absolute/path/to/directory"  
             ],
             "addWellKnownTypes": true
         }
