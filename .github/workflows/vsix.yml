@@ -68,7 +68,10 @@ jobs:
             mv $archive ${target}
             mkdir ${target}/release
             mv ${target}/slice-language-server* ${target}/release
+            chmod +x ${target}/release/*
           done
+          # Print the contents of the directory to make sure everything is in the right place
+          find .
 
       - uses: actions/setup-node@v4
 
