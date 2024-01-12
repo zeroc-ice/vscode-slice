@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: language-server
-          path: ./target/${{ matrix.target }}/release/${{ matrix.bin }}
+          path: ./server/target/${{ matrix.target }}/release/${{ matrix.bin }}
 
   # build-vsix:
   #   needs: build-language-server
