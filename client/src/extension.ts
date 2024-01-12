@@ -10,9 +10,7 @@ import {
 } from "vscode-languageclient/node";
 
 // Create an output channel for the language server's trace information.
-const traceOutputChannel = window.createOutputChannel(
-  "Slice Language Server trace"
-);
+const traceOutputChannel = window.createOutputChannel("Slice");
 
 // The language client.
 let client: LanguageClient | undefined;
@@ -27,12 +25,7 @@ const createClient = (
   serverOptions: ServerOptions,
   clientOptions: LanguageClientOptions
 ) => {
-  return new LanguageClient(
-    "slice",
-    "Slice Language Server",
-    serverOptions,
-    clientOptions
-  );
+  return new LanguageClient("slice", "Slice", serverOptions, clientOptions);
 };
 
 let restartLanguageServer = async (context: ExtensionContext) => {

@@ -100,7 +100,7 @@ impl LanguageServer for Backend {
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         self.client
-            .log_message(MessageType::INFO, "Slice Language Server settings changed")
+            .log_message(MessageType::INFO, "Extension settings changed")
             .await;
 
         // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
