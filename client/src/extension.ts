@@ -9,6 +9,8 @@ import {
   ServerOptions,
 } from "vscode-languageclient/node";
 
+import { existsSync } from "fs";
+
 // Create an output channel for the language server's trace information.
 const traceOutputChannel = window.createOutputChannel("Slice");
 
@@ -117,7 +119,15 @@ export async function activate(context: ExtensionContext) {
           }-apple-darwin/release/slice-language-server`;
           break;
         case "win32": // Windows
-          command = `${serverPath}x86_64-pc-windows-gnu/release/slice-language-server.exe`;
+          let commands = [
+            `${serverPath}x86_64-pc-windows-msvc/release/slice-language-server.exe`,
+            `${serverPath}x86_64-pc-windows-gnu/release/slice-language-server.exe`
+          ]
+
+          command = commands.find(command => {
+            return existsSync(command)
+          })
+
           break;
         case "linux": // Linux
           command = `${serverPath}${
