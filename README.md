@@ -30,7 +30,7 @@ The Slice Language Server can be configured using the following settings:
             "paths": [
                 "path/to/slice/directory",
                 "path/to/other/slice/file.slice",
-                "absolute/path/to/directory"  
+                "/absolute/path/to/directory"  
             ],
             "addWellKnownTypes": true
         }
