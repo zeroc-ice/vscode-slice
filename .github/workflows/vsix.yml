@@ -41,7 +41,7 @@ jobs:
       - name: Upload language server
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}_${{ matrix.bin }}
+          name: slice-language-server_${{ matrix.target }}
           path: ./server/target/${{ matrix.target }}/release/${{ matrix.bin }}
           if-no-files-found: error
 
@@ -55,16 +55,19 @@ jobs:
 
       - name: Download language server
         uses: actions/download-artifact@v4
+        with:
+          path: ./server/target
 
       - name: Move language servers
         run: |
           set -e
-          for artifact in *_slice-language-server*; do
-            target=${artifact%%_*}
-            binary=${artifact#*_}
-            target_dir=./server/target/${target}/release
-            mkdir -p ${target_dir}
-            mv $artifact ${target_dir}/${binary}
+          cd ./server/target
+
+          for archive in slice-language-server_*; do
+            target=${archive#slice-language-server_}
+            mv $archive ${target}
+            mkdir ${target}/release
+            mv ${target}/slice-language-server* ${target}/release
           done
 
       - uses: actions/setup-node@v4
