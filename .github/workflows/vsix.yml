@@ -81,6 +81,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          path: "slice-${{ steps.package-version.outputs.VERSION }}.vsix"
+          name: "slice-${{ steps.package-version.outputs.VERSION }}.vsix"
           path: "slice-${{ steps.package-version.outputs.VERSION }}.vsix"
           if-no-files-found: error
