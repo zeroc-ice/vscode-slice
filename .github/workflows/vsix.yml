@@ -41,7 +41,7 @@ jobs:
       - name: Upload language server
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}-${{ matrix.bin }}
+          name: ${{ matrix.target }}_${{ matrix.bin }}
           path: ./server/target/${{ matrix.target }}/release/${{ matrix.bin }}
           if-no-files-found: error
 
@@ -60,8 +60,8 @@ jobs:
         run: |
           set -e
           for artifact in *-language-server*; do
-            target=${artifact%%-*}
-            binary=${artifact#*-}
+            target=${artifact%%_*}
+            binary=${artifact#*_}
             target_dir=./server/target/${target}/release
             mkdir -p ${target_dir}
             mv $artifact ${target_dir}/${binary}
