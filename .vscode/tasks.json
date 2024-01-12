@@ -37,7 +37,7 @@
     },
     {
       "label": "Build All",
-      "dependsOn": ["Build Rust Server", "Build Client"],
+      "dependsOn": ["Build Server", "Build Client"],
       "group": {
         "kind": "build",
         "isDefault": true
