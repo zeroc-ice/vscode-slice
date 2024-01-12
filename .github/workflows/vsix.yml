@@ -75,7 +75,12 @@ jobs:
       - name: Build VSIX
         run: npx @vscode/vsce package
 
+      - name: Get package version
+        id: package-version
+        run: echo "VERSION=$(npm pkg get version | jq -r)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
-          path: "*.vsix"
+          path: "slice-${{ steps.package-version.outputs.VERSION }}.vsix"
+          path: "slice-${{ steps.package-version.outputs.VERSION }}.vsix"
           if-no-files-found: error

@@ -9,6 +9,8 @@ import {
   ServerOptions,
 } from "vscode-languageclient/node";
 
+import { existsSync } from "fs";
+
 // Create an output channel for the language server's trace information.
 const traceOutputChannel = window.createOutputChannel("Slice");
 
@@ -123,7 +125,7 @@ export async function activate(context: ExtensionContext) {
           ]
 
           command = commands.find(command => {
-            return fs.existsSync(command)
+            return existsSync(command)
           })
 
           break;
