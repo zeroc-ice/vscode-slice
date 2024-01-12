@@ -41,28 +41,39 @@ jobs:
       - name: Upload language server
         uses: actions/upload-artifact@v3
         with:
-          name: language-server
+          name: language-server-${{ matrix.target }}
           path: ./server/target/${{ matrix.target }}/release/${{ matrix.bin }}
 
-  # build-vsix:
-  #   needs: build-language-server
-  #   runs-on: ubuntu-22.04
-  #   timeout-minutes: 10
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v3
+  build-vsix:
+    needs: build-language-server
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
-  #     - name: Download language server
-  #       uses: actions/download-artifact@v3
+      - name: Download language server
+        uses: actions/download-artifact@v3
 
-  #     - uses: actions/setup-node@v2
-  #       with:
-  #         node-version: 14
+      - name: Move language server to server folder
+        run: |
+          set -e
+          for artifact in language-server-*; do
+            target = ${artifact#language-server-}
+            target = ${target%.exe}
+            binary = ${artifact%${target}}
+            mkdir -p ./server/target/${target}
+            mv $artifact ./server/target/${target}/${binary}
+          done
 
-  #     - run: npm ci
-  #     - run: npm run build
-  #     - run: npm run package
-  #     - uses: actions/upload-artifact@v2
-  #       with:
-  #         name: vsix
-  #         path: ./dist/*.vsix
+      - uses: actions/setup-node@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build VSIX
+        run: @vscode/vsce package
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: *.vsix
