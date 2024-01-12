@@ -122,13 +122,13 @@
     "watch": "tsc -b -w"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.0",
-    "@types/node": "^16.18.34",
-    "@typescript-eslint/eslint-plugin": "^6.7.0",
-    "@typescript-eslint/parser": "^6.7.0",
-    "esbuild": "^0.19.5",
-    "eslint": "^8.35.0",
-    "mocha": "^9.2.1",
-    "typescript": "^5.2.2"
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.18.1",
+    "@typescript-eslint/parser": "^6.18.1",
+    "esbuild": "^0.19.11",
+    "eslint": "^8.56.0",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.3"
   }
 }
