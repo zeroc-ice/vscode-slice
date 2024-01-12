@@ -62,8 +62,9 @@ jobs:
           for artifact in language-server-*; do
             target=${artifact%%-*}
             binary=${artifact#*-}
-            mkdir -p ./server/target/${target}
-            mv $artifact ./server/target/${target}/${binary}
+            target_dir=./server/target/${target}
+            mkdir -p ${target_dir}
+            mv $artifact ${target_dir}/${binary}
           done
 
       - uses: actions/setup-node@v4
