@@ -4,6 +4,7 @@ use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
@@ -166,11 +167,12 @@ impl LanguageServer for Backend {
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.session.configuration_sets.lock().await;
-        configuration_sets
+        Ok(configuration_sets
             .iter()
             .find_file(&file_name)
-            .map(|compilation_state| try_into_hover_result(compilation_state, url, position))
-            .transpose()
+            .and_then(|compilation_state| {
+                try_into_hover_result(compilation_state, url, position).ok()
+            }))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -197,10 +199,13 @@ impl Backend {
         let mut diagnostics = Vec::new();
 
         // Process each configuration set that contains the changed file
-        for set in configuration_sets
-            .iter_mut()
-            .filter(|set| set.compilation_state.files.contains_key(file_name))
-        {
+        for set in configuration_sets.iter_mut().filter(|set| {
+            set.compilation_state.files.keys().any(|f| {
+                let key_path = Path::new(f);
+                let file_path = Path::new(file_name);
+                key_path == file_path || file_path.starts_with(key_path)
+            })
+        }) {
             // Update the compilation state of the configuration set
             let slice_options = set.slice_config.as_slice_options();
             set.compilation_state = slicec::compile_from_options(slice_options, |_| {}, |_| {});

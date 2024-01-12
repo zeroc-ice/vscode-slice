@@ -1,6 +1,8 @@
 // Copyright (c) ZeroC, Inc.
+
 use crate::configuration_set::ConfigurationSet;
 use slicec::compilation_state::CompilationState;
+use std::path::Path;
 use tower_lsp::lsp_types::Url;
 
 // A helper trait that allows us to find a file in an iterator of ConfigurationSet.
@@ -13,8 +15,14 @@ where
     I: Iterator<Item = &'a ConfigurationSet>,
 {
     fn find_file(mut self, file_name: &str) -> Option<&'a CompilationState> {
-        self.find(|set| set.compilation_state.files.contains_key(file_name))
-            .map(|set| &set.compilation_state)
+        self.find(|set| {
+            set.compilation_state.files.keys().any(|f| {
+                let key_path = Path::new(f);
+                let file_path = Path::new(file_name);
+                key_path == file_path || file_path.starts_with(key_path)
+            })
+        })
+        .map(|set| &set.compilation_state)
     }
 }
 

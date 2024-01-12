@@ -5,6 +5,7 @@ use slice_config::SliceConfig;
 use slicec::compilation_state::CompilationState;
 use tower_lsp::lsp_types::Url;
 
+#[derive(Debug)]
 pub struct ConfigurationSet {
     pub slice_config: SliceConfig,
     pub compilation_state: CompilationState,
