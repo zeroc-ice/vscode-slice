@@ -59,7 +59,7 @@ jobs:
       - name: Move language servers
         run: |
           set -e
-          for artifact in *-language-server*; do
+          for artifact in *_language-server*; do
             target=${artifact%%_*}
             binary=${artifact#*_}
             target_dir=./server/target/${target}/release
