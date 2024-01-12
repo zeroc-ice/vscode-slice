@@ -72,7 +72,7 @@ jobs:
         run: npm ci
 
       - name: Build VSIX
-        run: @vscode/vsce package
+        run: npx @vscode/vsce package
 
       - uses: actions/upload-artifact@v2
         with:
