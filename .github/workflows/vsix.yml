@@ -59,10 +59,10 @@ jobs:
       - name: Move language server to server folder
         run: |
           set -e
-          for artifact in language-server-*; do
+          for artifact in *-language-server*; do
             target=${artifact%%-*}
             binary=${artifact#*-}
-            target_dir=./server/target/${target}
+            target_dir=./server/target/${target}/release
             mkdir -p ${target_dir}
             mv $artifact ${target_dir}/${binary}
           done
