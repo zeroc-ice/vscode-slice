@@ -60,7 +60,7 @@ jobs:
 
       - name: Move language servers
         run: |
-          set -e
+          set -eux
           cd ./server/target
 
           for archive in slice-language-server_*; do
