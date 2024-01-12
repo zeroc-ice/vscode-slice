@@ -38,5 +38,5 @@ runs:
       env:
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
       run: |
-        cargo build --manifest-path Cargo.toml ${{ inputs.cargo-build-args }} --target ${{ inputs.target }}
+        cargo build --manifest-path server/Cargo.toml ${{ inputs.cargo-build-args }} --target ${{ inputs.target }}
       shell: bash
