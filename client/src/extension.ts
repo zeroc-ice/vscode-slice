@@ -150,6 +150,9 @@ export async function activate(context: ExtensionContext) {
 
     const serverOptions: ServerOptions = { run, debug: run };
 
+    const config = workspace.getConfiguration("slice");
+    const configuration_sets = config.get<any[]>("configurations");
+
     // Configure the language client options.
     const clientOptions: LanguageClientOptions = {
       documentSelector: [{ scheme: "file", language: "slice" }],
@@ -161,6 +164,7 @@ export async function activate(context: ExtensionContext) {
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       initializationOptions: {
         builtInSlicePath: builtInSlicePath,
+        configurations: configuration_sets,
       },
     };
 
