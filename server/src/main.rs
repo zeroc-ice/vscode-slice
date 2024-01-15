@@ -5,9 +5,10 @@ use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
+
+use crate::session::Session;
 
 mod configuration_set;
 mod diagnostic_ext;
@@ -28,12 +29,12 @@ async fn main() {
 
 struct Backend {
     client: Client,
-    session: Arc<crate::session::Session>,
+    session: Session,
 }
 
 impl Backend {
     pub fn new(client: tower_lsp::Client) -> Self {
-        let session = Arc::new(crate::session::Session::new(client.clone()));
+        let session = Session::new();
         Self { client, session }
     }
 
@@ -88,7 +89,7 @@ impl LanguageServer for Backend {
     async fn initialized(&self, _: InitializedParams) {
         // Update the configuration sets by fetching the configurations from the client. This is performed after
         // initialization because the client may not be ready to provide configurations before initialization.
-        self.session.fetch_configurations().await;
+        self.session.fetch_configurations(&self.client).await;
 
         // Publish the diagnostics for all files
         publish_diagnostics(&self.client, &self.session.configuration_sets).await;

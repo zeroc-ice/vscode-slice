@@ -2,10 +2,12 @@
 
 use crate::configuration_set::ConfigurationSet;
 use tokio::sync::{Mutex, RwLock};
-use tower_lsp::lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url};
+use tower_lsp::{
+    lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url},
+    Client,
+};
 
 pub struct Session {
-    client: tower_lsp::Client,
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
     /// `SliceConfig` and `CompilationState`. The `SliceConfig` is used to determine which configuration set to use when
     /// publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
@@ -17,9 +19,8 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(client: tower_lsp::Client) -> Self {
+    pub fn new() -> Self {
         Self {
-            client,
             configuration_sets: Mutex::new(Vec::new()),
             root_uri: RwLock::new(None),
             built_in_slice_path: RwLock::new(String::new()),
@@ -52,7 +53,7 @@ impl Session {
     }
 
     // Update the stored configuration sets by fetching them from the client.
-    pub async fn fetch_configurations(&self) {
+    pub async fn fetch_configurations(&self, client: &Client) {
         let built_in_path = &self.built_in_slice_path.read().await;
         let root_uri_guard = self.root_uri.read().await;
         let root_uri = (*root_uri_guard).clone().expect("root_uri not set");
@@ -63,8 +64,7 @@ impl Session {
         }];
 
         // Fetch the configurations from the client and parse them.
-        let configurations = self
-            .client
+        let configurations = client
             .configuration(params)
             .await
             .ok()
