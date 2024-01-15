@@ -23,7 +23,7 @@ mod utils;
 static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 
 pub fn server_config() -> &'static ServerConfig {
-    SERVER_CONFIG.get().expect("server failed to initialized: `server_config` is unset!")
+    SERVER_CONFIG.get().expect("server failed to initialize: `server_config` is unset!")
 }
 
 #[tokio::main]
