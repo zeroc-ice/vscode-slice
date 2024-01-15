@@ -2,7 +2,10 @@
 
 use crate::configuration_set::ConfigurationSet;
 use tokio::sync::{Mutex, RwLock};
-use tower_lsp::{lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url}, Client};
+use tower_lsp::{
+    lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url},
+    Client,
+};
 
 pub struct Session {
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
