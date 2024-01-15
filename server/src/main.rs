@@ -5,10 +5,12 @@ use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::OnceLock;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
 
 use crate::session::Session;
+use crate::slice_config::ServerConfig;
 
 mod configuration_set;
 mod diagnostic_ext;
@@ -17,6 +19,14 @@ mod jump_definition;
 mod session;
 mod slice_config;
 mod utils;
+
+static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
+
+pub fn server_config() -> &'static ServerConfig {
+    SERVER_CONFIG
+        .get()
+        .expect("server failed to initialized: `server_config` is unset!")
+}
 
 #[tokio::main]
 async fn main() {
@@ -38,7 +48,34 @@ impl Backend {
         Self { client, session }
     }
 
-    fn capabilities() -> ServerCapabilities {
+    pub fn initialize_server_config_from(params: tower_lsp::lsp_types::InitializeParams) {
+        // Use the root_uri if it exists temporarily as we cannot access configuration until
+        // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
+        // drive letter. To fix this, we convert the path to a URL and then back to a path.
+        let root_uri = params
+            .root_uri
+            .and_then(|uri| uri.to_file_path().ok())
+            .and_then(|path| Url::from_file_path(path).ok())
+            .expect("root_uri not found in initialization parameters");
+
+        // This is the path to the built-in Slice files that are included with the extension. It should always
+        // be present.
+        let built_in_slice_path = params
+            .initialization_options
+            .and_then(|opts| opts.get("builtInSlicePath").cloned())
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .expect("builtInSlicePath not found in initialization options");
+
+        let server_config = ServerConfig {
+            root_uri,
+            built_in_slice_path,
+        };
+        SERVER_CONFIG
+            .set(server_config)
+            .expect("server is already initialized: `server_config` is set!");
+    }
+
+    pub fn capabilities() -> ServerCapabilities {
         let definition_provider = Some(OneOf::Left(true));
         let hover_provider = Some(HoverProviderCapability::Simple(true));
 
@@ -77,7 +114,7 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
-        self.session.update_from_initialize_params(params).await;
+        Self::initialize_server_config_from(params);
         let capabilities = Backend::capabilities();
 
         Ok(InitializeResult {
