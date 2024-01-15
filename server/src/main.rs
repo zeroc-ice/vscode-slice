@@ -23,9 +23,7 @@ mod utils;
 static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 
 pub fn server_config() -> &'static ServerConfig {
-    SERVER_CONFIG
-        .get()
-        .expect("server failed to initialized: `server_config` is unset!")
+    SERVER_CONFIG.get().expect("server failed to initialized: `server_config` is unset!")
 }
 
 #[tokio::main]
@@ -66,13 +64,8 @@ impl Backend {
             .and_then(|v| v.as_str().map(str::to_owned))
             .expect("builtInSlicePath not found in initialization options");
 
-        let server_config = ServerConfig {
-            root_uri,
-            built_in_slice_path,
-        };
-        SERVER_CONFIG
-            .set(server_config)
-            .expect("server is already initialized: `server_config` is set!");
+        let server_config = ServerConfig { root_uri, built_in_slice_path };
+        SERVER_CONFIG.set(server_config).expect("server is already initialized: `server_config` is set!");
     }
 
     pub fn capabilities() -> ServerCapabilities {
