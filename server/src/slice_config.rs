@@ -1,5 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
+use std::path::PathBuf;
 use slicec::slice_options::SliceOptions;
 use tower_lsp::lsp_types::Url;
 
@@ -7,7 +8,7 @@ use tower_lsp::lsp_types::Url;
 #[derive(Default, Debug)]
 pub struct SliceConfig {
     paths: Vec<String>,
-    root_uri: Option<Url>,
+    workspace_root_path: Option<PathBuf>,
     include_built_in_path: bool,
     built_in_slice_path: String,
     cached_slice_options: SliceOptions,
@@ -16,8 +17,10 @@ pub struct SliceConfig {
 impl SliceConfig {
     // `root` must be absolute.
     pub fn set_root_uri(&mut self, root: Url) {
-        self.root_uri = Some(root);
-        self.refresh_paths();
+        if let Ok(root_path) = root.to_file_path() {
+            self.workspace_root_path = Some(root_path);
+            self.refresh_paths();
+        }
     }
 
     // `path` must be absolute.
@@ -38,8 +41,8 @@ impl SliceConfig {
 
     // Resolve path URIs to file paths to be used by the Slice compiler.
     fn resolve_paths(&self) -> Vec<String> {
-        // If `root_uri` isn't set, or doesn't represent a valid file path, path resolution is impossible, so we return.
-        let Some(Ok(root_path)) = self.root_uri.as_ref().map(Url::to_file_path) else {
+        // If `root_uri` isn't set, path resolution is impossible, so we return.
+        let Some(root_path) = &self.workspace_root_path else {
             return vec![];
         };
 
