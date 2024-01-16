@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use slicec::slice_options::SliceOptions;
 use tower_lsp::lsp_types::Url;
 
@@ -47,41 +47,31 @@ impl SliceConfig {
         };
 
         // Convert path directories to URLs.
-        let mut result_urls = Vec::new();
+        let mut resolved_paths = Vec::new();
 
-        for path in &self.paths {
-            match Url::from_file_path(root_path.join(path)) {
-                Ok(path_url) => {
-                    // If this url doesn't represent a valid file path, skip it.
-                    let Ok(file_path) = path_url.to_file_path() else {
-                        continue;
-                    };
+        for string_path in &self.paths {
+            let path = Path::new(string_path);
 
-                    // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
-                    if file_path.is_absolute() {
-                        result_urls.push(file_path.display().to_string());
-                    } else {
-                        let other_path = root_path.join(&file_path);
-                        result_urls.push(other_path.display().to_string());
-                    }
-                }
-                Err(_) => return vec![root_path.display().to_string()],
-            }
+            // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
+            let absolute_path = match path.is_absolute() {
+                true => path.to_owned(),
+                false => root_path.join(path),
+            };
+            resolved_paths.push(absolute_path.display().to_string());
         }
 
-        // If paths was set to an empty list, or none of them represented a valid directory path or file path, default
-        // to using the workspace root.
-        if result_urls.is_empty() {
-            result_urls.push(root_path.display().to_string());
+        // If the user didn't specify any paths, default to using the workspace root.
+        if resolved_paths.is_empty() {
+            resolved_paths.push(root_path.display().to_string());
         }
 
         // Add the well known types path to the end of the list.
         // TODO: Weird case where `include_built_in_path` is true but `built_in_slice_path` is empty.
         // We should probably handle this case better or make sure it never happens.
         if self.include_built_in_path && !self.built_in_slice_path.is_empty() {
-            result_urls.push(self.built_in_slice_path.clone());
+            resolved_paths.push(self.built_in_slice_path.clone());
         }
-        result_urls
+        resolved_paths
     }
 
     pub fn as_slice_options(&self) -> &SliceOptions {
