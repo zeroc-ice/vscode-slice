@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::utils::convert_uri_to_slice_formated_url;
+use crate::utils::url_to_file_path;
 use slicec::{
     compilation_state::CompilationState,
     grammar::{
@@ -14,7 +14,7 @@ use slicec::{
 use tower_lsp::lsp_types::{Position, Url};
 
 pub fn get_definition_span(state: &CompilationState, uri: Url, position: Position) -> Option<Span> {
-    let file_path = convert_uri_to_slice_formated_url(uri)?;
+    let file_path = url_to_file_path(&uri)?;
 
     // Attempt to retrieve the file from the state
     let file = state.files.get(&file_path)?;

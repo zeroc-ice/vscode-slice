@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::utils::convert_uri_to_slice_formated_url;
+use crate::utils::url_to_file_path;
 use slicec::{
     compilation_state::CompilationState,
     grammar::{Element, Enum, Primitive, Symbol, TypeRef, TypeRefDefinition, Types},
@@ -14,7 +14,7 @@ pub fn try_into_hover_result(
     uri: Url,
     position: Position,
 ) -> tower_lsp::jsonrpc::Result<Hover> {
-    let file = convert_uri_to_slice_formated_url(uri)
+    let file = url_to_file_path(&uri)
         .and_then(|p| state.files.get(&p))
         .expect("Could not convert URI to Slice formatted URL for hover request");
 
