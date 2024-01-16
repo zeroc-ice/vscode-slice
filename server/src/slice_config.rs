@@ -29,7 +29,7 @@ impl SliceConfig {
         self.refresh_paths();
     }
 
-    pub fn update_from_paths(&mut self, paths: Vec<String>) {
+    pub fn set_search_paths(&mut self, paths: Vec<String>) {
         self.paths = paths;
         self.refresh_paths();
     }
@@ -41,14 +41,12 @@ impl SliceConfig {
 
     // Resolve path URIs to file paths to be used by the Slice compiler.
     fn resolve_paths(&self) -> Vec<String> {
-        // If `root_uri` isn't set, path resolution is impossible, so we return.
+        // If `root_path` isn't set, relative path resolution is impossible, so we return.
         let Some(root_path) = &self.workspace_root_path else {
             return vec![];
         };
 
-        // Convert path directories to URLs.
         let mut resolved_paths = Vec::new();
-
         for string_path in &self.paths {
             let path = Path::new(string_path);
 

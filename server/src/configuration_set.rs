@@ -47,7 +47,7 @@ impl ConfigurationSet {
         let mut slice_config = SliceConfig::default();
         slice_config.set_root_uri(root_uri.clone());
         slice_config.set_built_in_path(built_in_path.to_owned());
-        slice_config.update_from_paths(paths);
+        slice_config.set_search_paths(paths);
         slice_config.update_include_built_in_path(include_built_in);
 
         let options = slice_config.as_slice_options();
