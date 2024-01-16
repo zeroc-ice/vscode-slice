@@ -87,7 +87,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // We wait until after the server and client are fully initialized to publish any diagnostics we've found.
+        // Now that the server and client are fully initialized, it's safe to publish any diagnostics we've found.
         publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
