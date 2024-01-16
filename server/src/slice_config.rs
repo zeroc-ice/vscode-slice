@@ -14,11 +14,13 @@ pub struct SliceConfig {
 }
 
 impl SliceConfig {
+    // `root` must be absolute.
     pub fn set_root_uri(&mut self, root: Url) {
         self.root_uri = Some(root);
         self.refresh_paths();
     }
 
+    // `path` must be absolute.
     pub fn set_built_in_path(&mut self, path: String) {
         self.built_in_slice_path = path;
         self.refresh_paths();
@@ -43,11 +45,7 @@ impl SliceConfig {
 
         // If no paths are set, default to using the workspace root.
         let Some(paths) = &self.paths else {
-            let default_path = match root_path.is_absolute() {
-                true => root_path.display().to_string(),
-                false => root_path.join(&root_path).display().to_string(),
-            };
-            return vec![default_path];
+            return vec![root_path.display().to_string()];
         };
 
         // Convert path directories to URLs.
