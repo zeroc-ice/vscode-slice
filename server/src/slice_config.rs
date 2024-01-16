@@ -6,7 +6,7 @@ use tower_lsp::lsp_types::Url;
 // This struct holds the configuration for a single compilation set.
 #[derive(Default, Debug)]
 pub struct SliceConfig {
-    paths: Option<Vec<String>>,
+    paths: Vec<String>,
     root_uri: Option<Url>,
     include_built_in_path: bool,
     built_in_slice_path: String,
@@ -27,7 +27,7 @@ impl SliceConfig {
     }
 
     pub fn update_from_paths(&mut self, paths: Vec<String>) {
-        self.paths = Some(paths);
+        self.paths = paths;
         self.refresh_paths();
     }
 
@@ -43,27 +43,22 @@ impl SliceConfig {
             return vec![];
         };
 
-        // If no paths are set, default to using the workspace root.
-        let Some(paths) = &self.paths else {
-            return vec![root_path.display().to_string()];
-        };
-
         // Convert path directories to URLs.
         let mut result_urls = Vec::new();
 
-        for path in paths {
+        for path in &self.paths {
             match Url::from_file_path(root_path.join(path)) {
                 Ok(path_url) => {
                     // If this url doesn't represent a valid file path, skip it.
-                    let Ok(absolute_path) = path_url.to_file_path() else {
+                    let Ok(file_path) = path_url.to_file_path() else {
                         continue;
                     };
 
                     // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
-                    if absolute_path.is_absolute() {
-                        result_urls.push(absolute_path.display().to_string());
+                    if file_path.is_absolute() {
+                        result_urls.push(file_path.display().to_string());
                     } else {
-                        let other_path = root_path.join(&absolute_path);
+                        let other_path = root_path.join(&file_path);
                         result_urls.push(other_path.display().to_string());
                     }
                 }
