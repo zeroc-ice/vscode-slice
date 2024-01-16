@@ -16,7 +16,7 @@ impl ConfigurationSet {
     pub fn new(root_uri: Url, built_in_path: String) -> Self {
         let mut slice_config = SliceConfig::default();
         slice_config.set_root_uri(root_uri);
-        slice_config.set_built_in_path(built_in_path.to_owned());
+        slice_config.set_built_in_slice_path(Some(built_in_path));
         let compilation_state =
             slicec::compile_from_options(slice_config.as_slice_options(), |_| {}, |_| {});
         Self {
@@ -46,9 +46,8 @@ impl ConfigurationSet {
         // Create the SliceConfig and CompilationState
         let mut slice_config = SliceConfig::default();
         slice_config.set_root_uri(root_uri.clone());
-        slice_config.set_built_in_path(built_in_path.to_owned());
+        slice_config.set_built_in_slice_path(include_built_in.then(|| built_in_path.to_owned()));
         slice_config.set_search_paths(paths);
-        slice_config.update_include_built_in_path(include_built_in);
 
         let options = slice_config.as_slice_options();
         let compilation_state = slicec::compile_from_options(options, |_| {}, |_| {});
