@@ -87,11 +87,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Update the configuration sets by fetching the configurations from the client. This is performed after
-        // initialization because the client may not be ready to provide configurations before initialization.
-        self.session.fetch_configurations(&self.client).await;
-
-        // Publish the diagnostics for all files
+        // Now that the server and client are fully initialized, it's safe to publish any diagnostics we've found.
         publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 

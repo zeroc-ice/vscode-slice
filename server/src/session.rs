@@ -2,10 +2,7 @@
 
 use crate::configuration_set::ConfigurationSet;
 use tokio::sync::{Mutex, RwLock};
-use tower_lsp::{
-    lsp_types::{ConfigurationItem, DidChangeConfigurationParams, Url},
-    Client,
-};
+use tower_lsp::lsp_types::{DidChangeConfigurationParams, Url};
 
 pub struct Session {
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
@@ -32,14 +29,15 @@ impl Session {
         &self,
         params: tower_lsp::lsp_types::InitializeParams,
     ) {
+        let initialization_options = params.initialization_options;
+
         // This is the path to the built-in Slice files that are included with the extension. It should always
         // be present.
-        let built_in_slice_path = params
-            .initialization_options
-            .and_then(|opts| opts.get("builtInSlicePath").cloned())
+        let built_in_slice_path = initialization_options
+            .as_ref()
+            .and_then(|opts| opts.get("builtInSlicePath"))
             .and_then(|v| v.as_str().map(str::to_owned))
             .expect("builtInSlicePath not found in initialization options");
-        *self.built_in_slice_path.write().await = built_in_slice_path;
 
         // Use the root_uri if it exists temporarily as we cannot access configuration until
         // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
@@ -49,38 +47,18 @@ impl Session {
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
             .expect("root_uri not found in initialization parameters");
-        *self.root_uri.write().await = Some(root_uri);
-    }
 
-    // Update the stored configuration sets by fetching them from the client.
-    pub async fn fetch_configurations(&self, client: &Client) {
-        let built_in_path = &self.built_in_slice_path.read().await;
-        let root_uri_guard = self.root_uri.read().await;
-        let root_uri = (*root_uri_guard).clone().expect("root_uri not set");
-
-        let params = vec![ConfigurationItem {
-            scope_uri: None,
-            section: Some("slice.configurations".to_string()),
-        }];
-
-        // Fetch the configurations from the client and parse them.
-        let configurations = client
-            .configuration(params)
-            .await
-            .ok()
-            .map(|response| {
-                let config_array = &response
-                    .iter()
-                    .filter_map(|config| config.as_array())
-                    .flatten()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                ConfigurationSet::parse_configuration_sets(config_array, &root_uri, built_in_path)
-            })
+        // Load any user configuration from the 'slice.configurations' option.
+        let configuration_sets = initialization_options
+            .as_ref()
+            .and_then(|opts| opts.get("configuration"))
+            .and_then(|v| v.as_array())
+            .map(|arr| ConfigurationSet::parse_configuration_sets(arr, &root_uri, &built_in_slice_path))
             .unwrap_or_default();
 
-        // Update the configuration sets
-        self.update_configurations(configurations).await;
+        *self.built_in_slice_path.write().await = built_in_slice_path;
+        *self.root_uri.write().await = Some(root_uri);
+        self.update_configurations(configuration_sets).await;
     }
 
     // Update the configuration sets from the `DidChangeConfigurationParams` notification.
