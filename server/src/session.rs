@@ -53,7 +53,7 @@ impl Session {
         // Load any user configuration from the 'slice.configurations' option.
         let configuration_sets = initialization_options
             .as_ref()
-            .and_then(|opts| opts.get("configuration"))
+            .and_then(|opts| opts.get("configurations"))
             .and_then(|v| v.as_array())
             .map(|arr| ConfigurationSet::parse_configuration_sets(arr, &root_path, &built_in_slice_path))
             .unwrap_or_default();
