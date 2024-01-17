@@ -16,5 +16,11 @@
     "slicec",
     "typeref",
     "vsix"
+  ],
+  "slice.configurations": [
+    {
+      "paths": ["slice"],
+      "addWellKnownTypes": false
+    }
   ]
 }
