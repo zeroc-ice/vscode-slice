@@ -1,9 +1,9 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::slice_config;
+use std::path::{Path, PathBuf};
 use slice_config::SliceConfig;
 use slicec::compilation_state::CompilationState;
-use tower_lsp::lsp_types::Url;
 
 #[derive(Debug)]
 pub struct ConfigurationSet {
@@ -12,10 +12,10 @@ pub struct ConfigurationSet {
 }
 
 impl ConfigurationSet {
-    /// Creates a new `ConfigurationSet` using the given root URI and built-in path.
-    pub fn new(root_uri: Url, built_in_path: String) -> Self {
+    /// Creates a new `ConfigurationSet` using the given root and built-in-slice paths.
+    pub fn new(root_path: PathBuf, built_in_path: String) -> Self {
         let mut slice_config = SliceConfig::default();
-        slice_config.set_root_uri(root_uri);
+        slice_config.set_workspace_root_path(root_path);
         slice_config.set_built_in_slice_path(Some(built_in_path));
         let compilation_state =
             slicec::compile_from_options(slice_config.as_slice_options(), |_| {}, |_| {});
@@ -25,27 +25,27 @@ impl ConfigurationSet {
         }
     }
 
-    /// Parses a vector of `ConfigurationSet` from a JSON array, root URI, and built-in path.
+    /// Parses a vector of `ConfigurationSet` from a JSON array, root path, and built-in path.
     pub fn parse_configuration_sets(
         config_array: &[serde_json::Value],
-        root_uri: &Url,
+        root_path: &Path,
         built_in_path: &str,
     ) -> Vec<ConfigurationSet> {
         config_array
             .iter()
-            .map(|value| ConfigurationSet::from_json(value, root_uri, built_in_path))
+            .map(|value| ConfigurationSet::from_json(value, root_path, built_in_path))
             .collect::<Vec<_>>()
     }
 
     /// Constructs a `ConfigurationSet` from a JSON value.
-    fn from_json(value: &serde_json::Value, root_uri: &Url, built_in_path: &str) -> Self {
+    fn from_json(value: &serde_json::Value, root_path: &Path, built_in_path: &str) -> Self {
         // Parse the paths and `include_built_in_types` from the configuration set
         let paths = parse_paths(value);
         let include_built_in = parse_include_built_in(value);
 
         // Create the SliceConfig and CompilationState
         let mut slice_config = SliceConfig::default();
-        slice_config.set_root_uri(root_uri.clone());
+        slice_config.set_workspace_root_path(root_path.to_owned());
         slice_config.set_built_in_slice_path(include_built_in.then(|| built_in_path.to_owned()));
         slice_config.set_search_paths(paths);
 

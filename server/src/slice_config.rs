@@ -2,7 +2,6 @@
 
 use std::path::{Path, PathBuf};
 use slicec::slice_options::SliceOptions;
-use tower_lsp::lsp_types::Url;
 
 // This struct holds the configuration for a single compilation set.
 #[derive(Default, Debug)]
@@ -14,12 +13,10 @@ pub struct SliceConfig {
 }
 
 impl SliceConfig {
-    // `root` must be absolute.
-    pub fn set_root_uri(&mut self, root: Url) {
-        if let Ok(root_path) = root.to_file_path() {
-            self.workspace_root_path = Some(root_path);
-            self.refresh_paths();
-        }
+    // `path` must be absolute.
+    pub fn set_workspace_root_path(&mut self, path: PathBuf) {
+        self.workspace_root_path = Some(path);
+        self.refresh_paths();
     }
 
     // `path` must be absolute.
