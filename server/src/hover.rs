@@ -1,8 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::utils::url_to_file_path;
+use crate::{configuration_set::CompilationData, utils::url_to_file_path};
 use slicec::{
-    compilation_state::CompilationState,
     grammar::{Element, Enum, Primitive, Symbol, TypeRef, TypeRefDefinition, Types},
     slice_file::Location,
     visitor::Visitor,
@@ -10,12 +9,12 @@ use slicec::{
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkedString, Position, Url};
 
 pub fn try_into_hover_result(
-    state: &CompilationState,
+    data: &CompilationData,
     uri: Url,
     position: Position,
 ) -> tower_lsp::jsonrpc::Result<Hover> {
     let file = url_to_file_path(&uri)
-        .and_then(|p| state.files.get(&p))
+        .and_then(|p| data.files.get(&p))
         .expect("Could not convert URI to Slice formatted URL for hover request");
 
     // Convert position to row and column 1 based

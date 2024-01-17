@@ -22,17 +22,14 @@ pub async fn publish_diagnostics_for_all_files(
     client
         .log_message(MessageType::INFO, "Publishing diagnostics...")
         .await;
-    let compilation_state = &mut configuration_set.compilation_state;
 
-    // Extract and update diagnostics from the compilation state
-    let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
-        &compilation_state.ast,
-        &compilation_state.files,
-        configuration_set.slice_config.as_slice_options(),
-    );
+    // Retrieve any unpublished diagnostics from the configuration set. This function is only called after a fresh
+    // compilation, so this field should always be set. (Even if it's set to an empty vec).
+    let diagnostics = configuration_set.unpublished_diagnostics.take().expect("no diagnostics to publish");
 
     // Initialize a map to hold diagnostics grouped by file (URL)
-    let mut map = compilation_state
+    let mut map = configuration_set
+        .compilation_data
         .files
         .keys()
         .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
@@ -94,7 +91,7 @@ pub async fn clear_diagnostics(client: &Client, configuration_sets: &Mutex<Vec<C
     let mut all_tracked_files = HashSet::new();
     for configuration_set in configuration_sets.iter() {
         configuration_set
-            .compilation_state
+            .compilation_data
             .files
             .keys()
             .cloned()
