@@ -48,7 +48,7 @@ impl Session {
             .and_then(|uri| uri.to_file_path().ok())
             .and_then(|path| Url::from_file_path(path).ok())
             .and_then(|uri| uri.to_file_path().ok())
-            .expect("root_uri not found in initialization parameters");
+            .expect("`root_uri` was not sent by the client, or was malformed");
 
         // Load any user configuration from the 'slice.configurations' option.
         let configuration_sets = initialization_options
