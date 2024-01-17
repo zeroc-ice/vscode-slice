@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics};
+use diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use std::collections::HashMap;
@@ -87,8 +87,8 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Now that the server and client are fully initialized, it's safe to publish any diagnostics we've found.
-        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
+        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -107,8 +107,8 @@ impl LanguageServer for Backend {
         // Update the stored configuration sets from the data provided in the client notification
         self.session.update_configurations_from_params(params).await;
 
-        // Publish the diagnostics for all files
-        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        // Trigger a compilation and publish the diagnostics for all files
+        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn goto_definition(

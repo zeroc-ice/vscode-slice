@@ -29,7 +29,6 @@ unsafe impl Sync for CompilationData {}
 pub struct ConfigurationSet {
     pub slice_config: SliceConfig,
     pub compilation_data: CompilationData,
-    pub unpublished_diagnostics: Option<Vec<Diagnostic>>,
 }
 
 impl ConfigurationSet {
@@ -39,7 +38,8 @@ impl ConfigurationSet {
         slice_config.set_workspace_root_path(root_path);
         slice_config.set_built_in_slice_path(Some(built_in_path));
 
-        Self::create_and_compile(slice_config)
+        let compilation_data = CompilationData::default();
+        Self { slice_config, compilation_data }
     }
 
     /// Parses a vector of `ConfigurationSet` from a JSON array, root path, and built-in path.
@@ -66,18 +66,8 @@ impl ConfigurationSet {
         slice_config.set_built_in_slice_path(include_built_in.then(|| built_in_path.to_owned()));
         slice_config.set_search_paths(paths);
 
-        Self::create_and_compile(slice_config)
-    }
-
-    fn create_and_compile(slice_config: SliceConfig) -> Self {
-        let mut configuration_set = Self {
-            slice_config,
-            compilation_data: CompilationData::default(),
-            unpublished_diagnostics: None,
-        };
-
-        configuration_set.unpublished_diagnostics = Some(configuration_set.trigger_compilation());
-        configuration_set
+        let compilation_data = CompilationData::default();
+        Self { slice_config, compilation_data }
     }
 
     pub fn trigger_compilation(&mut self) -> Vec<Diagnostic> {
