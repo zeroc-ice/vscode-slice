@@ -44,10 +44,8 @@ pub async fn publish_diagnostics_for_all_files(
         .await;
 }
 
-/// Publishes diagnostics for all configuration sets.
-///
-/// This function iterates over all configuration sets and invokes
-/// `publish_diagnostics_for_all_files` for each set.
+/// Triggers and compilation and publishes any diagnostics that are reported.
+/// It does this for all configuration sets.
 pub async fn compile_and_publish_diagnostics(
     client: &Client,
     configuration_sets: &Mutex<Vec<ConfigurationSet>>,
@@ -57,7 +55,7 @@ pub async fn compile_and_publish_diagnostics(
     for configuration_set in configuration_sets.iter_mut() {
         // Trigger a compilation and get any diagnostics that were reported during it.
         let diagnostics = configuration_set.trigger_compilation();
-        // Publish the diagnostics.
+        // Publish those diagnostics.
         publish_diagnostics_for_all_files(client, diagnostics, configuration_set).await;
     }
 }
