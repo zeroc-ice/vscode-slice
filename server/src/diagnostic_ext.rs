@@ -17,22 +17,16 @@ use tower_lsp::Client;
 /// and then publishes these diagnostics to the LSP client.
 pub async fn publish_diagnostics_for_all_files(
     client: &Client,
+    diagnostics: Vec<Diagnostic>,
     configuration_set: &mut ConfigurationSet,
 ) {
     client
         .log_message(MessageType::INFO, "Publishing diagnostics...")
         .await;
-    let compilation_state = &mut configuration_set.compilation_state;
-
-    // Extract and update diagnostics from the compilation state
-    let diagnostics = std::mem::take(&mut compilation_state.diagnostics).into_updated(
-        &compilation_state.ast,
-        &compilation_state.files,
-        configuration_set.slice_config.as_slice_options(),
-    );
 
     // Initialize a map to hold diagnostics grouped by file (URL)
-    let mut map = compilation_state
+    let mut map = configuration_set
+        .compilation_data
         .files
         .keys()
         .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
@@ -50,18 +44,19 @@ pub async fn publish_diagnostics_for_all_files(
         .await;
 }
 
-/// Publishes diagnostics for all configuration sets.
-///
-/// This function iterates over all configuration sets and invokes
-/// `publish_diagnostics_for_all_files` for each set.
-pub async fn publish_diagnostics(
+/// Triggers and compilation and publishes any diagnostics that are reported.
+/// It does this for all configuration sets.
+pub async fn compile_and_publish_diagnostics(
     client: &Client,
     configuration_sets: &Mutex<Vec<ConfigurationSet>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
     for configuration_set in configuration_sets.iter_mut() {
-        publish_diagnostics_for_all_files(client, configuration_set).await;
+        // Trigger a compilation and get any diagnostics that were reported during it.
+        let diagnostics = configuration_set.trigger_compilation();
+        // Publish those diagnostics.
+        publish_diagnostics_for_all_files(client, diagnostics, configuration_set).await;
     }
 }
 
@@ -94,7 +89,7 @@ pub async fn clear_diagnostics(client: &Client, configuration_sets: &Mutex<Vec<C
     let mut all_tracked_files = HashSet::new();
     for configuration_set in configuration_sets.iter() {
         configuration_set
-            .compilation_state
+            .compilation_data
             .files
             .keys()
             .cloned()

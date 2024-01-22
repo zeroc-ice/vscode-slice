@@ -1,8 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::utils::url_to_file_path;
+use crate::{configuration_set::CompilationData, utils::url_to_file_path};
 use slicec::{
-    compilation_state::CompilationState,
     grammar::{
         Class, Commentable, CustomType, Entity, Enum, Enumerator, Exception, Field, Identifier,
         Interface, Message, MessageComponent, NamedSymbol, Operation, Struct, Symbol, TypeAlias,
@@ -13,11 +12,11 @@ use slicec::{
 };
 use tower_lsp::lsp_types::{Position, Url};
 
-pub fn get_definition_span(state: &CompilationState, uri: Url, position: Position) -> Option<Span> {
+pub fn get_definition_span(data: &CompilationData, uri: Url, position: Position) -> Option<Span> {
     let file_path = url_to_file_path(&uri)?;
 
-    // Attempt to retrieve the file from the state
-    let file = state.files.get(&file_path)?;
+    // Attempt to retrieve the file from the data
+    let file = data.files.get(&file_path)?;
 
     // Convert position to row and column 1 based
     let col = (position.character + 1) as usize;

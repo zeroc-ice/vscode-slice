@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics};
+use diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
 use std::collections::HashMap;
@@ -87,8 +87,8 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // Now that the server and client are fully initialized, it's safe to publish any diagnostics we've found.
-        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
+        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -107,8 +107,8 @@ impl LanguageServer for Backend {
         // Update the stored configuration sets from the data provided in the client notification
         self.session.update_configurations_from_params(params).await;
 
-        // Publish the diagnostics for all files
-        publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        // Trigger a compilation and publish the diagnostics for all files
+        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn goto_definition(
@@ -127,11 +127,11 @@ impl LanguageServer for Backend {
 
         // Find the configuration set that contains the file
         let configuration_sets = self.session.configuration_sets.lock().await;
-        let compilation_state = configuration_sets.iter().find_file(&file_name);
+        let compilation_data = configuration_sets.iter().find_file(&file_name);
 
         // Get the definition span and convert it to a GotoDefinitionResponse
-        compilation_state
-            .and_then(|state| get_definition_span(state, url, position))
+        compilation_data
+            .and_then(|data| get_definition_span(data, url, position))
             .and_then(|location| {
                 let start = Position {
                     line: (location.start.row - 1) as u32,
@@ -167,8 +167,8 @@ impl LanguageServer for Backend {
         Ok(configuration_sets
             .iter()
             .find_file(&file_name)
-            .and_then(|compilation_state| {
-                try_into_hover_result(compilation_state, url, position).ok()
+            .and_then(|compilation_data| {
+                try_into_hover_result(compilation_data, url, position).ok()
             }))
     }
 
@@ -197,28 +197,18 @@ impl Backend {
 
         // Process each configuration set that contains the changed file
         for set in configuration_sets.iter_mut().filter(|set| {
-            set.compilation_state.files.keys().any(|f| {
+            set.compilation_data.files.keys().any(|f| {
                 let key_path = Path::new(f);
                 let file_path = Path::new(file_name);
                 key_path == file_path || file_path.starts_with(key_path)
             })
         }) {
-            // Update the compilation state of the configuration set
-            let slice_options = set.slice_config.as_slice_options();
-            set.compilation_state = slicec::compile_from_options(slice_options, |_| {}, |_| {});
-
-            // Collect the diagnostics of the compilation state
-            diagnostics.extend(
-                std::mem::take(&mut set.compilation_state.diagnostics).into_updated(
-                    &set.compilation_state.ast,
-                    &set.compilation_state.files,
-                    slice_options,
-                ),
-            );
+            // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
+            diagnostics.extend(set.trigger_compilation());
 
             // Update publish_map with files to be updated
             publish_map.extend(
-                set.compilation_state
+                set.compilation_data
                     .files
                     .keys()
                     .filter_map(|uri| convert_slice_url_to_uri(uri))
