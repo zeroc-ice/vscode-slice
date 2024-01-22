@@ -22,6 +22,12 @@ impl Default for CompilationData {
     }
 }
 
+// Necessary for using `CompilationData` within async functions.
+//
+// # Safety
+//
+// These implementations are safe because `CompilationData` is entirely self-contained and hence can go between threads.
+// Note that `files` is not self-contained on its own, since `SliceFile` references definitions owned by the `Ast`.
 unsafe impl Send for CompilationData {}
 unsafe impl Sync for CompilationData {}
 
