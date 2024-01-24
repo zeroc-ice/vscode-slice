@@ -1,7 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
-use std::path::{Path, PathBuf};
 use slicec::slice_options::SliceOptions;
+use std::path::{Path, PathBuf};
 
 // This struct holds the configuration for a single compilation set.
 #[derive(Default, Debug)]
@@ -31,7 +31,7 @@ impl SliceConfig {
     }
 
     // Resolve path URIs to file paths to be used by the Slice compiler.
-    fn resolve_paths(&self) -> Vec<String> {
+    pub fn resolve_paths(&self) -> Vec<String> {
         // If `root_path` isn't set, relative path resolution is impossible, so we return.
         let Some(root_path) = &self.workspace_root_path else {
             return vec![];

@@ -39,9 +39,6 @@ pub async fn publish_diagnostics_for_all_files(
     for (uri, lsp_diagnostics) in map {
         client.publish_diagnostics(uri, lsp_diagnostics, None).await;
     }
-    client
-        .log_message(MessageType::INFO, "Updated diagnostics for all files")
-        .await;
 }
 
 /// Triggers and compilation and publishes any diagnostics that are reported.
