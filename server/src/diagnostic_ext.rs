@@ -48,7 +48,7 @@ pub async fn compile_and_publish_diagnostics(
     client
         .log_message(
             MessageType::INFO,
-            "Publishing diagnostics for all configuration sets..",
+            "Publishing diagnostics for all configuration sets.",
         )
         .await;
     for configuration_set in configuration_sets.iter_mut() {
