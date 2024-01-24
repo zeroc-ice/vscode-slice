@@ -3,8 +3,7 @@
 use diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
 
@@ -197,8 +196,8 @@ impl Backend {
 
         // Process each configuration set that contains the changed file
         for set in configuration_sets.iter_mut().filter(|set| {
-            set.compilation_data.files.keys().any(|f| {
-                let key_path = Path::new(f);
+            set.slice_config.resolve_paths().into_iter().any(|f| {
+                let key_path = Path::new(&f);
                 let file_path = Path::new(file_name);
                 key_path == file_path || file_path.starts_with(key_path)
             })
@@ -224,14 +223,17 @@ impl Backend {
         process_diagnostics(diagnostics, &mut publish_map);
 
         // Publish the diagnostics for each file
+        self.client
+            .log_message(
+                MessageType::INFO,
+                "Publishing diagnostics for all configuration sets.",
+            )
+            .await;
+
         for (uri, lsp_diagnostics) in publish_map {
             self.client
                 .publish_diagnostics(uri, lsp_diagnostics, None)
                 .await;
         }
-
-        self.client
-            .log_message(MessageType::INFO, "Updated diagnostics for all files")
-            .await;
     }
 }
