@@ -15,15 +15,11 @@ use tower_lsp::Client;
 ///
 /// This function takes a client and a configuration set, generates updated diagnostics,
 /// and then publishes these diagnostics to the LSP client.
-pub async fn publish_diagnostics_for_all_files(
+pub async fn publish_diagnostics_for_set(
     client: &Client,
     diagnostics: Vec<Diagnostic>,
     configuration_set: &mut ConfigurationSet,
 ) {
-    client
-        .log_message(MessageType::INFO, "Publishing diagnostics...")
-        .await;
-
     // Initialize a map to hold diagnostics grouped by file (URL)
     let mut map = configuration_set
         .compilation_data
@@ -49,11 +45,17 @@ pub async fn compile_and_publish_diagnostics(
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
+    client
+        .log_message(
+            MessageType::INFO,
+            "Publishing diagnostics for all configuration sets..",
+        )
+        .await;
     for configuration_set in configuration_sets.iter_mut() {
         // Trigger a compilation and get any diagnostics that were reported during it.
         let diagnostics = configuration_set.trigger_compilation();
         // Publish those diagnostics.
-        publish_diagnostics_for_all_files(client, diagnostics, configuration_set).await;
+        publish_diagnostics_for_set(client, diagnostics, configuration_set).await;
     }
 }
 
