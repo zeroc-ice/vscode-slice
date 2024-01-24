@@ -2,6 +2,7 @@
 
 use crate::configuration_set::ConfigurationSet;
 use std::path::PathBuf;
+use slicec::diagnostics::Diagnostic;
 use tokio::sync::{Mutex, RwLock};
 use tower_lsp::lsp_types::{DidChangeConfigurationParams, Url};
 
@@ -98,5 +99,34 @@ impl Session {
 
         let mut configuration_sets = self.configuration_sets.lock().await;
         *configuration_sets = configurations;
+    }
+
+    /// Calls `trigger_compilation` on each configuration set stored in this `Session` and returns all the diagnostics
+    /// reported by doing so. If there are multiple sets, their diagnostics are all pooled into a single `Vec`.
+    pub async fn compile_everything(&mut self) -> Vec<Diagnostic> {
+        let mut configuration_sets = self.configuration_sets.lock().await;
+
+        match configuration_sets.as_mut_slice() {
+            [] => unreachable!("Attempted to compile with no configuration sets!"),
+
+            // If there's only one configuration set, we compile it and directly return its diagnostics.
+            [set] => set.trigger_compilation(),
+
+            // If there are multiple configuration sets, we compile them in parallel, and pool all their diagnostics.
+            sets => {
+                let mut diagnostics = Vec::new();
+                std::thread::scope(|thread_spawner| {
+                    let mut handles = Vec::new();
+                    for set in sets {
+                        handles.push(thread_spawner.spawn(|| set.trigger_compilation()));
+                    }
+                    for handle in handles {
+                        let set_diagnostics = handle.join().expect("compilation thread panicked!");
+                        diagnostics.extend(set_diagnostics);
+                    }
+                });
+                diagnostics
+            }
+        }
     }
 }
