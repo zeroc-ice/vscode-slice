@@ -2,6 +2,7 @@
 
 use crate::configuration_set::ConfigurationSet;
 use crate::utils::convert_slice_url_to_uri;
+use crate::{notifications, Backend};
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
@@ -16,7 +17,7 @@ use tower_lsp::Client;
 /// This function takes a client and a configuration set, generates updated diagnostics,
 /// and then publishes these diagnostics to the LSP client.
 pub async fn publish_diagnostics_for_set(
-    client: &Client,
+    backend: &Backend,
     diagnostics: Vec<Diagnostic>,
     configuration_set: &mut ConfigurationSet,
 ) {
@@ -28,24 +29,33 @@ pub async fn publish_diagnostics_for_set(
         .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
         .collect::<HashMap<Url, Vec<tower_lsp::lsp_types::Diagnostic>>>();
 
-    // Process the diagnostics and populate the map
-    process_diagnostics(diagnostics, &mut map);
+    // Process the diagnostics and populate the map. Any diagnostics that do not have a span are returned for further processing.
+    let spanless_diagnostics = process_diagnostics(diagnostics, &mut map);
+    for diagnostic in spanless_diagnostics.iter() {
+        backend
+            .show_popup(&diagnostic.message(), notifications::MessageType::Error)
+            .await;
+    }
 
     // Publish the diagnostics for each file
     for (uri, lsp_diagnostics) in map {
-        client.publish_diagnostics(uri, lsp_diagnostics, None).await;
+        backend
+            .client
+            .publish_diagnostics(uri, lsp_diagnostics, None)
+            .await;
     }
 }
 
 /// Triggers and compilation and publishes any diagnostics that are reported.
 /// It does this for all configuration sets.
 pub async fn compile_and_publish_diagnostics(
-    client: &Client,
+    backend: &Backend,
     configuration_sets: &Mutex<Vec<ConfigurationSet>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
-    client
+    backend
+        .client
         .log_message(
             MessageType::INFO,
             "Publishing diagnostics for all configuration sets.",
@@ -55,7 +65,7 @@ pub async fn compile_and_publish_diagnostics(
         // Trigger a compilation and get any diagnostics that were reported during it.
         let diagnostics = configuration_set.trigger_compilation();
         // Publish those diagnostics.
-        publish_diagnostics_for_set(client, diagnostics, configuration_set).await;
+        publish_diagnostics_for_set(backend, diagnostics, configuration_set).await;
     }
 }
 
@@ -63,20 +73,30 @@ pub async fn compile_and_publish_diagnostics(
 ///
 /// This function filters out any diagnostics that do not have a span or cannot be converted
 /// to an LSP diagnostic. It then updates the given publish map with the processed diagnostics.
+/// Any diagnostics that do not have a span are returned for further processing.
 pub fn process_diagnostics(
     diagnostics: Vec<slicec::diagnostics::Diagnostic>,
     publish_map: &mut HashMap<Url, Vec<tower_lsp::lsp_types::Diagnostic>>,
-) {
+) -> Vec<slicec::diagnostics::Diagnostic> {
+    let mut spanless_diagnostics = Vec::new();
     diagnostics
         .into_iter()
         .filter_map(|diagnostic| {
+            // The empty span case is handled by the `try_into_lsp_diagnostic` function.
             let span = diagnostic.span()?;
             let uri = convert_slice_url_to_uri(&span.file)?;
-            try_into_lsp_diagnostic(&diagnostic).map(|lsp_diagnostic| (uri, lsp_diagnostic))
+            match try_into_lsp_diagnostic(diagnostic).map(|lsp_diagnostic| (uri, lsp_diagnostic)) {
+                Ok(d) => Some(d),
+                Err(diagnostic) => {
+                    spanless_diagnostics.push(diagnostic);
+                    None
+                }
+            }
         })
         .for_each(|(uri, lsp_diagnostic)| {
             publish_map.entry(uri).or_default().push(lsp_diagnostic);
         });
+    spanless_diagnostics
 }
 
 /// Clears the diagnostics for all tracked files in the configuration sets.
@@ -105,16 +125,17 @@ pub async fn clear_diagnostics(client: &Client, configuration_sets: &Mutex<Vec<C
 }
 
 // A helper function that converts a slicec diagnostic into an lsp diagnostics
+#[allow(clippy::result_large_err)]
 pub fn try_into_lsp_diagnostic(
-    diagnostic: &Diagnostic,
-) -> Option<tower_lsp::lsp_types::Diagnostic> {
+    diagnostic: Diagnostic,
+) -> Result<tower_lsp::lsp_types::Diagnostic, slicec::diagnostics::Diagnostic> {
     let severity = match diagnostic.level() {
         DiagnosticLevel::Error => Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
         DiagnosticLevel::Warning => Some(tower_lsp::lsp_types::DiagnosticSeverity::WARNING),
         DiagnosticLevel::Allowed => None,
     };
 
-    // Map the spans to ranges, if span is none, return none
+    // Map the spans to ranges, if span is none, return the slicec diagnostic
     let range = match diagnostic.span() {
         Some(span) => {
             let start = tower_lsp::lsp_types::Position::new(
@@ -127,7 +148,7 @@ pub fn try_into_lsp_diagnostic(
             );
             Range::new(start, end)
         }
-        None => return None,
+        None => return Err(diagnostic),
     };
 
     let message = diagnostic.message();
@@ -139,7 +160,7 @@ pub fn try_into_lsp_diagnostic(
             .collect(),
     );
 
-    Some(tower_lsp::lsp_types::Diagnostic {
+    Ok(tower_lsp::lsp_types::Diagnostic {
         range,
         severity,
         code: Some(NumberOrString::String(diagnostic.code().to_owned())),

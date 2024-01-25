@@ -71,7 +71,7 @@ impl Backend {
         }
     }
 
-    async fn show_message(&self, message: &str, message_type: notifications::MessageType) {
+    pub async fn show_popup(&self, message: &str, message_type: notifications::MessageType) {
         self.client
             .send_notification::<ShowNotification>(ShowNotificationParams {
                 message: message.to_string(),
@@ -98,7 +98,7 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
-        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        compile_and_publish_diagnostics(self, &self.session.configuration_sets).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -118,7 +118,7 @@ impl LanguageServer for Backend {
         self.session.update_configurations_from_params(params).await;
 
         // Trigger a compilation and publish the diagnostics for all files
-        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        compile_and_publish_diagnostics(self, &self.session.configuration_sets).await;
     }
 
     async fn goto_definition(
@@ -230,8 +230,12 @@ impl Backend {
         diagnostics.dedup_by(|d1, d2| d1.span() == d2.span() && d1.message() == d2.message());
 
         // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
-        // Process diagnostics and update publish_map
-        process_diagnostics(diagnostics, &mut publish_map);
+        // Process diagnostics and update publish_map. Any diagnostics that do not have a span are returned for further processing.
+        let spanless_diagnostics = process_diagnostics(diagnostics, &mut publish_map);
+        for diagnostic in spanless_diagnostics.iter() {
+            self.show_popup(&diagnostic.message(), notifications::MessageType::Error)
+                .await;
+        }
 
         // Publish the diagnostics for each file
         self.client
