@@ -3,6 +3,7 @@
 use diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
 use hover::try_into_hover_result;
 use jump_definition::get_definition_span;
+use notifications::{ShowNotification, ShowNotificationParams};
 use std::{collections::HashMap, path::Path};
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
@@ -13,6 +14,7 @@ mod configuration_set;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
+mod notifications;
 mod session;
 mod slice_config;
 mod utils;
@@ -67,6 +69,15 @@ impl Backend {
             hover_provider,
             ..Default::default()
         }
+    }
+
+    async fn show_message(&self, message: &str, message_type: notifications::MessageType) {
+        self.client
+            .send_notification::<ShowNotification>(ShowNotificationParams {
+                message: message.to_string(),
+                message_type,
+            })
+            .await;
     }
 }
 

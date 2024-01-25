@@ -69,10 +69,10 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
       // Handle the enabling/disabling of the language server
       if (event.affectsConfiguration("slice.languageServer.enabled")) {
         if (enableLanguageServer && !client) {
-          traceOutputChannel.appendLine("Enabling language server...");
+          logMessage("Enabling language server...");
           await restartLanguageServer(context);
         } else if (!enableLanguageServer && client) {
-          traceOutputChannel.appendLine("Disabling language server...");
+          logMessage("Disabling language server...");
           await client.stop();
           client = undefined;
         }
@@ -86,7 +86,7 @@ const handleConfigurationChanges = (context: ExtensionContext) => {
  * @param {ExtensionContext} context - The extension context.
  */
 export async function activate(context: ExtensionContext) {
-  traceOutputChannel.appendLine("Activating extension...");
+  logMessage("Activating extension...");
 
   handleConfigurationChanges(context);
 
@@ -94,7 +94,7 @@ export async function activate(context: ExtensionContext) {
   const config = workspace.getConfiguration("slice");
   const enableLanguageServer = config.get<boolean>("languageServer.enabled");
   if (!enableLanguageServer) {
-    traceOutputChannel.appendLine("Language server initially disabled.");
+    logMessage("Language server initially disabled.");
     return;
   }
 
@@ -121,12 +121,12 @@ export async function activate(context: ExtensionContext) {
         case "win32": // Windows
           let commands = [
             `${serverPath}x86_64-pc-windows-msvc/release/slice-language-server.exe`,
-            `${serverPath}x86_64-pc-windows-gnu/release/slice-language-server.exe`
-          ]
+            `${serverPath}x86_64-pc-windows-gnu/release/slice-language-server.exe`,
+          ];
 
-          command = commands.find(command => {
-            return existsSync(command)
-          })
+          command = commands.find((command) => {
+            return existsSync(command);
+          });
 
           break;
         case "linux": // Linux
@@ -170,13 +170,36 @@ export async function activate(context: ExtensionContext) {
 
     // Create and start the language client.
     client = createClient(serverOptions, clientOptions);
-    traceOutputChannel.appendLine("Language client created");
+    logMessage("Language client created");
 
     // Start the client.
     await client.start();
-    traceOutputChannel.appendLine("Client started");
+    logMessage("Client started");
+
+    // After the client is started, register the notification handler
+    client.onNotification(
+      "custom/showNotification",
+      (params: ShowNotificationParams) => {
+        switch (params.message_type) {
+          case "Error":
+            window.showErrorMessage(params.message);
+            break;
+          case "Warning":
+            window.showWarningMessage(params.message);
+            break;
+          case "Info":
+            window.showInformationMessage(params.message);
+            break;
+          default:
+            logMessage(
+              `Unknown notification type: ${params.message_type}`,
+              "Error"
+            );
+        }
+      }
+    );
   } catch (error) {
-    traceOutputChannel.appendLine(`Failed to start client: ${error}`);
+    logMessage(`Failed to start client: ${error}`, "Error");
     window.showErrorMessage(
       "Slice Language Server failed to start. See the trace for more information."
     );
@@ -191,4 +214,18 @@ export async function deactivate(): Promise<void> {
   if (client) {
     await client.stop();
   }
+}
+
+function logMessage(
+  message: string,
+  type: "Info" | "Error" | "Warning" = "Info"
+) {
+  const timestamp = new Date().toLocaleTimeString();
+  const formattedMessage = `[${type}  - ${timestamp}] ${message}`;
+  traceOutputChannel.appendLine(formattedMessage);
+}
+
+interface ShowNotificationParams {
+  message: string;
+  message_type: "Error" | "Warning" | "Info";
 }
