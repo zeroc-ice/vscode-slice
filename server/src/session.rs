@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::configuration_set::ConfigurationSet;
+use crate::{configuration_set::ConfigurationSet, utils::sanitize_slice_path};
 use std::path::PathBuf;
 use tokio::sync::{Mutex, RwLock};
 use tower_lsp::lsp_types::{DidChangeConfigurationParams, Url};
@@ -34,11 +34,13 @@ impl Session {
 
         // This is the path to the built-in Slice files that are included with the extension. It should always
         // be present.
-        let built_in_slice_path = initialization_options
+        let mut built_in_slice_path = initialization_options
             .as_ref()
             .and_then(|opts| opts.get("builtInSlicePath"))
             .and_then(|v| v.as_str().map(str::to_owned))
             .expect("builtInSlicePath not found in initialization options");
+
+        sanitize_slice_path(&mut built_in_slice_path);
 
         // Use the root_uri if it exists temporarily as we cannot access configuration until
         // after initialization. Additionally, LSP may provide the windows path with escaping or a lowercase
