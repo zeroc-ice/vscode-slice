@@ -71,13 +71,64 @@ impl Backend {
         }
     }
 
-    pub async fn show_popup(&self, message: String, message_type: notifications::MessageType) {
+    async fn handle_file_change(&self, file_name: &str) {
         self.client
-            .send_notification::<ShowNotification>(ShowNotificationParams {
-                message,
-                message_type,
-            })
+            .log_message(MessageType::INFO, format!("File '{file_name}' changed"))
             .await;
+
+        let mut configuration_sets = self.session.configuration_sets.lock().await;
+        let mut publish_map = HashMap::new();
+        let mut diagnostics = Vec::new();
+
+        // Process each configuration set that contains the changed file
+        for set in configuration_sets.iter_mut().filter(|set| {
+            set.slice_config.resolve_paths().into_iter().any(|f| {
+                let key_path = Path::new(&f);
+                let file_path = Path::new(file_name);
+                key_path == file_path || file_path.starts_with(key_path)
+            })
+        }) {
+            // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
+            diagnostics.extend(set.trigger_compilation());
+
+            // Update publish_map with files to be updated
+            publish_map.extend(
+                set.compilation_data
+                    .files
+                    .keys()
+                    .filter_map(|uri| convert_slice_url_to_uri(uri))
+                    .map(|uri| (uri, vec![])),
+            );
+        }
+
+        // If there are multiple diagnostics for the same span, that have the same message, deduplicate them
+        diagnostics.dedup_by(|d1, d2| d1.span() == d2.span() && d1.message() == d2.message());
+
+        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
+        // Process diagnostics and update publish_map. Any diagnostics that do not have a span are returned for further processing.
+        let spanless_diagnostics = process_diagnostics(diagnostics, &mut publish_map);
+        for diagnostic in spanless_diagnostics {
+            show_popup(
+                &self.client,
+                diagnostic.message(),
+                notifications::MessageType::Error,
+            )
+            .await;
+        }
+
+        // Publish the diagnostics for each file
+        self.client
+            .log_message(
+                MessageType::INFO,
+                "Publishing diagnostics for all configuration sets.",
+            )
+            .await;
+
+        for (uri, lsp_diagnostics) in publish_map {
+            self.client
+                .publish_diagnostics(uri, lsp_diagnostics, None)
+                .await;
+        }
     }
 }
 
@@ -98,7 +149,7 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
-        compile_and_publish_diagnostics(self, &self.session.configuration_sets).await;
+        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -118,7 +169,7 @@ impl LanguageServer for Backend {
         self.session.update_configurations_from_params(params).await;
 
         // Trigger a compilation and publish the diagnostics for all files
-        compile_and_publish_diagnostics(self, &self.session.configuration_sets).await;
+        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
 
     async fn goto_definition(
@@ -195,60 +246,15 @@ impl LanguageServer for Backend {
     }
 }
 
-impl Backend {
-    async fn handle_file_change(&self, file_name: &str) {
-        self.client
-            .log_message(MessageType::INFO, format!("File '{file_name}' changed"))
-            .await;
-
-        let mut configuration_sets = self.session.configuration_sets.lock().await;
-        let mut publish_map = HashMap::new();
-        let mut diagnostics = Vec::new();
-
-        // Process each configuration set that contains the changed file
-        for set in configuration_sets.iter_mut().filter(|set| {
-            set.slice_config.resolve_paths().into_iter().any(|f| {
-                let key_path = Path::new(&f);
-                let file_path = Path::new(file_name);
-                key_path == file_path || file_path.starts_with(key_path)
-            })
-        }) {
-            // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
-            diagnostics.extend(set.trigger_compilation());
-
-            // Update publish_map with files to be updated
-            publish_map.extend(
-                set.compilation_data
-                    .files
-                    .keys()
-                    .filter_map(|uri| convert_slice_url_to_uri(uri))
-                    .map(|uri| (uri, vec![])),
-            );
-        }
-
-        // If there are multiple diagnostics for the same span, that have the same message, deduplicate them
-        diagnostics.dedup_by(|d1, d2| d1.span() == d2.span() && d1.message() == d2.message());
-
-        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
-        // Process diagnostics and update publish_map. Any diagnostics that do not have a span are returned for further processing.
-        let spanless_diagnostics = process_diagnostics(diagnostics, &mut publish_map);
-        for diagnostic in spanless_diagnostics.iter() {
-            self.show_popup(diagnostic.message(), notifications::MessageType::Error)
-                .await;
-        }
-
-        // Publish the diagnostics for each file
-        self.client
-            .log_message(
-                MessageType::INFO,
-                "Publishing diagnostics for all configuration sets.",
-            )
-            .await;
-
-        for (uri, lsp_diagnostics) in publish_map {
-            self.client
-                .publish_diagnostics(uri, lsp_diagnostics, None)
-                .await;
-        }
-    }
+pub async fn show_popup(
+    client: &Client,
+    message: String,
+    message_type: notifications::MessageType,
+) {
+    client
+        .send_notification::<ShowNotification>(ShowNotificationParams {
+            message,
+            message_type,
+        })
+        .await;
 }

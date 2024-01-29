@@ -2,7 +2,7 @@
 
 use crate::configuration_set::ConfigurationSet;
 use crate::utils::convert_slice_url_to_uri;
-use crate::{notifications, Backend};
+use crate::{notifications, show_popup};
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
@@ -17,7 +17,7 @@ use tower_lsp::Client;
 /// This function takes a client and a configuration set, generates updated diagnostics,
 /// and then publishes these diagnostics to the LSP client.
 pub async fn publish_diagnostics_for_set(
-    backend: &Backend,
+    client: &Client,
     diagnostics: Vec<Diagnostic>,
     configuration_set: &mut ConfigurationSet,
 ) {
@@ -32,30 +32,29 @@ pub async fn publish_diagnostics_for_set(
     // Process the diagnostics and populate the map.
     let spanless_diagnostics = process_diagnostics(diagnostics, &mut map);
     for diagnostic in spanless_diagnostics {
-        backend
-            .show_popup(diagnostic.message(), notifications::MessageType::Error)
-            .await;
+        show_popup(
+            client,
+            diagnostic.message(),
+            notifications::MessageType::Error,
+        )
+        .await;
     }
 
     // Publish the diagnostics for each file
     for (uri, lsp_diagnostics) in map {
-        backend
-            .client
-            .publish_diagnostics(uri, lsp_diagnostics, None)
-            .await;
+        client.publish_diagnostics(uri, lsp_diagnostics, None).await;
     }
 }
 
 /// Triggers and compilation and publishes any diagnostics that are reported.
 /// It does this for all configuration sets.
 pub async fn compile_and_publish_diagnostics(
-    backend: &Backend,
+    client: &Client,
     configuration_sets: &Mutex<Vec<ConfigurationSet>>,
 ) {
     let mut configuration_sets = configuration_sets.lock().await;
 
-    backend
-        .client
+    client
         .log_message(
             MessageType::INFO,
             "Publishing diagnostics for all configuration sets.",
@@ -65,7 +64,7 @@ pub async fn compile_and_publish_diagnostics(
         // Trigger a compilation and get any diagnostics that were reported during it.
         let diagnostics = configuration_set.trigger_compilation();
         // Publish those diagnostics.
-        publish_diagnostics_for_set(backend, diagnostics, configuration_set).await;
+        publish_diagnostics_for_set(client, diagnostics, configuration_set).await;
     }
 }
 
