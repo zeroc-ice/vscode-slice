@@ -71,10 +71,10 @@ impl Backend {
         }
     }
 
-    pub async fn show_popup(&self, message: &str, message_type: notifications::MessageType) {
+    pub async fn show_popup(&self, message: String, message_type: notifications::MessageType) {
         self.client
             .send_notification::<ShowNotification>(ShowNotificationParams {
-                message: message.to_string(),
+                message,
                 message_type,
             })
             .await;
@@ -233,7 +233,7 @@ impl Backend {
         // Process diagnostics and update publish_map. Any diagnostics that do not have a span are returned for further processing.
         let spanless_diagnostics = process_diagnostics(diagnostics, &mut publish_map);
         for diagnostic in spanless_diagnostics.iter() {
-            self.show_popup(&diagnostic.message(), notifications::MessageType::Error)
+            self.show_popup(diagnostic.message(), notifications::MessageType::Error)
                 .await;
         }
 

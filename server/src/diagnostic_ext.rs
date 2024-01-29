@@ -29,11 +29,11 @@ pub async fn publish_diagnostics_for_set(
         .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
         .collect::<HashMap<Url, Vec<tower_lsp::lsp_types::Diagnostic>>>();
 
-    // Process the diagnostics and populate the map. Any diagnostics that do not have a span are returned for further processing.
+    // Process the diagnostics and populate the map.
     let spanless_diagnostics = process_diagnostics(diagnostics, &mut map);
-    for diagnostic in spanless_diagnostics.iter() {
+    for diagnostic in spanless_diagnostics {
         backend
-            .show_popup(&diagnostic.message(), notifications::MessageType::Error)
+            .show_popup(diagnostic.message(), notifications::MessageType::Error)
             .await;
     }
 
@@ -82,11 +82,16 @@ pub fn process_diagnostics(
     diagnostics
         .into_iter()
         .filter_map(|diagnostic| {
-            // The empty span case is handled by the `try_into_lsp_diagnostic` function.
-            let span = diagnostic.span()?;
-            let uri = convert_slice_url_to_uri(&span.file)?;
-            match try_into_lsp_diagnostic(diagnostic).map(|lsp_diagnostic| (uri, lsp_diagnostic)) {
-                Ok(d) => Some(d),
+            let span = diagnostic.span().cloned();
+            match try_into_lsp_diagnostic(diagnostic) {
+                Ok(lsp_diagnostic) => {
+                    // The empty span case is handled by the `try_into_lsp_diagnostic` function.
+                    let file = span
+                        .expect("If the span was empty, try_into_lsp_diagnostic should have hit the error case")
+                        .file;
+                    let uri = convert_slice_url_to_uri(&file)?;
+                    Some((uri, lsp_diagnostic))
+                }
                 Err(diagnostic) => {
                     spanless_diagnostics.push(diagnostic);
                     None
