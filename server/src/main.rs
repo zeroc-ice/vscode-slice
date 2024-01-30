@@ -189,7 +189,7 @@ impl LanguageServer for Backend {
         // Get the definition span and convert it to a GotoDefinitionResponse
         compilation_data
             .and_then(|data| {
-                let file = data.files.get(&file_path).expect("bad file in goto request");
+                let file = data.files.get(&file_path).expect("mismatch in file name occurred during goto request");
                 get_definition_span(file, position)
             })
             .and_then(|location| {
@@ -225,7 +225,7 @@ impl LanguageServer for Backend {
             .iter()
             .find_file(&file_path)
             .and_then(|data| {
-                let file = data.files.get(&file_path).expect("file missing for hover request");
+                let file = data.files.get(&file_path).expect("mismatch in file name occurred during hover request");
                 try_into_hover_result(file, position).ok()
             }))
     }
