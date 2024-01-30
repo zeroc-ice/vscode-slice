@@ -7,8 +7,10 @@ use slicec::{
 };
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkedString, Position};
 
-pub fn try_into_hover_result(file: &SliceFile, position: Position) -> tower_lsp::jsonrpc::Result<Hover> {
-
+pub fn try_into_hover_result(
+    file: &SliceFile,
+    position: Position,
+) -> tower_lsp::jsonrpc::Result<Hover> {
     // Convert position to row and column 1 based
     let col = (position.character + 1) as usize;
     let row = (position.line + 1) as usize;

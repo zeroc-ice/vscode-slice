@@ -139,7 +139,6 @@ impl LanguageServer for Backend {
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
         self.session.update_from_initialize_params(params).await;
-
         let capabilities = Backend::capabilities();
 
         Ok(InitializeResult {
@@ -149,16 +148,6 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        self.client.log_message(MessageType::INFO, "step 1").await;
-        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.built_in_slice_path.read().await)).await;
-        self.client.log_message(MessageType::INFO, "step 2").await;
-        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.root_path.read().await)).await;
-        self.client.log_message(MessageType::INFO, "step 3").await;
-        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.configuration_sets.lock().await[0].slice_config)).await;
-        self.client.log_message(MessageType::INFO, "step 4").await;
-        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.configuration_sets.lock().await[0].compilation_data.files.keys())).await;
-        self.client.log_message(MessageType::INFO, "step 5").await;
-
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
         compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
@@ -200,7 +189,7 @@ impl LanguageServer for Backend {
         // Get the definition span and convert it to a GotoDefinitionResponse
         compilation_data
             .and_then(|data| {
-                let file = data.files.get(&file_path).expect("file missing for goto request");
+                let file = data.files.get(&file_path).expect("bad file in goto request");
                 get_definition_span(file, position)
             })
             .and_then(|location| {
@@ -228,55 +217,17 @@ impl LanguageServer for Backend {
 
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
-        self.client.log_message(MessageType::INFO, format!("{uri:?}")).await;
-        self.client.log_message(MessageType::INFO, format!("{file_path:?}")).await;
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.session.configuration_sets.lock().await;
 
-        self.client.log_message(MessageType::INFO, format!("{}", configuration_sets.len())).await;
-
-        if let Some(data) = configuration_sets.iter().find_file(&file_path) {
-            self.client.log_message(MessageType::INFO, "step 1").await;
-            self.client.log_message(MessageType::INFO, format!("{:?}", self.session.built_in_slice_path.read().await)).await;
-            self.client.log_message(MessageType::INFO, "step 2").await;
-            self.client.log_message(MessageType::INFO, format!("{:?}", self.session.root_path.read().await)).await;
-            self.client.log_message(MessageType::INFO, "step 3").await;
-            self.client.log_message(MessageType::INFO, format!("{:?}", data.files.keys())).await;
-            self.client.log_message(MessageType::INFO, "step 4").await;
-
-            let the_set = configuration_sets.iter().find(|set| {
-                set.compilation_data.files.keys().any(|f| {
-                    let key_path = Path::new(f);
-                    let file_path = Path::new(&file_path);
-                    key_path == file_path || file_path.starts_with(key_path)
-                })
-            });
-
-            self.client.log_message(MessageType::INFO, format!("{:?}", the_set.unwrap().slice_config)).await;
-            self.client.log_message(MessageType::INFO, "step 5").await;
-
-            let thing = data.files.get(&file_path).map(|f| f.filename.clone());
-            self.client.log_message(MessageType::INFO, format!("{thing:?}")).await;
-            self.client.log_message(MessageType::INFO, "DONE").await;
-
-            if let Some(file) = data.files.get(&file_path) {
-                Ok(try_into_hover_result(file, position).ok())
-            } else {
-                Ok(None)
-            }
-        } else {
-            panic!()
-        }
-
-
-        //Ok(configuration_sets
-        //    .iter()
-        //    .find_file(&file_path)
-        //    .and_then(|data| {
-        //        let file = data.files.get(&file_path).expect("file missing for hover request");
-        //        try_into_hover_result(file, position).ok()
-        //    }))
+        Ok(configuration_sets
+            .iter()
+            .find_file(&file_path)
+            .and_then(|data| {
+                let file = data.files.get(&file_path).expect("file missing for hover request");
+                try_into_hover_result(file, position).ok()
+            }))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
