@@ -1046,7 +1046,7 @@
             ]
         },
         "type-keywords": {
-            "match": "(?<!\\\\)\\b(?:(bool)|(int8)|(uint8)|(int16)|(uint16)|(int32)|(uint32)|(varint32)|(varuint32)|(int64)|(uint64)|(varint62)|(varuint62)|(float32)|(float64)|(string)|(AnyClass)|(Sequence)|(Dictionary))\\b",
+            "match": "(?<!\\\\)\\b(?:(bool)|(int8)|(uint8)|(int16)|(uint16)|(int32)|(uint32)|(varint32)|(varuint32)|(int64)|(uint64)|(varint62)|(varuint62)|(float32)|(float64)|(string)|(AnyClass)|(Sequence)|(Dictionary)|(Result))\\b",
             "captures": {
                 "1": {"name": "storage.type.bool.slice"},
                 "2": {"name": "storage.type.int8.slice"},
@@ -1066,7 +1066,8 @@
                 "16": {"name": "storage.type.string.slice"},
                 "17": {"name": "storage.type.AnyClass.slice"},
                 "18": {"name": "storage.type.sequence.slice"},
-                "19": {"name": "storage.type.dictionary.slice"}
+                "19": {"name": "storage.type.dictionary.slice"},
+                "20": {"name": "storage.type.result.slice"}
             }
         },
         "modifier-keywords": {
@@ -1085,7 +1086,7 @@
         },
         "reserved-identifiers": {
             "name": "invalid.illegal.identifier.slice",
-            "match": "(?<!\\\\)\\b(?:module|struct|exception|class|interface|enum|custom|typealias|Sequence|Dictionary|bool|int8|uint8|int16|uint16|int32|uint32|varint32|varuint32|int64|uint64|varint62|varuint62|float32|float64|string|AnyClass|compact|idempotent|mode|stream|tag|throws|unchecked)\\b"
+            "match": "(?<!\\\\)\\b(?:module|struct|exception|class|interface|enum|custom|typealias|Sequence|Dictionary|Result|bool|int8|uint8|int16|uint16|int32|uint32|varint32|varuint32|int64|uint64|varint62|varuint62|float32|float64|string|AnyClass|compact|idempotent|mode|stream|tag|throws|unchecked)\\b"
         },
         "tag": {
             "begin": "\\b(tag)\\s*(?=\\()",
