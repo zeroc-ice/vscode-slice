@@ -1,9 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::configuration_set::ConfigurationSet;
+use crate::{
+    configuration_set::ConfigurationSet,
+    utils::{sanitize_path, url_to_sanitized_file_path},
+};
 use std::path::PathBuf;
 use tokio::sync::{Mutex, RwLock};
-use tower_lsp::lsp_types::{DidChangeConfigurationParams, Url};
+use tower_lsp::lsp_types::DidChangeConfigurationParams;
 
 pub struct Session {
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
@@ -37,7 +40,8 @@ impl Session {
         let built_in_slice_path = initialization_options
             .as_ref()
             .and_then(|opts| opts.get("builtInSlicePath"))
-            .and_then(|v| v.as_str().map(str::to_owned))
+            .and_then(|value| value.as_str())
+            .map(sanitize_path)
             .expect("builtInSlicePath not found in initialization options");
 
         // Use the root_uri if it exists temporarily as we cannot access configuration until
@@ -45,9 +49,8 @@ impl Session {
         // drive letter. To fix this, we convert the path to a URL and then back to a path.
         let root_path = params
             .root_uri
-            .and_then(|uri| uri.to_file_path().ok())
-            .and_then(|path| Url::from_file_path(path).ok())
-            .and_then(|uri| uri.to_file_path().ok())
+            .and_then(|uri| url_to_sanitized_file_path(&uri))
+            .map(PathBuf::from)
             .expect("`root_uri` was not sent by the client, or was malformed");
 
         // Load any user configuration from the 'slice.configurations' option.

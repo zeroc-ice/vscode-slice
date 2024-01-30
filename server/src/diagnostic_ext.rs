@@ -182,7 +182,7 @@ fn try_into_lsp_diagnostic_related_information(
     note: &Note,
 ) -> Option<tower_lsp::lsp_types::DiagnosticRelatedInformation> {
     let span = note.span.as_ref()?;
-    let file_path = Url::from_file_path(span.file.clone()).ok()?;
+    let file_path = convert_slice_url_to_uri(&span.file)?;
     let start_position = Position::new((span.start.row - 1) as u32, (span.start.col - 1) as u32);
     let end_position = Position::new((span.end.row - 1) as u32, (span.end.col - 1) as u32);
 

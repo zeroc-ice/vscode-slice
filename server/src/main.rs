@@ -6,7 +6,7 @@ use jump_definition::get_definition_span;
 use notifications::{ShowNotification, ShowNotificationParams};
 use std::{collections::HashMap, path::Path};
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
-use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
+use utils::{convert_slice_url_to_uri, url_to_sanitized_file_path, FindFile};
 
 use crate::session::Session;
 
@@ -180,19 +180,18 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
 
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
-        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
-        let url = uri
-            .to_file_path()
-            .and_then(Url::from_file_path)
-            .map_err(|_| Error::internal_error())?;
+        let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file
         let configuration_sets = self.session.configuration_sets.lock().await;
-        let compilation_data = configuration_sets.iter().find_file(&file_name);
+        let compilation_data = configuration_sets.iter().find_file(&file_path);
 
         // Get the definition span and convert it to a GotoDefinitionResponse
         compilation_data
-            .and_then(|data| get_definition_span(data, url, position))
+            .and_then(|data| {
+                let file = data.files.get(&file_path).expect("mismatch in file name occurred during goto request");
+                get_definition_span(file, position)
+            })
             .and_then(|location| {
                 let start = Position {
                     line: (location.start.row - 1) as u32,
@@ -202,7 +201,7 @@ impl LanguageServer for Backend {
                     line: (location.end.row - 1) as u32,
                     character: (location.end.col - 1) as u32,
                 };
-                Url::from_file_path(location.file).ok().map(|uri| {
+                convert_slice_url_to_uri(&location.file).map(|uri| {
                     GotoDefinitionResponse::Scalar(Location {
                         uri,
                         range: Range::new(start, end),
@@ -217,31 +216,29 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
 
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
-        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
-        let url = uri
-            .to_file_path()
-            .and_then(Url::from_file_path)
-            .map_err(|_| Error::internal_error())?;
+        let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.session.configuration_sets.lock().await;
+
         Ok(configuration_sets
             .iter()
-            .find_file(&file_name)
-            .and_then(|compilation_data| {
-                try_into_hover_result(compilation_data, url, position).ok()
+            .find_file(&file_path)
+            .and_then(|data| {
+                let file = data.files.get(&file_path).expect("mismatch in file name occurred during hover request");
+                try_into_hover_result(file, position).ok()
             }))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
-            self.handle_file_change(&file_name).await;
+        if let Some(file_path) = url_to_sanitized_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_path).await;
         }
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
-            self.handle_file_change(&file_name).await;
+        if let Some(file_path) = url_to_sanitized_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_path).await;
         }
     }
 }
