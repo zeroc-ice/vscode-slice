@@ -6,7 +6,7 @@ use jump_definition::get_definition_span;
 use notifications::{ShowNotification, ShowNotificationParams};
 use std::{collections::HashMap, path::Path};
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
-use utils::{convert_slice_url_to_uri, url_to_file_path, FindFile};
+use utils::{convert_slice_url_to_uri, url_to_sanitized_file_path, FindFile};
 
 use crate::session::Session;
 
@@ -139,6 +139,7 @@ impl LanguageServer for Backend {
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
         self.session.update_from_initialize_params(params).await;
+
         let capabilities = Backend::capabilities();
 
         Ok(InitializeResult {
@@ -148,6 +149,16 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        self.client.log_message(MessageType::INFO, "step 1").await;
+        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.built_in_slice_path.read().await)).await;
+        self.client.log_message(MessageType::INFO, "step 2").await;
+        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.root_path.read().await)).await;
+        self.client.log_message(MessageType::INFO, "step 3").await;
+        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.configuration_sets.lock().await[0].slice_config)).await;
+        self.client.log_message(MessageType::INFO, "step 4").await;
+        self.client.log_message(MessageType::INFO, format!("{:?}", self.session.configuration_sets.lock().await[0].compilation_data.files.keys())).await;
+        self.client.log_message(MessageType::INFO, "step 5").await;
+
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
         compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
     }
@@ -180,19 +191,18 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
 
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
-        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
-        let url = uri
-            .to_file_path()
-            .and_then(Url::from_file_path)
-            .map_err(|_| Error::internal_error())?;
+        let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file
         let configuration_sets = self.session.configuration_sets.lock().await;
-        let compilation_data = configuration_sets.iter().find_file(&file_name);
+        let compilation_data = configuration_sets.iter().find_file(&file_path);
 
         // Get the definition span and convert it to a GotoDefinitionResponse
         compilation_data
-            .and_then(|data| get_definition_span(data, url, position))
+            .and_then(|data| {
+                let file = data.files.get(&file_path).expect("file missing for goto request");
+                get_definition_span(file, position)
+            })
             .and_then(|location| {
                 let start = Position {
                     line: (location.start.row - 1) as u32,
@@ -202,7 +212,7 @@ impl LanguageServer for Backend {
                     line: (location.end.row - 1) as u32,
                     character: (location.end.col - 1) as u32,
                 };
-                Url::from_file_path(location.file).ok().map(|uri| {
+                convert_slice_url_to_uri(&location.file).map(|uri| {
                     GotoDefinitionResponse::Scalar(Location {
                         uri,
                         range: Range::new(start, end),
@@ -217,31 +227,67 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
 
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
-        let file_name = url_to_file_path(&uri).ok_or_else(Error::internal_error)?;
-        let url = uri
-            .to_file_path()
-            .and_then(Url::from_file_path)
-            .map_err(|_| Error::internal_error())?;
+        let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
+        self.client.log_message(MessageType::INFO, format!("{uri:?}")).await;
+        self.client.log_message(MessageType::INFO, format!("{file_path:?}")).await;
 
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.session.configuration_sets.lock().await;
-        Ok(configuration_sets
-            .iter()
-            .find_file(&file_name)
-            .and_then(|compilation_data| {
-                try_into_hover_result(compilation_data, url, position).ok()
-            }))
+
+        self.client.log_message(MessageType::INFO, format!("{}", configuration_sets.len())).await;
+
+        if let Some(data) = configuration_sets.iter().find_file(&file_path) {
+            self.client.log_message(MessageType::INFO, "step 1").await;
+            self.client.log_message(MessageType::INFO, format!("{:?}", self.session.built_in_slice_path.read().await)).await;
+            self.client.log_message(MessageType::INFO, "step 2").await;
+            self.client.log_message(MessageType::INFO, format!("{:?}", self.session.root_path.read().await)).await;
+            self.client.log_message(MessageType::INFO, "step 3").await;
+            self.client.log_message(MessageType::INFO, format!("{:?}", data.files.keys())).await;
+            self.client.log_message(MessageType::INFO, "step 4").await;
+
+            let the_set = configuration_sets.iter().find(|set| {
+                set.compilation_data.files.keys().any(|f| {
+                    let key_path = Path::new(f);
+                    let file_path = Path::new(&file_path);
+                    key_path == file_path || file_path.starts_with(key_path)
+                })
+            });
+
+            self.client.log_message(MessageType::INFO, format!("{:?}", the_set.unwrap().slice_config)).await;
+            self.client.log_message(MessageType::INFO, "step 5").await;
+
+            let thing = data.files.get(&file_path).map(|f| f.filename.clone());
+            self.client.log_message(MessageType::INFO, format!("{thing:?}")).await;
+            self.client.log_message(MessageType::INFO, "DONE").await;
+
+            if let Some(file) = data.files.get(&file_path) {
+                Ok(try_into_hover_result(file, position).ok())
+            } else {
+                Ok(None)
+            }
+        } else {
+            panic!()
+        }
+
+
+        //Ok(configuration_sets
+        //    .iter()
+        //    .find_file(&file_path)
+        //    .and_then(|data| {
+        //        let file = data.files.get(&file_path).expect("file missing for hover request");
+        //        try_into_hover_result(file, position).ok()
+        //    }))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
-            self.handle_file_change(&file_name).await;
+        if let Some(file_path) = url_to_sanitized_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_path).await;
         }
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        if let Some(file_name) = url_to_file_path(&params.text_document.uri) {
-            self.handle_file_change(&file_name).await;
+        if let Some(file_path) = url_to_sanitized_file_path(&params.text_document.uri) {
+            self.handle_file_change(&file_path).await;
         }
     }
 }

@@ -1,11 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::slice_config;
+use crate::utils::sanitize_path;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use slice_config::SliceConfig;
-use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 use slicec::compilation_state::CompilationState;
+use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 
 #[derive(Debug)]
 pub struct CompilationData {
@@ -100,7 +101,7 @@ fn parse_paths(value: &serde_json::Value) -> Vec<String> {
             dirs_array
                 .iter()
                 .filter_map(|v| v.as_str())
-                .map(String::from)
+                .map(sanitize_path)
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
