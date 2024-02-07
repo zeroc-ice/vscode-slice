@@ -1,35 +1,16 @@
 // Copyright (c) ZeroC, Inc.
 
-use slicec::slice_options::SliceOptions;
 use std::path::{Path, PathBuf};
 
 // This struct holds the configuration for a single compilation set.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct SliceConfig {
-    paths: Vec<String>,
-    workspace_root_path: Option<PathBuf>,
-    built_in_slice_path: Option<String>,
-    cached_slice_options: SliceOptions,
+    pub paths: Vec<String>,
+    pub workspace_root_path: Option<PathBuf>,
+    pub built_in_slice_path: Option<String>,
 }
 
 impl SliceConfig {
-    // `path` must be absolute.
-    pub fn set_workspace_root_path(&mut self, path: PathBuf) {
-        self.workspace_root_path = Some(path);
-        self.refresh_paths();
-    }
-
-    // `path` must be absolute.
-    pub fn set_built_in_slice_path(&mut self, path: Option<String>) {
-        self.built_in_slice_path = path;
-        self.refresh_paths();
-    }
-
-    pub fn set_search_paths(&mut self, paths: Vec<String>) {
-        self.paths = paths;
-        self.refresh_paths();
-    }
-
     // Resolve path URIs to file paths to be used by the Slice compiler.
     pub fn resolve_paths(&self) -> Vec<String> {
         // If `root_path` isn't set, relative path resolution is impossible, so we return.
@@ -60,14 +41,5 @@ impl SliceConfig {
         }
 
         resolved_paths
-    }
-
-    pub fn as_slice_options(&self) -> &SliceOptions {
-        &self.cached_slice_options
-    }
-
-    // This function should be called whenever the configuration changes.
-    fn refresh_paths(&mut self) {
-        self.cached_slice_options.references = self.resolve_paths();
     }
 }
