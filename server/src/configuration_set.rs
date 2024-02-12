@@ -5,6 +5,7 @@ use crate::utils::sanitize_path;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use slice_config::SliceConfig;
+use slicec::slice_options::SliceOptions;
 use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 use slicec::compilation_state::CompilationState;
 
@@ -36,17 +37,20 @@ unsafe impl Sync for CompilationData {}
 pub struct ConfigurationSet {
     pub slice_config: SliceConfig,
     pub compilation_data: CompilationData,
+
+    cached_slice_options: Option<SliceOptions>,
 }
 
 impl ConfigurationSet {
     /// Creates a new `ConfigurationSet` using the given root and built-in-slice paths.
     pub fn new(root_path: PathBuf, built_in_path: String) -> Self {
-        let mut slice_config = SliceConfig::default();
-        slice_config.set_workspace_root_path(root_path);
-        slice_config.set_built_in_slice_path(Some(built_in_path));
-
+        let slice_config = SliceConfig {
+            paths: vec![],
+            workspace_root_path: Some(root_path),
+            built_in_slice_path: Some(built_in_path),
+        };
         let compilation_data = CompilationData::default();
-        Self { slice_config, compilation_data }
+        Self { slice_config, compilation_data, cached_slice_options: None }
     }
 
     /// Parses a vector of `ConfigurationSet` from a JSON array, root path, and built-in path.
@@ -68,18 +72,25 @@ impl ConfigurationSet {
         let include_built_in = parse_include_built_in(value);
 
         // Create the SliceConfig and CompilationState
-        let mut slice_config = SliceConfig::default();
-        slice_config.set_workspace_root_path(root_path.to_owned());
-        slice_config.set_built_in_slice_path(include_built_in.then(|| built_in_path.to_owned()));
-        slice_config.set_search_paths(paths);
-
+        let slice_config = SliceConfig {
+            paths,
+            workspace_root_path: Some(root_path.to_owned()),
+            built_in_slice_path: include_built_in.then(|| built_in_path.to_owned()),
+        };
         let compilation_data = CompilationData::default();
-        Self { slice_config, compilation_data }
+        Self { slice_config, compilation_data, cached_slice_options: None }
     }
 
     pub fn trigger_compilation(&mut self) -> Vec<Diagnostic> {
+        // Re-compute the `slice_options` we're going to pass into the compiler, if necessary.
+        if self.cached_slice_options.is_none() {
+            let mut slice_options = SliceOptions::default();
+            slice_options.references = self.slice_config.resolve_paths();
+            self.cached_slice_options = Some(slice_options);
+        }
+        let slice_options = self.cached_slice_options.as_ref().unwrap();
+
         // Perform the compilation.
-        let slice_options = self.slice_config.as_slice_options();
         let compilation_state = slicec::compile_from_options(slice_options, |_| {}, |_| {});
         let CompilationState { ast, diagnostics, files } = compilation_state;
 
