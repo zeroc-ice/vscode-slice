@@ -31,13 +31,13 @@ impl Default for SliceConfig {
     }
 }
 
-pub fn compute_slice_options(server_config: &ServerConfig, unit_config: &SliceConfig) -> SliceOptions {
+pub fn compute_slice_options(server_config: &ServerConfig, set_config: &SliceConfig) -> SliceOptions {
     let root_path = Path::new(&server_config.workspace_root_path);
     let mut slice_options = SliceOptions::default();
     let references = &mut slice_options.references;
 
     // Add any user specified search paths at the front of the list.
-    for string_path in &unit_config.slice_search_paths {
+    for string_path in &set_config.slice_search_paths {
         let path = Path::new(string_path);
 
         // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
@@ -54,7 +54,7 @@ pub fn compute_slice_options(server_config: &ServerConfig, unit_config: &SliceCo
     }
 
     // Add the built-in Slice files (WellKnownTypes, etc.) to the end of the list, if they should be included.
-    if unit_config.include_built_in_slice_files {
+    if set_config.include_built_in_slice_files {
         references.push(server_config.built_in_slice_path.clone());
     }
 
