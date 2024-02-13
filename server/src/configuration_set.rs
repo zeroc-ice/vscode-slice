@@ -1,27 +1,16 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::slice_config;
+use crate::slice_config::{compute_slice_options, ServerConfig, SliceConfig};
 use crate::utils::sanitize_path;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use slice_config::SliceConfig;
 use slicec::slice_options::SliceOptions;
 use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 use slicec::compilation_state::CompilationState;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CompilationData {
     pub ast: Ast,
     pub files: HashMap<String, SliceFile>,
-}
-
-impl Default for CompilationData {
-    fn default() -> Self {
-        Self {
-            ast: Ast::create(),
-            files: HashMap::default(),
-        }
-    }
 }
 
 // Necessary for using `CompilationData` within async functions.
@@ -33,7 +22,7 @@ impl Default for CompilationData {
 unsafe impl Send for CompilationData {}
 unsafe impl Sync for CompilationData {}
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ConfigurationSet {
     pub slice_config: SliceConfig,
     pub compilation_data: CompilationData,
@@ -42,53 +31,28 @@ pub struct ConfigurationSet {
 }
 
 impl ConfigurationSet {
-    /// Creates a new `ConfigurationSet` using the given root and built-in-slice paths.
-    pub fn new(root_path: PathBuf, built_in_path: String) -> Self {
-        let slice_config = SliceConfig {
-            paths: vec![],
-            workspace_root_path: Some(root_path),
-            built_in_slice_path: Some(built_in_path),
-        };
-        let compilation_data = CompilationData::default();
-        Self { slice_config, compilation_data, cached_slice_options: None }
-    }
-
-    /// Parses a vector of `ConfigurationSet` from a JSON array, root path, and built-in path.
-    pub fn parse_configuration_sets(
-        config_array: &[serde_json::Value],
-        root_path: &Path,
-        built_in_path: &str,
-    ) -> Vec<ConfigurationSet> {
+    /// Parses a vector of `ConfigurationSet` from a JSON array.
+    pub fn parse_configuration_sets(config_array: &[serde_json::Value]) -> Vec<Self> {
         config_array
             .iter()
-            .map(|value| ConfigurationSet::from_json(value, root_path, built_in_path))
+            .map(ConfigurationSet::from_json)
             .collect::<Vec<_>>()
     }
 
     /// Constructs a `ConfigurationSet` from a JSON value.
-    fn from_json(value: &serde_json::Value, root_path: &Path, built_in_path: &str) -> Self {
-        // Parse the paths and `include_built_in_types` from the configuration set
-        let paths = parse_paths(value);
-        let include_built_in = parse_include_built_in(value);
-
-        // Create the SliceConfig and CompilationState
+    fn from_json(value: &serde_json::Value) -> Self {
         let slice_config = SliceConfig {
-            paths,
-            workspace_root_path: Some(root_path.to_owned()),
-            built_in_slice_path: include_built_in.then(|| built_in_path.to_owned()),
+            slice_search_paths: parse_paths(value),
+            include_built_in_slice_files: parse_include_built_in(value),
         };
-        let compilation_data = CompilationData::default();
-        Self { slice_config, compilation_data, cached_slice_options: None }
+        Self { slice_config, ..Self::default() }
     }
 
-    pub fn trigger_compilation(&mut self) -> Vec<Diagnostic> {
+    pub fn trigger_compilation(&mut self, server_config: &ServerConfig) -> Vec<Diagnostic> {
         // Re-compute the `slice_options` we're going to pass into the compiler, if necessary.
-        if self.cached_slice_options.is_none() {
-            let mut slice_options = SliceOptions::default();
-            slice_options.references = self.slice_config.resolve_paths();
-            self.cached_slice_options = Some(slice_options);
-        }
-        let slice_options = self.cached_slice_options.as_ref().unwrap();
+        let slice_options = self.cached_slice_options.get_or_insert_with(|| {
+            compute_slice_options(server_config, &self.slice_config)
+        });
 
         // Perform the compilation.
         let compilation_state = slicec::compile_from_options(slice_options, |_| {}, |_| {});

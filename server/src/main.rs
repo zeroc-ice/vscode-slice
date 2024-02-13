@@ -1,14 +1,14 @@
 // Copyright (c) ZeroC, Inc.
 
-use diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
-use hover::try_into_hover_result;
-use jump_definition::get_definition_span;
-use notifications::{ShowNotification, ShowNotificationParams};
+use crate::diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
+use crate::hover::try_into_hover_result;
+use crate::jump_definition::get_definition_span;
+use crate::notifications::{ShowNotification, ShowNotificationParams};
+use crate::session::Session;
+use crate::slice_config::compute_slice_options;
 use std::{collections::HashMap, path::Path};
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_url_to_uri, url_to_sanitized_file_path, FindFile};
-
-use crate::session::Session;
 
 mod configuration_set;
 mod diagnostic_ext;
@@ -35,7 +35,7 @@ struct Backend {
 
 impl Backend {
     pub fn new(client: tower_lsp::Client) -> Self {
-        let session = Session::new();
+        let session = Session::default();
         Self { client, session }
     }
 
@@ -77,19 +77,24 @@ impl Backend {
             .await;
 
         let mut configuration_sets = self.session.configuration_sets.lock().await;
+        let server_config = self.session.server_config.read().await;
+
         let mut publish_map = HashMap::new();
         let mut diagnostics = Vec::new();
 
         // Process each configuration set that contains the changed file
         for set in configuration_sets.iter_mut().filter(|set| {
-            set.slice_config.resolve_paths().into_iter().any(|f| {
-                let key_path = Path::new(&f);
-                let file_path = Path::new(file_name);
-                key_path == file_path || file_path.starts_with(key_path)
-            })
+            compute_slice_options(&server_config, &set.slice_config)
+                .references
+                .into_iter()
+                .any(|f| {
+                    let key_path = Path::new(&f);
+                    let file_path = Path::new(file_name);
+                    key_path == file_path || file_path.starts_with(key_path)
+                })
         }) {
             // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
-            diagnostics.extend(set.trigger_compilation());
+            diagnostics.extend(set.trigger_compilation(&server_config));
 
             // Update publish_map with files to be updated
             publish_map.extend(
@@ -149,7 +154,7 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
-        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        compile_and_publish_diagnostics(&self.client, &self.session).await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -169,7 +174,7 @@ impl LanguageServer for Backend {
         self.session.update_configurations_from_params(params).await;
 
         // Trigger a compilation and publish the diagnostics for all files
-        compile_and_publish_diagnostics(&self.client, &self.session.configuration_sets).await;
+        compile_and_publish_diagnostics(&self.client, &self.session).await;
     }
 
     async fn goto_definition(
