@@ -1,6 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration_set::ConfigurationSet;
+use crate::session::Session;
 use crate::utils::convert_slice_url_to_uri;
 use crate::{notifications, show_popup};
 
@@ -48,11 +49,9 @@ pub async fn publish_diagnostics_for_set(
 
 /// Triggers and compilation and publishes any diagnostics that are reported.
 /// It does this for all configuration sets.
-pub async fn compile_and_publish_diagnostics(
-    client: &Client,
-    configuration_sets: &Mutex<Vec<ConfigurationSet>>,
-) {
-    let mut configuration_sets = configuration_sets.lock().await;
+pub async fn compile_and_publish_diagnostics(client: &Client, session: &Session) {
+    let mut configuration_sets = session.configuration_sets.lock().await;
+    let server_config = session.server_config.read().await;
 
     client
         .log_message(
@@ -62,7 +61,7 @@ pub async fn compile_and_publish_diagnostics(
         .await;
     for configuration_set in configuration_sets.iter_mut() {
         // Trigger a compilation and get any diagnostics that were reported during it.
-        let diagnostics = configuration_set.trigger_compilation();
+        let diagnostics = configuration_set.trigger_compilation(&server_config);
         // Publish those diagnostics.
         publish_diagnostics_for_set(client, diagnostics, configuration_set).await;
     }
