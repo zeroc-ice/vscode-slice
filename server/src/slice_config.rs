@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use slicec::slice_options::SliceOptions;
 
@@ -8,7 +8,7 @@ use slicec::slice_options::SliceOptions;
 #[derive(Debug, Default)]
 pub struct ServerConfig {
     /// This is the root path of the workspace, used to resolve relative paths. It must be an absolute path.
-    pub workspace_root_path: String,
+    pub workspace_root_path: PathBuf,
     /// This is the path to the built-in Slice files that are included with the extension. It must be an absolute path.
     pub built_in_slice_path: String,
 }
@@ -17,7 +17,7 @@ pub struct ServerConfig {
 #[derive(Debug)]
 pub struct SliceConfig {
     /// List of paths that will be passed to the compiler as reference files/directories.
-    pub slice_search_paths: Vec<String>,
+    pub slice_search_paths: Vec<PathBuf>,
     /// Specifies whether to include the built-in Slice files that are bundled with the extension.
     pub include_built_in_slice_files: bool,
 }
@@ -32,14 +32,12 @@ impl Default for SliceConfig {
 }
 
 pub fn compute_slice_options(server_config: &ServerConfig, set_config: &SliceConfig) -> SliceOptions {
-    let root_path = Path::new(&server_config.workspace_root_path);
+    let root_path = &server_config.workspace_root_path;
     let mut slice_options = SliceOptions::default();
     let references = &mut slice_options.references;
 
     // Add any user specified search paths at the front of the list.
-    for string_path in &set_config.slice_search_paths {
-        let path = Path::new(string_path);
-
+    for path in &set_config.slice_search_paths {
         // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
         let absolute_path = match path.is_absolute() {
             true => path.to_owned(),

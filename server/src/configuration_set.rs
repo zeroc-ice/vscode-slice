@@ -72,7 +72,7 @@ impl ConfigurationSet {
 }
 
 /// Parses paths from a JSON value.
-fn parse_paths(value: &serde_json::Value) -> Vec<String> {
+fn parse_paths(value: &serde_json::Value) -> Vec<PathBuf> {
     value
         .get("paths")
         .and_then(|v| v.as_array())
@@ -80,7 +80,7 @@ fn parse_paths(value: &serde_json::Value) -> Vec<String> {
             dirs_array
                 .iter()
                 .filter_map(|v| v.as_str())
-                .map(sanitize_path)
+                .map(|s| PathBuf::from(sanitize_path(s)))
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()

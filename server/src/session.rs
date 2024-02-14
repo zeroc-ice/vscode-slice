@@ -30,7 +30,6 @@ impl Session {
         let workspace_root_path = params
             .root_uri
             .and_then(|uri| url_to_sanitized_file_path(&uri))
-            .map(|path| path.display().to_string())
             .expect("`root_uri` was not sent by the client, or was malformed");
 
         // This is the path to the built-in Slice files that are included with the extension. It should always
