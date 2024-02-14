@@ -1,7 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration_set::ConfigurationSet;
-use crate::session::Session;
 use crate::utils::convert_slice_path_to_uri;
 use crate::{notifications, show_popup};
 
@@ -9,7 +8,7 @@ use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{
-    DiagnosticRelatedInformation, Location, MessageType, NumberOrString, Position, Range, Url,
+    DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
 };
 use tower_lsp::Client;
 
@@ -44,26 +43,6 @@ pub async fn publish_diagnostics_for_set(
     // Publish the diagnostics for each file
     for (uri, lsp_diagnostics) in map {
         client.publish_diagnostics(uri, lsp_diagnostics, None).await;
-    }
-}
-
-/// Triggers and compilation and publishes any diagnostics that are reported.
-/// It does this for all configuration sets.
-pub async fn compile_and_publish_diagnostics(client: &Client, session: &Session) {
-    let mut configuration_sets = session.configuration_sets.lock().await;
-    let server_config = session.server_config.read().await;
-
-    client
-        .log_message(
-            MessageType::INFO,
-            "Publishing diagnostics for all configuration sets.",
-        )
-        .await;
-    for configuration_set in configuration_sets.iter_mut() {
-        // Trigger a compilation and get any diagnostics that were reported during it.
-        let diagnostics = configuration_set.trigger_compilation(&server_config);
-        // Publish those diagnostics.
-        publish_diagnostics_for_set(client, diagnostics, configuration_set).await;
     }
 }
 

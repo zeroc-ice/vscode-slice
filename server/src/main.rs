@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::diagnostic_ext::{clear_diagnostics, compile_and_publish_diagnostics, process_diagnostics};
+use crate::diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_set};
 use crate::hover::try_into_hover_result;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
@@ -134,6 +134,26 @@ impl Backend {
                 .await;
         }
     }
+
+    /// Triggers and compilation and publishes any diagnostics that are reported.
+    /// It does this for all configuration sets.
+    pub async fn compile_and_publish_diagnostics(&self) {
+        let mut configuration_sets = self.session.configuration_sets.lock().await;
+        let server_config = self.session.server_config.read().await;
+
+        self.client
+            .log_message(
+                MessageType::INFO,
+                "Publishing diagnostics for all configuration sets.",
+            )
+            .await;
+        for configuration_set in configuration_sets.iter_mut() {
+            // Trigger a compilation and get any diagnostics that were reported during it.
+            let diagnostics = configuration_set.trigger_compilation(&server_config);
+            // Publish those diagnostics.
+            publish_diagnostics_for_set(&self.client, diagnostics, configuration_set).await;
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -153,7 +173,7 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
-        compile_and_publish_diagnostics(&self.client, &self.session).await;
+        self.compile_and_publish_diagnostics().await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
@@ -173,7 +193,7 @@ impl LanguageServer for Backend {
         self.session.update_configurations_from_params(params).await;
 
         // Trigger a compilation and publish the diagnostics for all files
-        compile_and_publish_diagnostics(&self.client, &self.session).await;
+        self.compile_and_publish_diagnostics().await;
     }
 
     async fn goto_definition(
