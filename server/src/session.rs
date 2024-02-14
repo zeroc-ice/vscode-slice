@@ -3,7 +3,6 @@
 use crate::configuration_set::ConfigurationSet;
 use crate::slice_config::ServerConfig;
 use crate::utils::{sanitize_path, url_to_sanitized_file_path};
-use std::path::PathBuf;
 use tokio::sync::{Mutex, RwLock};
 use tower_lsp::lsp_types::DidChangeConfigurationParams;
 
@@ -31,7 +30,6 @@ impl Session {
         let workspace_root_path = params
             .root_uri
             .and_then(|uri| url_to_sanitized_file_path(&uri))
-            .map(PathBuf::from)
             .map(|path| path.display().to_string())
             .expect("`root_uri` was not sent by the client, or was malformed");
 

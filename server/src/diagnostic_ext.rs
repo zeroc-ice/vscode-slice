@@ -2,7 +2,7 @@
 
 use crate::configuration_set::ConfigurationSet;
 use crate::session::Session;
-use crate::utils::convert_slice_url_to_uri;
+use crate::utils::convert_slice_path_to_uri;
 use crate::{notifications, show_popup};
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
@@ -27,7 +27,7 @@ pub async fn publish_diagnostics_for_set(
         .compilation_data
         .files
         .keys()
-        .filter_map(|uri| Some((convert_slice_url_to_uri(uri)?, vec![])))
+        .filter_map(|uri| Some((convert_slice_path_to_uri(uri)?, vec![])))
         .collect::<HashMap<Url, Vec<tower_lsp::lsp_types::Diagnostic>>>();
 
     // Process the diagnostics and populate the map.
@@ -87,7 +87,7 @@ pub fn process_diagnostics(
                     let file = span
                         .expect("If the span was empty, try_into_lsp_diagnostic should have hit the error case")
                         .file;
-                    let uri = convert_slice_url_to_uri(&file)?;
+                    let uri = convert_slice_path_to_uri(file)?;
                     Some((uri, lsp_diagnostic))
                 }
                 Err(diagnostic) => {
@@ -114,8 +114,7 @@ pub async fn clear_diagnostics(client: &Client, configuration_sets: &Mutex<Vec<C
             .compilation_data
             .files
             .keys()
-            .cloned()
-            .filter_map(|uri| convert_slice_url_to_uri(&uri))
+            .filter_map(convert_slice_path_to_uri)
             .for_each(|uri| {
                 all_tracked_files.insert(uri);
             });
@@ -181,7 +180,7 @@ fn try_into_lsp_diagnostic_related_information(
     note: &Note,
 ) -> Option<tower_lsp::lsp_types::DiagnosticRelatedInformation> {
     let span = note.span.as_ref()?;
-    let file_path = convert_slice_url_to_uri(&span.file)?;
+    let file_path = convert_slice_path_to_uri(&span.file)?;
     let start_position = Position::new((span.start.row - 1) as u32, (span.start.col - 1) as u32);
     let end_position = Position::new((span.end.row - 1) as u32, (span.end.col - 1) as u32);
 

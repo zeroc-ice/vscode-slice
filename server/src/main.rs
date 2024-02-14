@@ -8,7 +8,7 @@ use crate::session::Session;
 use crate::slice_config::compute_slice_options;
 use std::{collections::HashMap, path::Path};
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
-use utils::{convert_slice_url_to_uri, url_to_sanitized_file_path, FindFile};
+use utils::{convert_slice_path_to_uri, url_to_sanitized_file_path};
 
 mod configuration_set;
 mod diagnostic_ext;
@@ -71,9 +71,9 @@ impl Backend {
         }
     }
 
-    async fn handle_file_change(&self, file_name: &str) {
+    async fn handle_file_change(&self, file_path: &Path) {
         self.client
-            .log_message(MessageType::INFO, format!("File '{file_name}' changed"))
+            .log_message(MessageType::INFO, format!("File '{}' changed", file_path.display()))
             .await;
 
         let mut configuration_sets = self.session.configuration_sets.lock().await;
@@ -89,7 +89,6 @@ impl Backend {
                 .into_iter()
                 .any(|f| {
                     let key_path = Path::new(&f);
-                    let file_path = Path::new(file_name);
                     key_path == file_path || file_path.starts_with(key_path)
                 })
         }) {
@@ -101,7 +100,7 @@ impl Backend {
                 set.compilation_data
                     .files
                     .keys()
-                    .filter_map(|uri| convert_slice_url_to_uri(uri))
+                    .filter_map(convert_slice_path_to_uri)
                     .map(|uri| (uri, vec![])),
             );
         }
@@ -189,31 +188,28 @@ impl LanguageServer for Backend {
 
         // Find the configuration set that contains the file
         let configuration_sets = self.session.configuration_sets.lock().await;
-        let compilation_data = configuration_sets.iter().find_file(&file_path);
 
         // Get the definition span and convert it to a GotoDefinitionResponse
-        compilation_data
-            .and_then(|data| {
-                let file = data.files.get(&file_path).expect("mismatch in file name occurred during goto request");
-                get_definition_span(file, position)
-            })
-            .and_then(|location| {
-                let start = Position {
-                    line: (location.start.row - 1) as u32,
-                    character: (location.start.col - 1) as u32,
-                };
-                let end = Position {
-                    line: (location.end.row - 1) as u32,
-                    character: (location.end.col - 1) as u32,
-                };
-                convert_slice_url_to_uri(&location.file).map(|uri| {
+        Ok(configuration_sets.iter().find_map(|set| {
+            let files = &set.compilation_data.files;
+            files
+                .get(&file_path)
+                .and_then(|file| get_definition_span(file, position))
+                .map(|location| {
+                    let start = Position {
+                        line: (location.start.row - 1) as u32,
+                        character: (location.start.col - 1) as u32,
+                    };
+                    let end = Position {
+                        line: (location.end.row - 1) as u32,
+                        character: (location.end.col - 1) as u32,
+                    };
                     GotoDefinitionResponse::Scalar(Location {
-                        uri,
+                        uri: uri.clone(),
                         range: Range::new(start, end),
                     })
                 })
-            })
-            .map_or(Ok(None), |resp| Ok(Some(resp)))
+        }))
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
@@ -226,13 +222,12 @@ impl LanguageServer for Backend {
         // Find the configuration set that contains the file and get the hover info
         let configuration_sets = self.session.configuration_sets.lock().await;
 
-        Ok(configuration_sets
-            .iter()
-            .find_file(&file_path)
-            .and_then(|data| {
-                let file = data.files.get(&file_path).expect("mismatch in file name occurred during hover request");
-                try_into_hover_result(file, position).ok()
-            }))
+        Ok(configuration_sets.iter().find_map(|set| {
+            let files = &set.compilation_data.files;
+            files
+                .get(&file_path)
+                .and_then(|file| try_into_hover_result(file, position).ok())
+        }))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {

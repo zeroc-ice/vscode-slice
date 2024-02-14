@@ -3,6 +3,7 @@
 use crate::slice_config::{compute_slice_options, ServerConfig, SliceConfig};
 use crate::utils::sanitize_path;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use slicec::slice_options::SliceOptions;
 use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 use slicec::compilation_state::CompilationState;
@@ -10,7 +11,7 @@ use slicec::compilation_state::CompilationState;
 #[derive(Debug, Default)]
 pub struct CompilationData {
     pub ast: Ast,
-    pub files: HashMap<String, SliceFile>,
+    pub files: HashMap<PathBuf, SliceFile>,
 }
 
 // Necessary for using `CompilationData` within async functions.
@@ -60,6 +61,9 @@ impl ConfigurationSet {
 
         // Process the diagnostics (filter out allowed lints, and update diagnostic levels as necessary).
         let updated_diagnostics = diagnostics.into_updated(&ast, &files, slice_options);
+
+        // Convert the stringified paths returned by `slicec` to actual PathBuf objects.
+        let files = files.into_iter().map(|(k, v)| (PathBuf::from(k), v)).collect();
 
         // Store the data we got from compiling, then return the diagnostics so they can be published.
         self.compilation_data = CompilationData { ast, files };
