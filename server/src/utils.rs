@@ -1,40 +1,18 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::configuration_set::{CompilationData, ConfigurationSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tower_lsp::lsp_types::Url;
 
-// A helper trait that allows us to find a file in an iterator of ConfigurationSet.
-pub trait FindFile<'a> {
-    fn find_file(self, file_name: &str) -> Option<&'a CompilationData>;
-}
-
-impl<'a, I> FindFile<'a> for I
-where
-    I: Iterator<Item = &'a ConfigurationSet>,
-{
-    fn find_file(mut self, file_name: &str) -> Option<&'a CompilationData> {
-        self.find(|set| {
-            set.compilation_data.files.keys().any(|f| {
-                let key_path = Path::new(f);
-                let file_path = Path::new(file_name);
-                key_path == file_path || file_path.starts_with(key_path)
-            })
-        })
-        .map(|set| &set.compilation_data)
-    }
-}
-
-// This helper function converts a Url from tower_lsp into a string that can be used to
+// This helper function converts a Url from tower_lsp into a path that can be used to
 // retrieve a file from the compilation state from slicec.
-pub fn url_to_sanitized_file_path(url: &Url) -> Option<String> {
+pub fn url_to_sanitized_file_path(url: &Url) -> Option<PathBuf> {
     let path = url.to_file_path().ok()?;
     let path_string = path.to_str()?;
-    Some(sanitize_path(path_string))
+    Some(PathBuf::from(sanitize_path(path_string)))
 }
 
-pub fn convert_slice_url_to_uri(url: &str) -> Option<Url> {
-    Url::from_file_path(url).ok()
+pub fn convert_slice_path_to_uri(path: impl AsRef<Path>) -> Option<Url> {
+    Url::from_file_path(path).ok()
 }
 
 #[cfg(target_os = "windows")]

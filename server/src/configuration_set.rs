@@ -3,6 +3,7 @@
 use crate::slice_config::{compute_slice_options, ServerConfig, SliceConfig};
 use crate::utils::sanitize_path;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use slicec::slice_options::SliceOptions;
 use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 use slicec::compilation_state::CompilationState;
@@ -10,7 +11,7 @@ use slicec::compilation_state::CompilationState;
 #[derive(Debug, Default)]
 pub struct CompilationData {
     pub ast: Ast,
-    pub files: HashMap<String, SliceFile>,
+    pub files: HashMap<PathBuf, SliceFile>,
 }
 
 // Necessary for using `CompilationData` within async functions.
@@ -61,6 +62,9 @@ impl ConfigurationSet {
         // Process the diagnostics (filter out allowed lints, and update diagnostic levels as necessary).
         let updated_diagnostics = diagnostics.into_updated(&ast, &files, slice_options);
 
+        // Convert the stringified paths returned by `slicec` to actual PathBuf objects.
+        let files = files.into_iter().map(|(k, v)| (PathBuf::from(k), v)).collect();
+
         // Store the data we got from compiling, then return the diagnostics so they can be published.
         self.compilation_data = CompilationData { ast, files };
         updated_diagnostics
@@ -68,7 +72,7 @@ impl ConfigurationSet {
 }
 
 /// Parses paths from a JSON value.
-fn parse_paths(value: &serde_json::Value) -> Vec<String> {
+fn parse_paths(value: &serde_json::Value) -> Vec<PathBuf> {
     value
         .get("paths")
         .and_then(|v| v.as_array())
@@ -76,7 +80,7 @@ fn parse_paths(value: &serde_json::Value) -> Vec<String> {
             dirs_array
                 .iter()
                 .filter_map(|v| v.as_str())
-                .map(sanitize_path)
+                .map(|s| PathBuf::from(sanitize_path(s)))
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
