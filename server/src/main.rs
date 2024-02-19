@@ -6,7 +6,9 @@ use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
 use crate::session::Session;
 use crate::slice_config::compute_slice_options;
+use std::ops::DerefMut;
 use std::{collections::HashMap, path::Path};
+use tokio::sync::Mutex;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_path_to_uri, url_to_sanitized_file_path};
 
@@ -30,12 +32,12 @@ async fn main() {
 
 struct Backend {
     client: Client,
-    session: Session,
+    session: Mutex<Session>,
 }
 
 impl Backend {
     pub fn new(client: tower_lsp::Client) -> Self {
-        let session = Session::default();
+        let session = Mutex::new(Session::default());
         Self { client, session }
     }
 
@@ -76,15 +78,15 @@ impl Backend {
             .log_message(MessageType::INFO, format!("File '{}' changed", file_path.display()))
             .await;
 
-        let mut configuration_sets = self.session.configuration_sets.lock().await;
-        let server_config = self.session.server_config.read().await;
+        let mut session_guard = self.session.lock().await;
+        let Session { configuration_sets, server_config } = session_guard.deref_mut();
 
         let mut publish_map = HashMap::new();
         let mut diagnostics = Vec::new();
 
         // Process each configuration set that contains the changed file
         for set in configuration_sets.iter_mut().filter(|set| {
-            compute_slice_options(&server_config, &set.slice_config)
+            compute_slice_options(server_config, &set.slice_config)
                 .references
                 .into_iter()
                 .any(|f| {
@@ -93,7 +95,7 @@ impl Backend {
                 })
         }) {
             // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
-            diagnostics.extend(set.trigger_compilation(&server_config));
+            diagnostics.extend(set.trigger_compilation(server_config));
 
             // Update publish_map with files to be updated
             publish_map.extend(
@@ -138,8 +140,8 @@ impl Backend {
     /// Triggers and compilation and publishes any diagnostics that are reported.
     /// It does this for all configuration sets.
     pub async fn compile_and_publish_diagnostics(&self) {
-        let mut configuration_sets = self.session.configuration_sets.lock().await;
-        let server_config = self.session.server_config.read().await;
+        let mut session_guard = self.session.lock().await;
+        let Session { configuration_sets, server_config } = session_guard.deref_mut();
 
         self.client
             .log_message(
@@ -149,7 +151,7 @@ impl Backend {
             .await;
         for configuration_set in configuration_sets.iter_mut() {
             // Trigger a compilation and get any diagnostics that were reported during it.
-            let diagnostics = configuration_set.trigger_compilation(&server_config);
+            let diagnostics = configuration_set.trigger_compilation(server_config);
             // Publish those diagnostics.
             publish_diagnostics_for_set(&self.client, diagnostics, configuration_set).await;
         }
@@ -162,9 +164,10 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
-        self.session.update_from_initialize_params(params).await;
-        let capabilities = Backend::capabilities();
+        let mut session_guard = self.session.lock().await;
+        session_guard.update_from_initialize_params(params);
 
+        let capabilities = Backend::capabilities();
         Ok(InitializeResult {
             capabilities,
             ..InitializeResult::default()
@@ -185,12 +188,17 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Extension settings changed")
             .await;
 
-        // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
-        // clear the diagnostics for all files and then re-publish them.
-        clear_diagnostics(&self.client, &self.session.configuration_sets).await;
+        // Explicit scope to ensure the session lock guard is dropped before we start compilation.
+        {
+            let mut session_guard = self.session.lock().await;
 
-        // Update the stored configuration sets from the data provided in the client notification
-        self.session.update_configurations_from_params(params).await;
+            // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
+            // clear the diagnostics for all files and then re-publish them.
+            clear_diagnostics(&self.client, &session_guard.configuration_sets).await;
+
+            // Update the stored configuration sets from the data provided in the client notification
+            session_guard.update_configurations_from_params(params);
+        }
 
         // Trigger a compilation and publish the diagnostics for all files
         self.compile_and_publish_diagnostics().await;
@@ -207,7 +215,8 @@ impl LanguageServer for Backend {
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file
-        let configuration_sets = self.session.configuration_sets.lock().await;
+        let session_guard = self.session.lock().await;
+        let configuration_sets = &session_guard.configuration_sets;
 
         // Get the definition span and convert it to a GotoDefinitionResponse
         Ok(configuration_sets.iter().find_map(|set| {
@@ -240,7 +249,8 @@ impl LanguageServer for Backend {
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file and get the hover info
-        let configuration_sets = self.session.configuration_sets.lock().await;
+        let session_guard = self.session.lock().await;
+        let configuration_sets = &session_guard.configuration_sets;
 
         Ok(configuration_sets.iter().find_map(|set| {
             let files = &set.compilation_data.files;

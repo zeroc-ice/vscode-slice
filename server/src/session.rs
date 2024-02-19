@@ -3,25 +3,21 @@
 use crate::configuration_set::ConfigurationSet;
 use crate::slice_config::ServerConfig;
 use crate::utils::{sanitize_path, url_to_sanitized_file_path};
-use tokio::sync::{Mutex, RwLock};
-use tower_lsp::lsp_types::DidChangeConfigurationParams;
+use tower_lsp::lsp_types::{DidChangeConfigurationParams, InitializeParams};
 
 #[derive(Debug, Default)]
 pub struct Session {
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
     /// `SliceConfig` and `CompilationState`. The `SliceConfig` is used to determine which configuration set to use when
     /// publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
-    pub configuration_sets: Mutex<Vec<ConfigurationSet>>,
+    pub configuration_sets: Vec<ConfigurationSet>,
     /// Configuration that affects the entire server.
-    pub server_config: RwLock<ServerConfig>,
+    pub server_config: ServerConfig,
 }
 
 impl Session {
     // Update the properties of the session from `InitializeParams`
-    pub async fn update_from_initialize_params(
-        &self,
-        params: tower_lsp::lsp_types::InitializeParams,
-    ) {
+    pub fn update_from_initialize_params(&mut self, params: InitializeParams) {
         let initialization_options = params.initialization_options;
 
         // Use the root_uri if it exists temporarily as we cannot access configuration until
@@ -41,7 +37,7 @@ impl Session {
             .map(sanitize_path)
             .expect("builtInSlicePath not found in initialization options");
 
-        *self.server_config.write().await = ServerConfig { workspace_root_path, built_in_slice_path };
+        self.server_config = ServerConfig { workspace_root_path, built_in_slice_path };
 
         // Load any user configuration from the 'slice.configurations' option.
         let configuration_sets = initialization_options
@@ -51,11 +47,11 @@ impl Session {
             .map(|arr| ConfigurationSet::parse_configuration_sets(arr))
             .unwrap_or_default();
 
-        self.update_configurations(configuration_sets).await;
+        self.update_configurations(configuration_sets);
     }
 
     // Update the configuration sets from the `DidChangeConfigurationParams` notification.
-    pub async fn update_configurations_from_params(&self, params: DidChangeConfigurationParams) {
+    pub fn update_configurations_from_params(&mut self, params: DidChangeConfigurationParams) {
         // Parse the configurations from the notification
         let configurations = params
             .settings
@@ -66,17 +62,17 @@ impl Session {
             .unwrap_or_default();
 
         // Update the configuration sets
-        self.update_configurations(configurations).await;
+        self.update_configurations(configurations);
     }
 
     // Update the configuration sets by replacing it with the new configurations. If there are no configuration sets
     // after updating, insert the default configuration set.
-    async fn update_configurations(&self, mut configurations: Vec<ConfigurationSet>) {
+    fn update_configurations(&mut self, mut configurations: Vec<ConfigurationSet>) {
         // Insert the default configuration set if needed
         if configurations.is_empty() {
             configurations.push(ConfigurationSet::default());
         }
 
-        *self.configuration_sets.lock().await = configurations;
+        self.configuration_sets = configurations;
     }
 }

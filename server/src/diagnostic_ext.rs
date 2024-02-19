@@ -6,7 +6,6 @@ use crate::{notifications, show_popup};
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
-use tokio::sync::Mutex;
 use tower_lsp::lsp_types::{
     DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
 };
@@ -85,8 +84,7 @@ pub fn process_diagnostics(
 ///
 /// This function iterates over all configuration sets, collects all tracked file URIs,
 /// and then publishes empty diagnostics to clear existing ones for each URI.
-pub async fn clear_diagnostics(client: &Client, configuration_sets: &Mutex<Vec<ConfigurationSet>>) {
-    let configuration_sets = configuration_sets.lock().await;
+pub async fn clear_diagnostics(client: &Client, configuration_sets: &[ConfigurationSet]) {
     let mut all_tracked_files = HashSet::new();
     for configuration_set in configuration_sets.iter() {
         configuration_set
