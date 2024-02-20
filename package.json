@@ -113,7 +113,9 @@
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "lint": "eslint ./client/src --ext .ts,.tsx",
-    "make-readonly": "echo \"Making /slice readonly for distribution\" && chmod -R a-w ./slice",
+    "make-readonly": "echo \"Making /slice readonly for distribution\" && run-script-os",
+    "make-readonly:nix": "chmod -R a-w ./slice",
+    "make-readonly:win32": "attrib +r /s /d /l .\\slice\\*",
     "postinstall": "cd client && npm install",
     "test-compile": "tsc -p ./",
     "vscode:prepublish": "npm run make-readonly && npm run esbuild-base -- --minify",
@@ -127,6 +129,7 @@
     "esbuild": "^0.19.11",
     "eslint": "^8.56.0",
     "mocha": "^10.2.0",
+    "run-script-os": "^1.1.6",
     "typescript": "^5.3.3"
   }
 }
