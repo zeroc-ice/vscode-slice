@@ -713,6 +713,7 @@
                             },
                             "patterns": [
                                 {"include": "#standard"},
+                                {"include": "#storage.modifier"},
                                 {
                                     "begin": "(\\\\?[:\\w]+)|(?=\\>)",
                                     "end": "(?=;|})",
@@ -779,6 +780,7 @@
                             },
                             "patterns": [
                                 {"include": "#standard"},
+                                {"include": "#storage.modifier"},
                                 {
                                     "begin": "(\\\\?[:\\w]+)|(?=\\>)",
                                     "end": "(?=;|})",
@@ -801,6 +803,7 @@
                                             },
                                             "patterns": [
                                                 {"include": "#standard"},
+                                                {"include": "#storage.modifier"},
                                                 {
                                                     "begin": "(\\\\?[:\\w]+)|(?=\\>)",
                                                     "end": "(?=;|})",
