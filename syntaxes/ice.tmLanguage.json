@@ -1536,7 +1536,7 @@
                     ]
                 },
                 {
-                    "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|((?:optional|tag)\\([-a-zA-Z0-9_:]*\\)))(?:\\b|(?<=\\)))",
+                    "match": "(?<!\\\\)\\b(?:(local)|(const)|(idempotent)|(out)|(optional\\([-a-zA-Z0-9_:]*\\)))(?:\\b|(?<=\\)))",
                     "captures": {
                         "1": {"name": "storage.modifier.local.ice"},
                         "2": {"name": "storage.modifier.const.ice"},
@@ -1545,7 +1545,7 @@
                         "5": {
                             "patterns": [
                                 {
-                                    "match": "((?:optional|tag))(\\()([-a-zA-Z0-9_:]*)(\\))",
+                                    "match": "(optional)(\\()([-a-zA-Z0-9_:]*)(\\))",
                                     "captures": {
                                         "1": {"name": "storage.modifier.optional.ice"},
                                         "2": {"name": "punctuation.section.group.optional.begin.ice"},
