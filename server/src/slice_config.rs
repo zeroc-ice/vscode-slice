@@ -36,24 +36,28 @@ pub fn compute_slice_options(server_config: &ServerConfig, set_config: &SliceCon
     let mut slice_options = SliceOptions::default();
     let references = &mut slice_options.references;
 
-    // Add any user specified search paths at the front of the list.
-    for path in &set_config.slice_search_paths {
-        // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
-        let absolute_path = match path.is_absolute() {
-            true => path.to_owned(),
-            false => root_path.join(path),
-        };
-        references.push(absolute_path.display().to_string());
-    }
-
-    // If the user didn't specify any paths, default to using the workspace root.
-    if references.is_empty() {
-        references.push(root_path.display().to_string());
-    }
-
-    // Add the built-in Slice files (WellKnownTypes, etc.) to the end of the list, if they should be included.
+    // Add the built-in Slice files (WellKnownTypes, etc.) at the start of the list, if they should be included.
+    // Putting them first ensures that any redefinition conflicts will appear in the users's files, and not these.
+    // (Since `slicec` parses files in the order that they are provided).
     if set_config.include_built_in_slice_files {
         references.push(server_config.built_in_slice_path.clone());
+    }
+
+    match set_config.slice_search_paths.as_slice() {
+        // If the user didn't specify any paths, default to using the workspace root.
+        [] => references.push(root_path.display().to_string()),
+
+        // Otherwise, add in the user-specified search paths.
+        user_paths => {
+            for path in user_paths {
+                // If the path is absolute, add it as-is. Otherwise, preface it with the workspace root.
+                let absolute_path = match path.is_absolute() {
+                    true => path.to_owned(),
+                    false => root_path.join(path),
+                };
+                references.push(absolute_path.display().to_string());
+            }
+        }
     }
 
     slice_options
