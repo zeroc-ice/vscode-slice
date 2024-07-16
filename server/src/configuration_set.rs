@@ -63,7 +63,7 @@ impl ConfigurationSet {
         let updated_diagnostics = diagnostics.into_updated(&ast, &files, slice_options);
 
         // Convert the stringified paths returned by `slicec` to actual PathBuf objects.
-        let files = files.into_iter().map(|(k, v)| (PathBuf::from(k), v)).collect();
+        let files = files.into_iter().map(|f| (PathBuf::from(&f.relative_path), f)).collect();
 
         // Store the data we got from compiling, then return the diagnostics so they can be published.
         self.compilation_data = CompilationData { ast, files };
