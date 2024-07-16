@@ -37,7 +37,7 @@ pub fn compute_slice_options(server_config: &ServerConfig, set_config: &SliceCon
     let references = &mut slice_options.references;
 
     // Add the built-in Slice files (WellKnownTypes, etc.) at the start of the list, if they should be included.
-    // Putting them first ensures that any redefinition conflicts will appear in the users's files, and not these.
+    // Putting them first ensures that any redefinition conflicts will appear in the user's files, and not these.
     // (Since `slicec` parses files in the order that they are provided).
     if set_config.include_built_in_slice_files {
         references.push(server_config.built_in_slice_path.clone());
