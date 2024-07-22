@@ -1,6 +1,6 @@
 # Contributing to Slice Extension for Visual Studio Code
 
-Thank you for your interest in contributing to Slice Extension for Visual Studio Code!
+Thank you for your interest in contributing to the Slice Extension for Visual Studio Code!
 
 ## How to Contribute
 
@@ -22,9 +22,9 @@ To contribute code or documentation to this project, please follow these steps:
 
 5. Submit a pull request.
 
-We review carefully any contribution that we accept, and these reviews may take
+We carefully review all contributions before accepting them, and these reviews may take
 some time. Please keep in mind there is no guarantee your contribution will be
-accepted: we may reject a pull request for any reason, or no reason.
+accepted: we may reject a pull request for any reason.
 
 ## Contact
 
