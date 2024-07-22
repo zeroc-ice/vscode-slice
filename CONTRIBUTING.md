@@ -22,7 +22,7 @@ To contribute code or documentation to this project, please follow these steps:
 
 5. Submit a pull request.
 
-We carefully review all contributions before accepting them, and these reviews may take
+We carefully review all contributions that are proposed, and these reviews may take
 some time. Please keep in mind there is no guarantee your contribution will be
 accepted: we may reject a pull request for any reason, or no reason.
 
