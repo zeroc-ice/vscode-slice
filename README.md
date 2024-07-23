@@ -1,6 +1,6 @@
 # Slice for Visual Studio Code
 
-This extension provides support for the Slice Interface Definition Language.
+This extension provides support for the Slice Interface Definition Language (IDL).
 
 ## Features
 
