@@ -1,7 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_set};
-use crate::hover::try_into_hover_result;
+use crate::hover::get_hover_message;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
 use crate::session::Session;
@@ -10,7 +10,7 @@ use std::ops::DerefMut;
 use std::{collections::HashMap, path::Path};
 use tokio::sync::Mutex;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
-use utils::{convert_slice_path_to_uri, url_to_sanitized_file_path};
+use utils::{convert_slice_path_to_uri, span_to_range, url_to_sanitized_file_path};
 
 mod configuration_set;
 mod diagnostic_ext;
@@ -225,17 +225,9 @@ impl LanguageServer for Backend {
                 .get(&file_path)
                 .and_then(|file| get_definition_span(file, position))
                 .map(|location| {
-                    let start = Position {
-                        line: (location.start.row - 1) as u32,
-                        character: (location.start.col - 1) as u32,
-                    };
-                    let end = Position {
-                        line: (location.end.row - 1) as u32,
-                        character: (location.end.col - 1) as u32,
-                    };
                     GotoDefinitionResponse::Scalar(Location {
                         uri: uri.clone(),
-                        range: Range::new(start, end),
+                        range: span_to_range(location),
                     })
                 })
         }))
@@ -256,7 +248,11 @@ impl LanguageServer for Backend {
             let files = &set.compilation_data.files;
             files
                 .get(&file_path)
-                .and_then(|file| try_into_hover_result(file, position).ok())
+                .and_then(|file| get_hover_message(file, position))
+                .map(|message| Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(message)),
+                    range: None,
+                })
         }))
     }
 

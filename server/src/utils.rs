@@ -1,7 +1,9 @@
 // Copyright (c) ZeroC, Inc.
 
 use std::path::{Path, PathBuf};
-use tower_lsp::lsp_types::Url;
+
+use slicec::slice_file::{Location, Span};
+use tower_lsp::lsp_types::{Position, Range, Url};
 
 // This helper function converts a Url from tower_lsp into a path that can be used to
 // retrieve a file from the compilation state from slicec.
@@ -41,4 +43,24 @@ pub fn sanitize_path(s: &str) -> String {
 #[cfg(not(target_os = "windows"))]
 pub fn sanitize_path(s: &str) -> String {
     s.to_owned()
+}
+
+/// Converts a [`slicec::slice_file::Span`] into a [`tower_lsp::lsp_types::Range`].
+pub fn span_to_range(span: Span) -> Range {
+    let start = Position::new(
+        (span.start.row - 1) as u32,
+        (span.start.col - 1) as u32,
+    );
+    let end = Position::new(
+        (span.end.row - 1) as u32,
+        (span.end.col - 1) as u32,
+    );
+    Range::new(start, end)
+}
+
+/// Converts a [`tower_lsp::lsp_types::Position`] into a [`slicec::slice_file::Location`].
+pub fn position_to_location(position: Position) -> Location {
+    let row = (position.line + 1) as usize;
+    let col = (position.character + 1) as usize;
+    Location { row, col }
 }
