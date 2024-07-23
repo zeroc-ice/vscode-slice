@@ -1,33 +1,18 @@
 // Copyright (c) ZeroC, Inc.
 
+use crate::utils::position_to_location;
 use slicec::{
     grammar::{Element, Enum, Primitive, Symbol, TypeRef, TypeRefDefinition, Types},
     slice_file::{Location, SliceFile},
     visitor::Visitor,
 };
-use tower_lsp::lsp_types::{Hover, HoverContents, MarkedString, Position};
+use tower_lsp::lsp_types::Position;
 
-pub fn try_into_hover_result(
-    file: &SliceFile,
-    position: Position,
-) -> tower_lsp::jsonrpc::Result<Hover> {
-    // Convert position to row and column 1 based
-    let col = (position.character + 1) as usize;
-    let row = (position.line + 1) as usize;
-
-    let mut visitor = HoverVisitor::new(Location { row, col });
+pub fn get_hover_message(file: &SliceFile, position: Position) -> Option<String> {
+    let mut visitor = HoverVisitor::new(position_to_location(position));
     file.visit_with(&mut visitor);
 
-    // If we found a message, return it as a hover result, otherwise return None.
-    visitor
-        .found_message
-        .map(|message| Hover {
-            contents: HoverContents::Scalar(MarkedString::String(message)),
-            range: None,
-        })
-        .ok_or(tower_lsp::jsonrpc::Error::invalid_params(
-            "No hover information found",
-        ))
+    visitor.found_message
 }
 
 struct HoverVisitor {

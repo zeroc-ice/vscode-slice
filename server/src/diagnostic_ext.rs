@@ -1,14 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration_set::ConfigurationSet;
-use crate::utils::convert_slice_path_to_uri;
+use crate::utils::{convert_slice_path_to_uri, span_to_range};
 use crate::{notifications, show_popup};
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
 use std::collections::{HashMap, HashSet};
-use tower_lsp::lsp_types::{
-    DiagnosticRelatedInformation, Location, NumberOrString, Position, Range, Url,
-};
+use tower_lsp::lsp_types::{DiagnosticRelatedInformation, Location, NumberOrString, Url};
 use tower_lsp::Client;
 
 /// Publishes diagnostics for all files in a given configuration set.
@@ -116,17 +114,7 @@ pub fn try_into_lsp_diagnostic(
 
     // Map the spans to ranges, if span is none, return the slicec diagnostic
     let range = match diagnostic.span() {
-        Some(span) => {
-            let start = tower_lsp::lsp_types::Position::new(
-                (span.start.row - 1) as u32,
-                (span.start.col - 1) as u32,
-            );
-            let end = tower_lsp::lsp_types::Position::new(
-                (span.end.row - 1) as u32,
-                (span.end.col - 1) as u32,
-            );
-            Range::new(start, end)
-        }
+        Some(span) => span_to_range(span.clone()),
         None => return Err(diagnostic),
     };
 
@@ -156,19 +144,12 @@ pub fn try_into_lsp_diagnostic(
 fn try_into_lsp_diagnostic_related_information(
     note: &Note,
 ) -> Option<tower_lsp::lsp_types::DiagnosticRelatedInformation> {
-    let span = note.span.as_ref()?;
-    let file_path = convert_slice_path_to_uri(&span.file)?;
-    let start_position = Position::new((span.start.row - 1) as u32, (span.start.col - 1) as u32);
-    let end_position = Position::new((span.end.row - 1) as u32, (span.end.col - 1) as u32);
+    let span = note.span.clone()?;
+    let uri = convert_slice_path_to_uri(&span.file)?;
+    let range = span_to_range(span);
 
     Some(DiagnosticRelatedInformation {
-        location: Location {
-            uri: file_path,
-            range: Range {
-                start: start_position,
-                end: end_position,
-            },
-        },
+        location: Location { uri, range },
         message: note.message.clone(),
     })
 }

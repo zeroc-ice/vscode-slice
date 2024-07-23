@@ -1,5 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
+use crate::utils::position_to_location;
 use slicec::{
     grammar::{
         Class, Commentable, CustomType, Entity, Enum, Enumerator, Exception, Field, Identifier,
@@ -12,11 +13,7 @@ use slicec::{
 use tower_lsp::lsp_types::Position;
 
 pub fn get_definition_span(file: &SliceFile, position: Position) -> Option<Span> {
-    // Convert position to row and column 1 based
-    let col = (position.character + 1) as usize;
-    let row = (position.line + 1) as usize;
-
-    let mut visitor = JumpVisitor::new(Location { row, col });
+    let mut visitor = JumpVisitor::new(position_to_location(position));
     file.visit_with(&mut visitor);
 
     visitor.found_span
