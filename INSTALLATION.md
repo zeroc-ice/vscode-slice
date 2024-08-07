@@ -13,13 +13,7 @@ ext install "Slice"
 
 ## Prerequisites
 
-To build and package the extension, you must have [`vsce`](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#vsce) installed:
-
-```shell
-npm install -g @vscode/vsce
-```
-
-Additionally, you need to install the extension's dependencies:
+To install the extension's dependencies, simply run:
 
 ```shell
 npm install
@@ -30,7 +24,7 @@ npm install
 To build and package the extension, run:
 
 ```shell
-vsce package
+npx @vscode/vsce package
 ```
 
 This generates a `.vsix` package file in the root directory of the project.
