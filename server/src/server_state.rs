@@ -1,12 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration_set::ConfigurationSet;
-use crate::slice_config::ServerConfig;
+use crate::configuration::ServerConfig;
 use crate::utils::{sanitize_path, url_to_sanitized_file_path};
 use tower_lsp::lsp_types::{DidChangeConfigurationParams, InitializeParams};
 
 #[derive(Debug, Default)]
-pub struct Session {
+pub struct ServerState {
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
     /// `SliceConfig` and `CompilationState`. The `SliceConfig` is used to determine which configuration set to use when
     /// publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
@@ -15,8 +15,8 @@ pub struct Session {
     pub server_config: ServerConfig,
 }
 
-impl Session {
-    // Update the properties of the session from `InitializeParams`
+impl ServerState {
+    // Update the properties of the server from `InitializeParams`
     pub fn update_from_initialize_params(&mut self, params: InitializeParams) {
         let initialization_options = params.initialization_options;
 

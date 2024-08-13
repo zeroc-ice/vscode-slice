@@ -1,24 +1,24 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::diagnostic_ext::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_set};
+use crate::diagnostic_handler::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_set};
 use crate::hover::get_hover_message;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
-use crate::session::Session;
-use crate::slice_config::compute_slice_options;
+use crate::server_state::ServerState;
+use crate::configuration::compute_slice_options;
 use std::ops::DerefMut;
 use std::{collections::HashMap, path::Path};
 use tokio::sync::Mutex;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_path_to_uri, span_to_range, url_to_sanitized_file_path};
 
+mod configuration;
 mod configuration_set;
-mod diagnostic_ext;
+mod diagnostic_handler;
 mod hover;
 mod jump_definition;
 mod notifications;
-mod session;
-mod slice_config;
+mod server_state;
 mod utils;
 
 #[tokio::main]
@@ -32,13 +32,13 @@ async fn main() {
 
 struct Backend {
     client: Client,
-    session: Mutex<Session>,
+    server_state: Mutex<ServerState>,
 }
 
 impl Backend {
     pub fn new(client: tower_lsp::Client) -> Self {
-        let session = Mutex::new(Session::default());
-        Self { client, session }
+        let server_state = Mutex::new(ServerState::default());
+        Self { client, server_state }
     }
 
     fn capabilities() -> ServerCapabilities {
@@ -78,8 +78,8 @@ impl Backend {
             .log_message(MessageType::INFO, format!("File '{}' changed", file_path.display()))
             .await;
 
-        let mut session_guard = self.session.lock().await;
-        let Session { configuration_sets, server_config } = session_guard.deref_mut();
+        let mut server_guard = self.server_state.lock().await;
+        let ServerState { configuration_sets, server_config } = server_guard.deref_mut();
 
         let mut publish_map = HashMap::new();
         let mut diagnostics = Vec::new();
@@ -140,8 +140,8 @@ impl Backend {
     /// Triggers and compilation and publishes any diagnostics that are reported.
     /// It does this for all configuration sets.
     pub async fn compile_and_publish_diagnostics(&self) {
-        let mut session_guard = self.session.lock().await;
-        let Session { configuration_sets, server_config } = session_guard.deref_mut();
+        let mut server_guard = self.server_state.lock().await;
+        let ServerState { configuration_sets, server_config } = server_guard.deref_mut();
 
         self.client
             .log_message(
@@ -164,8 +164,8 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
-        let mut session_guard = self.session.lock().await;
-        session_guard.update_from_initialize_params(params);
+        let mut server_guard = self.server_state.lock().await;
+        server_guard.update_from_initialize_params(params);
 
         let capabilities = Backend::capabilities();
         Ok(InitializeResult {
@@ -188,16 +188,16 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Extension settings changed")
             .await;
 
-        // Explicit scope to ensure the session lock guard is dropped before we start compilation.
+        // Explicit scope to ensure the server state lock guard is dropped before we start compilation.
         {
-            let mut session_guard = self.session.lock().await;
+            let mut server_guard = self.server_state.lock().await;
 
             // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
             // clear the diagnostics for all files and then re-publish them.
-            clear_diagnostics(&self.client, &session_guard.configuration_sets).await;
+            clear_diagnostics(&self.client, &server_guard.configuration_sets).await;
 
             // Update the stored configuration sets from the data provided in the client notification
-            session_guard.update_configurations_from_params(params);
+            server_guard.update_configurations_from_params(params);
         }
 
         // Trigger a compilation and publish the diagnostics for all files
@@ -215,8 +215,8 @@ impl LanguageServer for Backend {
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file
-        let session_guard = self.session.lock().await;
-        let configuration_sets = &session_guard.configuration_sets;
+        let server_guard = self.server_state.lock().await;
+        let configuration_sets = &server_guard.configuration_sets;
 
         // Get the definition span and convert it to a GotoDefinitionResponse
         Ok(configuration_sets.iter().find_map(|set| {
@@ -241,8 +241,8 @@ impl LanguageServer for Backend {
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
         // Find the configuration set that contains the file and get the hover info
-        let session_guard = self.session.lock().await;
-        let configuration_sets = &session_guard.configuration_sets;
+        let server_guard = self.server_state.lock().await;
+        let configuration_sets = &server_guard.configuration_sets;
 
         Ok(configuration_sets.iter().find_map(|set| {
             let files = &set.compilation_data.files;
