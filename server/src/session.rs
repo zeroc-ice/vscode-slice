@@ -1,7 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration_set::ConfigurationSet;
-use crate::slice_config::ServerConfig;
+use crate::configuration::ServerConfig;
 use crate::utils::{sanitize_path, url_to_sanitized_file_path};
 use tower_lsp::lsp_types::{DidChangeConfigurationParams, InitializeParams};
 

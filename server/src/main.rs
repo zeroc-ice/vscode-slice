@@ -5,20 +5,20 @@ use crate::hover::get_hover_message;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
 use crate::session::Session;
-use crate::slice_config::compute_slice_options;
+use crate::configuration::compute_slice_options;
 use std::ops::DerefMut;
 use std::{collections::HashMap, path::Path};
 use tokio::sync::Mutex;
 use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_path_to_uri, span_to_range, url_to_sanitized_file_path};
 
+mod configuration;
 mod configuration_set;
 mod diagnostic_ext;
 mod hover;
 mod jump_definition;
 mod notifications;
 mod session;
-mod slice_config;
 mod utils;
 
 #[tokio::main]

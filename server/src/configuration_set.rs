@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::slice_config::{compute_slice_options, ServerConfig, SliceConfig};
+use crate::configuration::{compute_slice_options, ServerConfig, SliceConfig};
 use crate::utils::sanitize_path;
 use std::collections::HashMap;
 use std::path::PathBuf;
