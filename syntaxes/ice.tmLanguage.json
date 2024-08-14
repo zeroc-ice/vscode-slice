@@ -611,6 +611,14 @@
                                     "patterns": [
                                         {"include": "#standard"},
                                         {
+                                            "begin": "(?=\\[)",
+                                            "end": "(?<=])",
+                                            "patterns": [
+                                                {"include": "#standard"},
+                                                {"include": "#metadata.local"}
+                                            ]
+                                        },
+                                        {
                                             "begin": "\\\\?\\b\\w+\\b",
                                             "end": "(?=})|(,)",
                                             "beginCaptures": {
