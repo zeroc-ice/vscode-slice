@@ -14,6 +14,7 @@
         "slice": {
             "patterns": [
                 {"include": "#standard"},
+                {"include": "#string-literal"},
                 {"include": "#compilation-mode"},
                 {"include": "#module-declaration"},
                 {"include": "#struct"},
@@ -24,6 +25,7 @@
                 {"include": "#custom-type"},
                 {"include": "#type-alias"},
                 {"include": "#modifier-keywords"},
+                {"include": "#operation"},
                 {"include": "#type.identifier"}
             ]
         },
@@ -819,6 +821,11 @@
                 "0": {"name": "punctuation.brace.open.slice"}
             },
             "patterns": [
+                {"include": "#slice"}
+            ]
+        },
+        "operation": {
+            "patterns": [
                 {"include": "#tag"},
                 {
                     "match": "\\bstream\\b",
@@ -885,8 +892,7 @@
                             "patterns": [{"include": "#field.identifier"}]
                         }
                     }
-                },
-                {"include": "#slice"}
+                }
             ]
         },
         "parameter": {
