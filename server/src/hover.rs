@@ -1,11 +1,9 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::utils::position_to_location;
-use slicec::{
-    grammar::{Element, Enum, Primitive, Symbol, TypeRef, TypeRefDefinition, Types},
-    slice_file::{Location, SliceFile},
-    visitor::Visitor,
-};
+use slicec::grammar::{Element, Enum, Primitive, Symbol, TypeRef, TypeRefDefinition, Types};
+use slicec::slice_file::{Location, SliceFile};
+use slicec::visitor::Visitor;
 use tower_lsp::lsp_types::Position;
 
 pub fn get_hover_message(file: &SliceFile, position: Position) -> Option<String> {
@@ -28,10 +26,7 @@ impl HoverVisitor {
         }
     }
 
-    fn construct_message<T: Element + ?Sized>(
-        primitive: &Primitive,
-        typeref: &TypeRef<T>,
-    ) -> String {
+    fn construct_message<T: Element + ?Sized>(primitive: &Primitive, typeref: &TypeRef<T>) -> String {
         let (prefix, description) = Self::describe_primitive_type(primitive);
         if typeref.is_optional {
             format!("An optional {description}")

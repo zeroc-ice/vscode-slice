@@ -1,15 +1,18 @@
 // Copyright (c) ZeroC, Inc.
 
+use crate::configuration::compute_slice_options;
 use crate::diagnostic_handler::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_set};
 use crate::hover::get_hover_message;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
 use crate::server_state::ServerState;
-use crate::configuration::compute_slice_options;
+use std::collections::HashMap;
 use std::ops::DerefMut;
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 use tokio::sync::Mutex;
-use tower_lsp::{jsonrpc::Error, lsp_types::*, Client, LanguageServer, LspService, Server};
+use tower_lsp::jsonrpc::Error;
+use tower_lsp::lsp_types::*;
+use tower_lsp::{Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_path_to_uri, span_to_range, url_to_sanitized_file_path};
 
 mod configuration;
@@ -84,7 +87,7 @@ impl Backend {
         let mut publish_map = HashMap::new();
         let mut diagnostics = Vec::new();
 
-        // Process each configuration set that contains the changed file
+        // Process each configuration set that contains the changed file.
         for set in configuration_sets.iter_mut().filter(|set| {
             compute_slice_options(server_config, &set.slice_config)
                 .references
@@ -97,7 +100,7 @@ impl Backend {
             // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
             diagnostics.extend(set.trigger_compilation(server_config));
 
-            // Update publish_map with files to be updated
+            // Update publish_map with files to be updated.
             publish_map.extend(
                 set.compilation_data
                     .files
@@ -107,11 +110,12 @@ impl Backend {
             );
         }
 
-        // If there are multiple diagnostics for the same span, that have the same message, deduplicate them
+        // If there are multiple diagnostics for the same span, that have the same message, deduplicate them.
         diagnostics.dedup_by(|d1, d2| d1.span() == d2.span() && d1.message() == d2.message());
 
-        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the file URL
-        // Process diagnostics and update publish_map. Any diagnostics that do not have a span are returned for further processing.
+        // Group the diagnostics by file since diagnostics are published per file and diagnostic.span contains the URL.
+        // Process diagnostics and update publish_map.
+        // Any diagnostics that do not have a span are returned for further processing.
         let spanless_diagnostics = process_diagnostics(diagnostics, &mut publish_map);
         for diagnostic in spanless_diagnostics {
             show_popup(
@@ -122,7 +126,7 @@ impl Backend {
             .await;
         }
 
-        // Publish the diagnostics for each file
+        // Publish the diagnostics for each file.
         self.client
             .log_message(
                 MessageType::INFO,
@@ -160,10 +164,7 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(
-        &self,
-        params: InitializeParams,
-    ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> tower_lsp::jsonrpc::Result<InitializeResult> {
         let mut server_guard = self.server_state.lock().await;
         server_guard.update_from_initialize_params(params);
 
@@ -192,15 +193,15 @@ impl LanguageServer for Backend {
         {
             let mut server_guard = self.server_state.lock().await;
 
-            // When the configuration changes, any of the files in the workspace could be impacted. Therefore, we need to
-            // clear the diagnostics for all files and then re-publish them.
+            // When the configuration changes, any of the files in the workspace could be impacted.
+            // Therefore, we need to clear the diagnostics for all files and then re-publish them.
             clear_diagnostics(&self.client, &server_guard.configuration_sets).await;
 
-            // Update the stored configuration sets from the data provided in the client notification
+            // Update the stored configuration sets from the data provided in the client notification.
             server_guard.update_configurations_from_params(params);
         }
 
-        // Trigger a compilation and publish the diagnostics for all files
+        // Trigger a compilation and publish the diagnostics for all files.
         self.compile_and_publish_diagnostics().await;
     }
 
@@ -269,15 +270,9 @@ impl LanguageServer for Backend {
     }
 }
 
-pub async fn show_popup(
-    client: &Client,
-    message: String,
-    message_type: notifications::MessageType,
-) {
+pub async fn show_popup(client: &Client, message: String, message_type: notifications::MessageType) {
+    let show_notification_params = ShowNotificationParams { message, message_type };
     client
-        .send_notification::<ShowNotification>(ShowNotificationParams {
-            message,
-            message_type,
-        })
+        .send_notification::<ShowNotification>(show_notification_params)
         .await;
 }
