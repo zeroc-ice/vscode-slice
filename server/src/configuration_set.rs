@@ -4,9 +4,9 @@ use crate::configuration::{compute_slice_options, ServerConfig, SliceConfig};
 use crate::utils::sanitize_path;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use slicec::compilation_state::CompilationState;
 use slicec::slice_options::SliceOptions;
 use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
-use slicec::compilation_state::CompilationState;
 
 #[derive(Debug, Default)]
 pub struct CompilationData {
