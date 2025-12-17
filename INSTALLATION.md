@@ -19,6 +19,16 @@ To install the extension's dependencies, simply run:
 npm install
 ```
 
+To build the Slice language server (written in Rust), run:
+```shell
+cd server
+cargo build --release --target <TARGET>
+```
+Where `TARGET` is one of the architectures where the extension will be run.
+(See [Rust Supported Platforms](https://doc.rust-lang.org/beta/rustc/platform-support.html) for a full list of architectures).
+To create an extension supported on multiple platforms, the server will need to be built multiple times,
+each time targeting another platform architecture.
+
 ## Packaging
 
 To build and package the extension, run:
