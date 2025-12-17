@@ -1,15 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::utils::position_to_location;
-use slicec::{
-    grammar::{
-        Class, Commentable, CustomType, Entity, Enum, Enumerator, Exception, Field, Identifier,
-        Interface, Message, MessageComponent, NamedSymbol, Operation, Struct, Symbol, TypeAlias,
-        TypeRef, TypeRefDefinition, Types,
-    },
-    slice_file::{Location, SliceFile, Span},
-    visitor::Visitor,
+use slicec::grammar::{
+    Class, Commentable, CustomType, Entity, Enum, Enumerator, Exception, Field, Identifier, Interface, Message,
+    MessageComponent, NamedSymbol, Operation, Struct, Symbol, TypeAlias, TypeRef, TypeRefDefinition, Types,
 };
+use slicec::slice_file::{Location, SliceFile, Span};
+use slicec::visitor::Visitor;
 use tower_lsp::lsp_types::Position;
 
 pub fn get_definition_span(file: &SliceFile, position: Position) -> Option<Span> {
@@ -70,11 +67,7 @@ impl JumpVisitor {
 
     // This function checks to see if the search location is within the span of the entity
     // and if it is, it sets the found_span to the span of the entity
-    fn check_and_set_span<T: Entity + ?Sized>(
-        &mut self,
-        linked_entity_result: Result<&T, &Identifier>,
-        span: &Span,
-    ) {
+    fn check_and_set_span<T: Entity + ?Sized>(&mut self, linked_entity_result: Result<&T, &Identifier>, span: &Span) {
         if let Ok(entity) = linked_entity_result {
             if self.search_location.is_within(span) {
                 self.found_span = Some(entity.raw_identifier().span().clone());

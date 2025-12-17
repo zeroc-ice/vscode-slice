@@ -8,8 +8,8 @@ use tower_lsp::lsp_types::{DidChangeConfigurationParams, InitializeParams};
 #[derive(Debug, Default)]
 pub struct ServerState {
     /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
-    /// `SliceConfig` and `CompilationState`. The `SliceConfig` is used to determine which configuration set to use when
-    /// publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
+    /// `SliceConfig` and `CompilationState`. The `SliceConfig` is used to determine which configuration set to use
+    /// when publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
     pub configuration_sets: Vec<ConfigurationSet>,
     /// Configuration that affects the entire server.
     pub server_config: ServerConfig,

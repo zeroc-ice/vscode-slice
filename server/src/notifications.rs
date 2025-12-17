@@ -9,6 +9,7 @@ pub struct ShowNotification;
 
 impl Notification for ShowNotification {
     type Params = ShowNotificationParams;
+
     const METHOD: &'static str = "custom/showNotification";
 }
 

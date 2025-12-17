@@ -2,11 +2,13 @@
 
 use crate::configuration::{compute_slice_options, ServerConfig, SliceConfig};
 use crate::utils::sanitize_path;
+use slicec::ast::Ast;
+use slicec::compilation_state::CompilationState;
+use slicec::diagnostics::Diagnostic;
+use slicec::slice_file::SliceFile;
+use slicec::slice_options::SliceOptions;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use slicec::compilation_state::CompilationState;
-use slicec::slice_options::SliceOptions;
-use slicec::{ast::Ast, diagnostics::Diagnostic, slice_file::SliceFile};
 
 #[derive(Debug, Default)]
 pub struct CompilationData {
