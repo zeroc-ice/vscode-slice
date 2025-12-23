@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::configuration::{compute_slice_options, ServerConfig, SliceConfig};
+use crate::configuration::{compute_slice_options, ServerConfig, ProjectConfig};
 use crate::utils::sanitize_path;
 use slicec::ast::Ast;
 use slicec::compilation_state::CompilationState;
@@ -26,35 +26,35 @@ unsafe impl Send for CompilationData {}
 unsafe impl Sync for CompilationData {}
 
 #[derive(Debug, Default)]
-pub struct ConfigurationSet {
-    pub slice_config: SliceConfig,
+pub struct SliceProject {
+    pub project_config: ProjectConfig,
     pub compilation_data: CompilationData,
 
     cached_slice_options: Option<SliceOptions>,
 }
 
-impl ConfigurationSet {
-    /// Parses a vector of `ConfigurationSet` from a JSON array.
-    pub fn parse_configuration_sets(config_array: &[serde_json::Value]) -> Vec<Self> {
+impl SliceProject {
+    /// Parses a vector of `SliceProject` from a JSON array.
+    pub fn parse_slice_projects(config_array: &[serde_json::Value]) -> Vec<Self> {
         config_array
             .iter()
-            .map(ConfigurationSet::from_json)
+            .map(SliceProject::from_json)
             .collect::<Vec<_>>()
     }
 
-    /// Constructs a `ConfigurationSet` from a JSON value.
+    /// Constructs a `SliceProject` from a JSON value.
     fn from_json(value: &serde_json::Value) -> Self {
-        let slice_config = SliceConfig {
+        let project_config = ProjectConfig {
             slice_search_paths: parse_paths(value),
             include_built_in_slice_files: parse_include_built_in(value),
         };
-        Self { slice_config, ..Self::default() }
+        Self { project_config, ..Self::default() }
     }
 
     pub fn trigger_compilation(&mut self, server_config: &ServerConfig) -> Vec<Diagnostic> {
         // Re-compute the `slice_options` we're going to pass into the compiler, if necessary.
         let slice_options = self.cached_slice_options.get_or_insert_with(|| {
-            compute_slice_options(server_config, &self.slice_config)
+            compute_slice_options(server_config, &self.project_config)
         });
 
         // Perform the compilation.

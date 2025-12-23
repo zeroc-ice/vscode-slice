@@ -13,25 +13,25 @@ pub struct ServerConfig {
     pub built_in_slice_path: String,
 }
 
-/// This struct holds the configuration for a single compilation set.
+/// This struct holds the configuration for a single Slice project.
 #[derive(Debug)]
-pub struct SliceConfig {
+pub struct ProjectConfig {
     /// List of paths that will be passed to the compiler as reference files/directories.
     pub slice_search_paths: Vec<PathBuf>,
     /// Specifies whether to include the built-in Slice files that are bundled with the extension.
     pub include_built_in_slice_files: bool,
 }
 
-impl Default for SliceConfig {
+impl Default for ProjectConfig {
     fn default() -> Self {
-        SliceConfig {
+        ProjectConfig {
             slice_search_paths: vec![],
             include_built_in_slice_files: true,
         }
     }
 }
 
-pub fn compute_slice_options(server_config: &ServerConfig, set_config: &SliceConfig) -> SliceOptions {
+pub fn compute_slice_options(server_config: &ServerConfig, project_config: &ProjectConfig) -> SliceOptions {
     let root_path = &server_config.workspace_root_path;
     let mut slice_options = SliceOptions::default();
     let references = &mut slice_options.references;
@@ -39,11 +39,11 @@ pub fn compute_slice_options(server_config: &ServerConfig, set_config: &SliceCon
     // Add the built-in Slice files (WellKnownTypes, etc.) at the start of the list, if they should be included.
     // Putting them first ensures that any redefinition conflicts will appear in the user's files, and not these.
     // (Since `slicec` parses files in the order that they are provided).
-    if set_config.include_built_in_slice_files {
+    if project_config.include_built_in_slice_files {
         references.push(server_config.built_in_slice_path.clone());
     }
 
-    match set_config.slice_search_paths.as_slice() {
+    match project_config.slice_search_paths.as_slice() {
         // If the user didn't specify any paths, default to using the workspace root.
         [] => references.push(root_path.display().to_string()),
 

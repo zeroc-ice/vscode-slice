@@ -1,6 +1,6 @@
 // Copyright (c) ZeroC, Inc.
 
-use crate::configuration_set::ConfigurationSet;
+use crate::slice_project::SliceProject;
 use crate::utils::{convert_slice_path_to_uri, span_to_range};
 use crate::{notifications, show_popup};
 
@@ -9,17 +9,17 @@ use std::collections::{HashMap, HashSet};
 use tower_lsp::lsp_types::{DiagnosticRelatedInformation, Location, NumberOrString, Url};
 use tower_lsp::Client;
 
-/// Publishes diagnostics for all files in a given configuration set.
+/// Publishes diagnostics for all files in the provided project.
 ///
-/// This function takes a client and a configuration set, generates updated diagnostics,
+/// This function takes a client and a project, generates updated diagnostics,
 /// and then publishes these diagnostics to the LSP client.
-pub async fn publish_diagnostics_for_set(
-    client: &Client,
+pub async fn publish_diagnostics_for_project(
+    client_handle: &Client,
     diagnostics: Vec<Diagnostic>,
-    configuration_set: &mut ConfigurationSet,
+    project: &mut SliceProject,
 ) {
     // Initialize a map to hold diagnostics grouped by file (URL)
-    let mut map = configuration_set
+    let mut map = project
         .compilation_data
         .files
         .keys()
@@ -30,7 +30,7 @@ pub async fn publish_diagnostics_for_set(
     let spanless_diagnostics = process_diagnostics(diagnostics, &mut map);
     for diagnostic in spanless_diagnostics {
         show_popup(
-            client,
+            client_handle,
             diagnostic.message(),
             notifications::MessageType::Error,
         )
@@ -39,7 +39,7 @@ pub async fn publish_diagnostics_for_set(
 
     // Publish the diagnostics for each file
     for (uri, lsp_diagnostics) in map {
-        client.publish_diagnostics(uri, lsp_diagnostics, None).await;
+        client_handle.publish_diagnostics(uri, lsp_diagnostics, None).await;
     }
 }
 
@@ -78,14 +78,14 @@ pub fn process_diagnostics(
     spanless_diagnostics
 }
 
-/// Clears the diagnostics for all tracked files in the configuration sets.
+/// Clears the diagnostics for all tracked files in the provided projects.
 ///
-/// This function iterates over all configuration sets, collects all tracked file URIs,
+/// This function iterates over the projects, collects all tracked file URIs,
 /// and then publishes empty diagnostics to clear existing ones for each URI.
-pub async fn clear_diagnostics(client: &Client, configuration_sets: &[ConfigurationSet]) {
+pub async fn clear_diagnostics(client_handle: &Client, projects: &[SliceProject]) {
     let mut all_tracked_files = HashSet::new();
-    for configuration_set in configuration_sets.iter() {
-        configuration_set
+    for project in projects.iter() {
+        project
             .compilation_data
             .files
             .keys()
@@ -97,7 +97,7 @@ pub async fn clear_diagnostics(client: &Client, configuration_sets: &[Configurat
 
     // Clear diagnostics for each tracked file
     for uri in all_tracked_files {
-        client.publish_diagnostics(uri, vec![], None).await;
+        client_handle.publish_diagnostics(uri, vec![], None).await;
     }
 }
 

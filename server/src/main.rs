@@ -1,7 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration::compute_slice_options;
-use crate::diagnostic_handler::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_set};
+use crate::diagnostic_handler::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_project};
 use crate::hover::get_hover_message;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
@@ -16,12 +16,12 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use utils::{convert_slice_path_to_uri, span_to_range, url_to_sanitized_file_path};
 
 mod configuration;
-mod configuration_set;
 mod diagnostic_handler;
 mod hover;
 mod jump_definition;
 mod notifications;
 mod server_state;
+mod slice_project;
 mod utils;
 
 #[tokio::main]
@@ -29,19 +29,19 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(Backend::new);
+    let (service, socket) = LspService::new(SliceLanguageServer::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-struct Backend {
-    client: Client,
+struct SliceLanguageServer {
+    client_handle: Client,
     server_state: Mutex<ServerState>,
 }
 
-impl Backend {
-    pub fn new(client: tower_lsp::Client) -> Self {
+impl SliceLanguageServer {
+    pub fn new(client_handle: tower_lsp::Client) -> Self {
         let server_state = Mutex::new(ServerState::default());
-        Self { client, server_state }
+        Self { client_handle, server_state }
     }
 
     fn capabilities() -> ServerCapabilities {
@@ -77,19 +77,19 @@ impl Backend {
     }
 
     async fn handle_file_change(&self, file_path: &Path) {
-        self.client
+        self.client_handle
             .log_message(MessageType::INFO, format!("File '{}' changed", file_path.display()))
             .await;
 
         let mut server_guard = self.server_state.lock().await;
-        let ServerState { configuration_sets, server_config } = server_guard.deref_mut();
+        let ServerState { slice_projects, server_config } = server_guard.deref_mut();
 
         let mut publish_map = HashMap::new();
         let mut diagnostics = Vec::new();
 
-        // Process each configuration set that contains the changed file.
-        for set in configuration_sets.iter_mut().filter(|set| {
-            compute_slice_options(server_config, &set.slice_config)
+        // Process each project that contains the changed file.
+        for project in slice_projects.iter_mut().filter(|project| {
+            compute_slice_options(server_config, &project.project_config)
                 .references
                 .into_iter()
                 .any(|f| {
@@ -97,12 +97,12 @@ impl Backend {
                     key_path == file_path || file_path.starts_with(key_path)
                 })
         }) {
-            // `trigger_compilation` compiles the configuration set's files and returns any diagnostics.
-            diagnostics.extend(set.trigger_compilation(server_config));
+            // `trigger_compilation` compiles the project's files and returns any diagnostics.
+            diagnostics.extend(project.trigger_compilation(server_config));
 
             // Update publish_map with files to be updated.
             publish_map.extend(
-                set.compilation_data
+                project.compilation_data
                     .files
                     .keys()
                     .filter_map(convert_slice_path_to_uri)
@@ -119,7 +119,7 @@ impl Backend {
         let spanless_diagnostics = process_diagnostics(diagnostics, &mut publish_map);
         for diagnostic in spanless_diagnostics {
             show_popup(
-                &self.client,
+                &self.client_handle,
                 diagnostic.message(),
                 notifications::MessageType::Error,
             )
@@ -127,48 +127,48 @@ impl Backend {
         }
 
         // Publish the diagnostics for each file.
-        self.client
+        self.client_handle
             .log_message(
                 MessageType::INFO,
-                "Publishing diagnostics for all configuration sets.",
+                "Publishing diagnostics for all projects.",
             )
             .await;
 
         for (uri, lsp_diagnostics) in publish_map {
-            self.client
+            self.client_handle
                 .publish_diagnostics(uri, lsp_diagnostics, None)
                 .await;
         }
     }
 
     /// Triggers and compilation and publishes any diagnostics that are reported.
-    /// It does this for all configuration sets.
+    /// It does this for all projects.
     pub async fn compile_and_publish_diagnostics(&self) {
         let mut server_guard = self.server_state.lock().await;
-        let ServerState { configuration_sets, server_config } = server_guard.deref_mut();
+        let ServerState { slice_projects, server_config } = server_guard.deref_mut();
 
-        self.client
+        self.client_handle
             .log_message(
                 MessageType::INFO,
-                "Publishing diagnostics for all configuration sets.",
+                "Publishing diagnostics for all projects.",
             )
             .await;
-        for configuration_set in configuration_sets.iter_mut() {
+        for project in slice_projects.iter_mut() {
             // Trigger a compilation and get any diagnostics that were reported during it.
-            let diagnostics = configuration_set.trigger_compilation(server_config);
+            let diagnostics = project.trigger_compilation(server_config);
             // Publish those diagnostics.
-            publish_diagnostics_for_set(&self.client, diagnostics, configuration_set).await;
+            publish_diagnostics_for_project(&self.client_handle, diagnostics, project).await;
         }
     }
 }
 
 #[tower_lsp::async_trait]
-impl LanguageServer for Backend {
+impl LanguageServer for SliceLanguageServer {
     async fn initialize(&self, params: InitializeParams) -> tower_lsp::jsonrpc::Result<InitializeResult> {
         let mut server_guard = self.server_state.lock().await;
         server_guard.update_from_initialize_params(params);
 
-        let capabilities = Backend::capabilities();
+        let capabilities = SliceLanguageServer::capabilities();
         Ok(InitializeResult {
             capabilities,
             ..InitializeResult::default()
@@ -185,7 +185,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
-        self.client
+        self.client_handle
             .log_message(MessageType::INFO, "Extension settings changed")
             .await;
 
@@ -195,10 +195,10 @@ impl LanguageServer for Backend {
 
             // When the configuration changes, any of the files in the workspace could be impacted.
             // Therefore, we need to clear the diagnostics for all files and then re-publish them.
-            clear_diagnostics(&self.client, &server_guard.configuration_sets).await;
+            clear_diagnostics(&self.client_handle, &server_guard.slice_projects).await;
 
-            // Update the stored configuration sets from the data provided in the client notification.
-            server_guard.update_configurations_from_params(params);
+            // Update the stored Slice projects from the data provided in the client notification.
+            server_guard.update_projects_from_params(params);
         }
 
         // Trigger a compilation and publish the diagnostics for all files.
@@ -215,13 +215,13 @@ impl LanguageServer for Backend {
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
-        // Find the configuration set that contains the file
+        // Find the project that contains the file
         let server_guard = self.server_state.lock().await;
-        let configuration_sets = &server_guard.configuration_sets;
+        let slice_projects = &server_guard.slice_projects;
 
         // Get the definition span and convert it to a GotoDefinitionResponse
-        Ok(configuration_sets.iter().find_map(|set| {
-            let files = &set.compilation_data.files;
+        Ok(slice_projects.iter().find_map(|project| {
+            let files = &project.compilation_data.files;
             files
                 .get(&file_path)
                 .and_then(|file| get_definition_span(file, position))
@@ -241,12 +241,12 @@ impl LanguageServer for Backend {
         // Convert the URI to a file path and back to a URL to ensure that the URI is formatted correctly for Windows.
         let file_path = url_to_sanitized_file_path(&uri).ok_or_else(Error::internal_error)?;
 
-        // Find the configuration set that contains the file and get the hover info
+        // Find the project that contains the file and get the hover info
         let server_guard = self.server_state.lock().await;
-        let configuration_sets = &server_guard.configuration_sets;
+        let slice_projects = &server_guard.slice_projects;
 
-        Ok(configuration_sets.iter().find_map(|set| {
-            let files = &set.compilation_data.files;
+        Ok(slice_projects.iter().find_map(|project| {
+            let files = &project.compilation_data.files;
             files
                 .get(&file_path)
                 .and_then(|file| get_hover_message(file, position))
@@ -270,9 +270,9 @@ impl LanguageServer for Backend {
     }
 }
 
-pub async fn show_popup(client: &Client, message: String, message_type: notifications::MessageType) {
+pub async fn show_popup(client_handle: &Client, message: String, message_type: notifications::MessageType) {
     let show_notification_params = ShowNotificationParams { message, message_type };
-    client
+    client_handle
         .send_notification::<ShowNotification>(show_notification_params)
         .await;
 }
