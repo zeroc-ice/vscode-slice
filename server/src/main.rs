@@ -34,11 +34,16 @@ async fn main() {
 }
 
 struct SliceLanguageServer {
+    /// Provides a handle for communicating back to the client that is connected to this server.
     client_handle: Client,
+    /// Stores all of this server's state.
     server_state: Mutex<ServerState>,
 }
 
 impl SliceLanguageServer {
+    /// Create a new language server that is connected to the provided language client.
+    ///
+    /// This method only creates the server; no networking or further initialization is performed.
     pub fn new(client_handle: tower_lsp::Client) -> Self {
         let server_state = Mutex::new(ServerState::default());
         Self { client_handle, server_state }

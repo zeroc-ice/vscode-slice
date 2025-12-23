@@ -13,7 +13,7 @@ pub struct ServerConfig {
     pub built_in_slice_path: String,
 }
 
-/// This struct holds the configuration for a single Slice project.
+/// This struct holds configuration that affects a single Slice project.
 #[derive(Debug)]
 pub struct ProjectConfig {
     /// List of paths that will be passed to the compiler as reference files/directories.
