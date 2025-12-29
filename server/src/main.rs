@@ -184,7 +184,7 @@ impl LanguageServer for SliceLanguageServer {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        let msg = "Slice Language Server has finished initialized.";
+        let msg = "Slice Language Server has fully initialized.";
         self.client_handle.log_message(MessageType::INFO, msg).await;
 
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
