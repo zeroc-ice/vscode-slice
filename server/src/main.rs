@@ -1,7 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration::compute_slice_options;
-use crate::diagnostic_handler::{clear_diagnostics, process_diagnostics, publish_diagnostics_for_project};
+use crate::diagnostic_handler::{process_diagnostics, publish_diagnostics_for_project};
 use crate::hover::get_hover_message;
 use crate::jump_definition::get_definition_span;
 use crate::notifications::{ShowNotification, ShowNotificationParams};
@@ -33,6 +33,9 @@ async fn main() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
+/// Represents a language server for the Slice IDL.
+///
+/// `SliceLanguageServer` is the core type of this package. It receives and responds to requests from language clients.
 struct SliceLanguageServer {
     /// Provides a handle for communicating back to the client that is connected to this server.
     client_handle: Client,
@@ -181,26 +184,33 @@ impl LanguageServer for SliceLanguageServer {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        let msg = "Slice Language Server has finished initialized.";
+        self.client_handle.log_message(MessageType::INFO, msg).await;
+
         // Now that the server and client are fully initialized, it's safe to compile and publish any diagnostics.
         self.compile_and_publish_diagnostics().await;
     }
 
     async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
+        let msg = "Shutting down Slice Language Server.";
+        self.client_handle.log_message(MessageType::INFO, msg).await;
+
         Ok(())
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
-        self.client_handle
-            .log_message(MessageType::INFO, "Extension settings changed")
-            .await;
+        let msg = format!("Slice Language Server configuration has changed. New Configuration is:\n{params:#?}");
+        self.client_handle.log_message(MessageType::INFO, msg).await;
 
         // Explicit scope to ensure the server state lock guard is dropped before we start compilation.
         {
             let mut server_guard = self.server_state.lock().await;
 
-            // When the configuration changes, any of the files in the workspace could be impacted.
-            // Therefore, we need to clear the diagnostics for all files and then re-publish them.
-            clear_diagnostics(&self.client_handle, &server_guard.slice_projects).await;
+            // Configuration changes affect every file, so we tell the workspace to refresh all its diagnostics.
+            if let Err(err) = self.client_handle.workspace_diagnostic_refresh().await {
+                let msg = format!("Failed to refresh workspace diagnostics:\n{err:?}");
+                self.client_handle.log_message(MessageType::ERROR, msg).await;
+            }
 
             // Update the stored Slice projects from the data provided in the client notification.
             server_guard.update_projects_from_params(params);

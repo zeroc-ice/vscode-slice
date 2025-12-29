@@ -5,7 +5,7 @@ use crate::utils::{convert_slice_path_to_uri, span_to_range};
 use crate::{notifications, show_popup};
 
 use slicec::diagnostics::{Diagnostic, DiagnosticLevel, Note};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tower_lsp::lsp_types::{DiagnosticRelatedInformation, Location, NumberOrString, Url};
 use tower_lsp::Client;
 
@@ -76,29 +76,6 @@ pub fn process_diagnostics(
             publish_map.entry(uri).or_default().push(lsp_diagnostic);
         });
     spanless_diagnostics
-}
-
-/// Clears the diagnostics for all tracked files in the provided projects.
-///
-/// This function iterates over the projects, collects all tracked file URIs,
-/// and then publishes empty diagnostics to clear existing ones for each URI.
-pub async fn clear_diagnostics(client_handle: &Client, projects: &[SliceProject]) {
-    let mut all_tracked_files = HashSet::new();
-    for project in projects.iter() {
-        project
-            .compilation_data
-            .files
-            .keys()
-            .filter_map(convert_slice_path_to_uri)
-            .for_each(|uri| {
-                all_tracked_files.insert(uri);
-            });
-    }
-
-    // Clear diagnostics for each tracked file
-    for uri in all_tracked_files {
-        client_handle.publish_diagnostics(uri, vec![], None).await;
-    }
 }
 
 // A helper function that converts a slicec diagnostic into an lsp diagnostics
