@@ -7,9 +7,7 @@ use tower_lsp::lsp_types::{DidChangeConfigurationParams, InitializeParams};
 
 #[derive(Debug, Default)]
 pub struct ServerState {
-    /// This vector contains all of the Slice projects for the language server. Each element is a tuple containing
-    /// `ProjectConfig` and `CompilationState`. The `ProjectConfig` is used to determine which project to use
-    /// when publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
+    /// This vector contains all of the Slice projects for the language server.
     pub slice_projects: Vec<SliceProject>,
     /// Configuration that affects the entire server.
     pub server_config: ServerConfig,
