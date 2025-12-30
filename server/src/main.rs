@@ -202,17 +202,16 @@ impl LanguageServer for SliceLanguageServer {
         let msg = format!("Slice Language Server configuration has changed. New Configuration is:\n{params:#?}");
         self.client_handle.log_message(MessageType::INFO, msg).await;
 
+        // Configuration changes affect every file, so we tell the workspace to refresh all its diagnostics.
+        if let Err(err) = self.client_handle.workspace_diagnostic_refresh().await {
+            let msg = format!("Failed to refresh workspace diagnostics:\n{err:?}");
+            self.client_handle.log_message(MessageType::ERROR, msg).await;
+        }
+        
         // Explicit scope to ensure the server state lock guard is dropped before we start compilation.
         {
-            let mut server_guard = self.server_state.lock().await;
-
-            // Configuration changes affect every file, so we tell the workspace to refresh all its diagnostics.
-            if let Err(err) = self.client_handle.workspace_diagnostic_refresh().await {
-                let msg = format!("Failed to refresh workspace diagnostics:\n{err:?}");
-                self.client_handle.log_message(MessageType::ERROR, msg).await;
-            }
-
             // Update the stored Slice projects from the data provided in the client notification.
+            let mut server_guard = self.server_state.lock().await;
             server_guard.update_projects_from_params(params);
         }
 
