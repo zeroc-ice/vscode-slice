@@ -1,16 +1,14 @@
 // Copyright (c) ZeroC, Inc.
 
 use crate::configuration::ServerConfig;
-use crate::configuration_set::ConfigurationSet;
+use crate::slice_project::SliceProject;
 use crate::utils::{sanitize_path, url_to_sanitized_file_path};
 use tower_lsp::lsp_types::{DidChangeConfigurationParams, InitializeParams};
 
 #[derive(Debug, Default)]
 pub struct ServerState {
-    /// This vector contains all of the configuration sets for the language server. Each element is a tuple containing
-    /// `SliceConfig` and `CompilationState`. The `SliceConfig` is used to determine which configuration set to use
-    /// when publishing diagnostics. The `CompilationState` is used to retrieve the diagnostics for a given file.
-    pub configuration_sets: Vec<ConfigurationSet>,
+    /// This vector contains all of the Slice projects for the language server.
+    pub slice_projects: Vec<SliceProject>,
     /// Configuration that affects the entire server.
     pub server_config: ServerConfig,
 }
@@ -39,40 +37,38 @@ impl ServerState {
 
         self.server_config = ServerConfig { workspace_root_path, built_in_slice_path };
 
-        // Load any user configuration from the 'slice.configurations' option.
-        let configuration_sets = initialization_options
+        // Load the active Slice projects from the 'slice.configurations' option.
+        let slice_projects = initialization_options
             .as_ref()
             .and_then(|opts| opts.get("configurations"))
             .and_then(|v| v.as_array())
-            .map(|arr| ConfigurationSet::parse_configuration_sets(arr))
+            .map(|arr| SliceProject::parse_slice_projects(arr))
             .unwrap_or_default();
 
-        self.update_configurations(configuration_sets);
+        self.set_projects(slice_projects);
     }
 
-    // Update the configuration sets from the `DidChangeConfigurationParams` notification.
-    pub fn update_configurations_from_params(&mut self, params: DidChangeConfigurationParams) {
-        // Parse the configurations from the notification
-        let configurations = params
+    // Update the active projects from the `DidChangeConfigurationParams` notification.
+    pub fn update_projects_from_params(&mut self, params: DidChangeConfigurationParams) {
+        // Parse the projects from the notification
+        let slice_projects = params
             .settings
             .get("slice")
             .and_then(|v| v.get("configurations"))
             .and_then(|v| v.as_array())
-            .map(|arr| ConfigurationSet::parse_configuration_sets(arr))
+            .map(|arr| SliceProject::parse_slice_projects(arr))
             .unwrap_or_default();
 
-        // Update the configuration sets
-        self.update_configurations(configurations);
+        self.set_projects(slice_projects);
     }
 
-    // Update the configuration sets by replacing it with the new configurations. If there are no configuration sets
-    // after updating, insert the default configuration set.
-    fn update_configurations(&mut self, mut configurations: Vec<ConfigurationSet>) {
-        // Insert the default configuration set if needed
-        if configurations.is_empty() {
-            configurations.push(ConfigurationSet::default());
+    // Sets the currently loaded Slice projects.
+    // If no Slice projects are provided, we insert a default project.
+    fn set_projects(&mut self, mut projects: Vec<SliceProject>) {
+        if projects.is_empty() {
+            projects.push(SliceProject::default());
         }
 
-        self.configuration_sets = configurations;
+        self.slice_projects = projects;
     }
 }
