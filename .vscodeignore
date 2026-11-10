@@ -16,3 +16,6 @@ server/**
 # Slice
 slice/**/Internal
 slice/**/!(*.slice)
+
+# Formatter
+formatter/**
