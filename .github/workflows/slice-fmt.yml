@@ -43,15 +43,15 @@ jobs:
 
       - name: Configure
         run: >
-          cmake -S formatter -B formatter/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+          cmake -S slice-fmt -B slice-fmt/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
           ${{ matrix.cmake-args }}
 
       - name: Build
-        run: cmake --build formatter/build --config Release
+        run: cmake --build slice-fmt/build --config Release
 
       - name: Upload slice-fmt
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: slice-fmt_${{ matrix.target }}
-          path: ./formatter/build/${{ matrix.bin }}
+          path: ./slice-fmt/build/${{ matrix.bin }}
           if-no-files-found: error

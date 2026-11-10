@@ -74,10 +74,10 @@ module Demo
 Building `slice-fmt` requires CMake 3.24 or later and a C++20 compiler.
 
 ```
-cmake -S formatter -B formatter/build -DCMAKE_BUILD_TYPE=Release
-cmake --build formatter/build --config Release
+cmake -S slice-fmt -B slice-fmt/build -DCMAKE_BUILD_TYPE=Release
+cmake --build slice-fmt/build --config Release
 ```
 
-The executable is `formatter/build/slice-fmt`, or `formatter\build\Release\slice-fmt.exe` with Visual Studio.
+The executable is `slice-fmt/build/slice-fmt`, or `slice-fmt\build\Release\slice-fmt.exe` with Visual Studio.
 
 The `slice-fmt` workflow builds the executable for macOS, Linux, and Windows, and uploads each one as an artifact.
