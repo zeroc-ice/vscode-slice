@@ -11,6 +11,10 @@ module Demo
             bool notify
         );
 
+        // A line of 120 columns fits.
+        idempotent Ice::StringSeq listQueuedOnTray(string user, Color color, bool doubleSided,
+            optional(1) string tray);
+
         // Metadata written on the line above stays there.
         ["amd"]
         void pause(string user);

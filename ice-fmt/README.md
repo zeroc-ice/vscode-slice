@@ -1,6 +1,7 @@
 # ice-fmt
 
-`ice-fmt` formats Slice files that use the original Slice syntax (`.ice` files). It has one style and no options.
+`ice-fmt` formats Slice files that use the original Slice syntax (`.ice` files). It has one style, with nothing to
+configure.
 
 ## Usage
 
@@ -8,9 +9,15 @@
 ice-fmt [options] paths...
 ```
 
-`ice-fmt` rewrites each file in place, and leaves a file that is already formatted untouched. A directory stands for
-the `.ice` files in it and in the directories below it. In a directory, a name that starts with a dot is skipped, and
-so is `node_modules`.
+`ice-fmt` rewrites each file in place, and leaves a file that is already formatted untouched. A file given by name is
+formatted whatever its name. A directory stands for the `.ice` files in it and in the directories below it; there, a
+name that starts with a dot is skipped, and so is `node_modules`.
+
+There is no list of files to skip. To leave files out, pass the files to format:
+
+```
+git ls-files -z '*.ice' ':!:test/errors' | xargs -0 ice-fmt --check
+```
 
 - `--check` writes nothing: it lists the files that formatting would change, and fails when there is one.
 - `-h`, `--help` shows the usage.
@@ -20,7 +27,16 @@ A file with a syntax error is not formatted: `ice-fmt` reports the error as `fil
 next file. It reads a file as written, without preprocessing it, so a file where a macro stands in for Slice syntax is
 a syntax error too.
 
-The exit status is `1` when a file has a syntax error, cannot be read or written, or, with `--check`, would change.
+`ice-fmt` also refuses a file that it can't lay out again without changing what the Slice compiler reads:
+
+- A doc comment (`///` or `/** */`) that follows code on its line. The compiler's preprocessor moves a comment to the
+  start of its line, so such a comment documents the first definition of that line.
+- A comment or directive between a `(` and the name before it, which the compiler reads as one token.
+- A comment or directive line that a backslash continues onto an empty line or the end of the file, or that has
+  blanks after that backslash. The preprocessor joins such a line to the next one.
+
+The exit status is `1` when the command line is invalid, when a file has a syntax error or cannot be read or written,
+and, with `--check`, when a file would change.
 
 ## Style
 
@@ -54,7 +70,10 @@ module Demo
 }
 ```
 
-- Indentation is 4 spaces, and a line is at most 120 columns.
+- Indentation is 4 spaces. A line is broken where it can be to fit in 120 columns; a comment that follows code doesn't
+  count toward them.
+- One space separates two tokens. None follows `(`, `<`, `[`, or `[[`, and none precedes `)`, `>`, `]`, `]]`, `,`,
+  `;`, `(`, `<`, or `*`.
 - Braces go on their own line. An empty body written as `{}` is the exception: it follows its definition on the same
   line.
 - A blank line separates a module, class, interface, exception, struct, or enum from the definition before it and
@@ -71,12 +90,14 @@ module Demo
   - A definition written on one line stays on one line when it fits.
   - A blank line between two definitions or two members stays.
 - Comments and preprocessor directives keep their text. One on its own line takes the indentation of the code around
-  it, and a comment that follows code keeps its column.
+  it, and the later lines of a block comment keep their indentation relative to its first line. A comment that follows
+  code keeps its column when the code leaves room for it. A doc comment before code on its line moves to the line
+  above.
 - No line ends with a space or a tab.
 - At most one blank line separates two things, and none starts the file, follows a `{`, or precedes a `}`. The
   text of a block comment is the exception: its blank lines stay.
 - No token is added or reordered. The only token removed is a `;` after a `}`, where Slice doesn't require one.
-- A file keeps its line endings, and ends with one line break.
+- A file keeps the line endings of its first line, and ends with one line break.
 
 ## Building
 
@@ -90,7 +111,8 @@ cmake --build ice-fmt/build --config Release
 The executable is `ice-fmt/build/ice-fmt`, or `ice-fmt\build\Release\ice-fmt.exe` with Visual Studio.
 
 The `ice-fmt` workflow builds and tests the executable for macOS, Linux, and Windows, and uploads each one as an
-artifact.
+artifact. It also checks the sources with clang-format and clang-tidy. To run clang-tidy during a build, configure
+with `-DCMAKE_CXX_CLANG_TIDY=clang-tidy`.
 
 ## Testing
 

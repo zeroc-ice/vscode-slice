@@ -15,6 +15,7 @@ add_executable(ice-fmt
     src/SyntaxScanner.cpp)
 
 target_compile_features(ice-fmt PRIVATE cxx_std_20)
+set_target_properties(ice-fmt PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_definitions(ice-fmt PRIVATE ICE_FMT_VERSION="${PROJECT_VERSION}")
 
 if(MSVC)
@@ -22,7 +23,7 @@ if(MSVC)
     # The executable runs without the Visual C++ redistributable.
     set_target_properties(ice-fmt PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
-    target_compile_options(ice-fmt PRIVATE -Wall -Wextra -Wshadow)
+    target_compile_options(ice-fmt PRIVATE -Wall -Wextra -Wshadow -Wconversion -Wsign-conversion -Wpedantic)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -45,13 +46,16 @@ foreach(case comments crlf definitions metadata operations)
         -DOUTPUT=${output}/${case}.ice
         -P "${tests}/FormatTest.cmake")
 
+    # --check lists a file that formatting would change, fails, and writes nothing.
+    add_test(NAME check-${case} COMMAND "${CMAKE_COMMAND}"
+        -DICE_FMT=$<TARGET_FILE:ice-fmt>
+        -DUNFORMATTED=${tests}/unformatted/${case}.ice
+        -DOUTPUT=${output}/check-${case}.ice
+        -P "${tests}/CheckTest.cmake")
+
     # A formatted file is left as it is.
     add_test(NAME keep-${case} COMMAND ice-fmt --check "${tests}/formatted/${case}.ice")
 endforeach()
-
-# --check fails on a file that formatting would change.
-add_test(NAME check COMMAND ice-fmt --check "${tests}/unformatted/operations.ice")
-set_tests_properties(check PROPERTIES WILL_FAIL TRUE)
 
 # A directory stands for the .ice files below it, except under a name that starts with a dot and under node_modules.
 # The directory is made here because the repository ignores node_modules.

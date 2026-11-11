@@ -91,8 +91,8 @@ namespace IceFmt
         int column;
     };
 
-    /// Returns how a keyword or a punctuation mark is written, such as `module` for TokenKind::Module.
-    /// @param kind The kind of a keyword or of a punctuation mark.
+    /// Returns how a punctuation mark is written, such as `;` for TokenKind::Semicolon.
+    /// @param kind The kind of a punctuation mark.
     [[nodiscard]] std::string_view spelling(TokenKind kind);
 
     /// Splits the text of a Slice file into lexemes. Unlike the Slice compiler's scanner, it reads text that wasn't

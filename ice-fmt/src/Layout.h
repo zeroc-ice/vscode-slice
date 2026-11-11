@@ -3,7 +3,9 @@
 #ifndef ICE_FMT_LAYOUT_H
 #define ICE_FMT_LAYOUT_H
 
+#include <concepts>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace IceFmt
@@ -25,9 +27,10 @@ namespace IceFmt
             Concat,
         };
 
-        Kind kind;
+        Kind kind = Kind::Text;
 
-        /// The text of a Text or Suffix, and what a Line becomes when its group is flat.
+        /// The text of a Text or Suffix. A Line that becomes a space when its group is flat has a space here, and a
+        /// Line that becomes nothing has no text.
         std::string text;
 
         /// The child of an Indent or Group, and the parts of a Concat.
@@ -76,6 +79,15 @@ namespace IceFmt
 
     /// Concatenates documents.
     [[nodiscard]] Doc concat(std::vector<Doc> docs);
+
+    /// Concatenates the documents passed as arguments.
+    template<std::same_as<Doc>... Docs> [[nodiscard]] Doc concat(Docs... docs)
+    {
+        std::vector<Doc> parts;
+        parts.reserve(sizeof...(docs));
+        (parts.push_back(std::move(docs)), ...);
+        return concat(std::move(parts));
+    }
 
     /// Lays out a document in lines of at most 120 columns where its line breaks allow, with four spaces for each
     /// level of indentation.

@@ -1,6 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
 #include "Formatter.h"
+#include "SyntaxError.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -8,7 +9,6 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -42,6 +42,51 @@ namespace
         }
         ranges::sort(files);
         return files;
+    }
+
+    // Formats a file in place. With 'check', it writes nothing and lists the file when formatting would change it.
+    // Returns false when the file can't be read, formatted, or written, and with 'check' when formatting would change
+    // it.
+    bool formatFile(const string& file, bool check, string_view program)
+    {
+        ifstream in{file, ios::binary};
+        if (!in)
+        {
+            cerr << program << ": error: cannot open '" << file << "' for reading" << endl;
+            return false;
+        }
+        string text{istreambuf_iterator<char>{in}, istreambuf_iterator<char>{}};
+
+        string formatted;
+        try
+        {
+            formatted = formatSlice(text);
+        }
+        catch (const SyntaxError& error)
+        {
+            cerr << file << ':' << error.line << ": " << error.what() << endl;
+            return false;
+        }
+
+        if (formatted == text)
+        {
+            return true;
+        }
+        if (check)
+        {
+            cout << file << endl;
+            return false;
+        }
+
+        ofstream out{file, ios::binary};
+        out << formatted;
+        out.close();
+        if (!out)
+        {
+            cerr << program << ": error: cannot write '" << file << "'" << endl;
+            return false;
+        }
+        return true;
     }
 
     void usage(ostream& out, string_view program)
@@ -122,46 +167,8 @@ main(int argc, char* argv[])
 
     for (const string& file : files)
     {
-        ifstream in{file, ios::binary};
-        if (!in)
+        if (!formatFile(file, check, argv[0]))
         {
-            cerr << argv[0] << ": error: cannot open '" << file << "' for reading" << endl;
-            status = EXIT_FAILURE;
-            continue;
-        }
-        ostringstream buffer;
-        buffer << in.rdbuf();
-        string text = buffer.str();
-
-        string formatted;
-        try
-        {
-            formatted = formatSlice(text);
-        }
-        catch (const SyntaxError& error)
-        {
-            cerr << file << ':' << error.line << ": " << error.what() << endl;
-            status = EXIT_FAILURE;
-            continue;
-        }
-
-        if (formatted == text)
-        {
-            continue;
-        }
-        if (check)
-        {
-            cout << file << endl;
-            status = EXIT_FAILURE;
-            continue;
-        }
-
-        ofstream out{file, ios::binary};
-        out << formatted;
-        out.close();
-        if (!out)
-        {
-            cerr << argv[0] << ": error: cannot write '" << file << "'" << endl;
             status = EXIT_FAILURE;
         }
     }

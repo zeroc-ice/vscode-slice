@@ -3,7 +3,11 @@
 #include "Layout.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 using namespace std;
 using namespace IceFmt;
@@ -113,7 +117,6 @@ namespace
             }
             _out += '\n';
             _lineStart = _out.size();
-            _column = 0;
             _endOfLine = false;
         }
 
@@ -130,10 +133,8 @@ namespace
             if (lineIsEmpty())
             {
                 _out.append(static_cast<size_t>(indent), ' ');
-                _column = indent;
             }
             _out += text;
-            _column += columns(text);
         }
 
         void writeSpace()
@@ -141,7 +142,6 @@ namespace
             if (!lineIsEmpty() && _out.back() != ' ')
             {
                 _out += ' ';
-                _column++;
             }
         }
 
@@ -150,7 +150,8 @@ namespace
         [[nodiscard]] bool fits(Command contents, const vector<Command>& rest) const
         {
             // The contents start a new line when the current line is complete.
-            int remaining = lineWidth - (lineIsEmpty() || _endOfLine ? contents.indent : _column);
+            int column = lineIsEmpty() || _endOfLine ? contents.indent : columns(string_view{_out}.substr(_lineStart));
+            int remaining = lineWidth - column;
             bool endOfLine = false;
             vector<Command> commands{contents};
             auto next = rest.rbegin();
@@ -226,9 +227,6 @@ namespace
 
         // The offset in _out of the line being written.
         size_t _lineStart = 0;
-
-        // The number of columns written on the current line, without the suffix that ends it.
-        int _column = 0;
 
         // Whether the current line is complete: the next text starts a new line.
         bool _endOfLine = false;

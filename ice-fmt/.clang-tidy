@@ -1,0 +1,23 @@
+# The checks of zeroc-ice/ice.
+Checks:
+'-*,
+  clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  cert-*,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-trailing-return-type,
+  -modernize-macro-to-enum,
+  -modernize-use-designated-initializers,
+  -modernize-use-constraints,
+  -modernize-use-ranges,
+  -modernize-loop-convert,
+  -modernize-use-starts-ends-with,
+  performance-*,
+  -performance-avoid-endl,
+  -performance-enum-size,
+  -performance-inefficient-string-concatenation,
+'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
+FormatStyle: 'file'

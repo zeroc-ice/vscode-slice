@@ -8,15 +8,16 @@
 
 namespace IceFmt
 {
-    /// The exception that is thrown when the text of a Slice file doesn't follow the Slice grammar.
+    /// The exception that is thrown when the text of a Slice file can't be formatted: it doesn't follow the Slice
+    /// grammar, or a backslash continues a line of a comment or directive in a way that formatting would change.
     class SyntaxError final : public std::runtime_error
     {
     public:
-        /// @param errorLine The one-based line where the text stops following the grammar.
-        /// @param message What the parser expected there, and what it found.
+        /// @param errorLine The one-based line of the error.
+        /// @param message What the parser expected there and what it found, or what it refuses.
         SyntaxError(int errorLine, const std::string& message) : std::runtime_error{message}, line{errorLine} {}
 
-        /// The one-based line where the text stops following the grammar.
+        /// The one-based line of the error.
         int line;
     };
 }

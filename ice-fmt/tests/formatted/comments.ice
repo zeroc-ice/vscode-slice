@@ -37,5 +37,19 @@ module Demo
     }
 
     struct Pair { int first; int second; } // The comment moves over when the semicolon goes.
+
+    /** A doc comment before code on its line gets the line to itself. */
+    struct Triple { int first; int second; int third; }
+
+    // The comments before a closing brace have a line each when the body doesn't fit on one line.
+    struct Quad
+    {
+        int first;
+        int second;
+        int third;
+        int fourth;
+        /* The first comment is here. */
+        /* The second comment is here. */
+    }
 }
 // The end.

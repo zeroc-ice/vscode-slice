@@ -3,10 +3,16 @@
 #include "Formatter.h"
 #include "Layout.h"
 #include "SyntaxParser.h"
+#include "SyntaxScanner.h"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 using namespace std;
 using namespace IceFmt;
@@ -14,12 +20,12 @@ using namespace IceFmt;
 namespace
 {
     // The tokens that no space follows, and the tokens that no space precedes.
-    constexpr array<TokenKind, 4> noSpaceAfter{
+    constexpr array noSpaceAfter{
         TokenKind::LeftParenthesis,
         TokenKind::LeftAngle,
         TokenKind::LeftBracket,
         TokenKind::DoubleLeftBracket};
-    constexpr array<TokenKind, 9> noSpaceBefore{
+    constexpr array noSpaceBefore{
         TokenKind::RightParenthesis,
         TokenKind::RightAngle,
         TokenKind::RightBracket,
@@ -100,20 +106,20 @@ namespace
         return commentFirst || !contains(noSpaceBefore, token.kind);
     }
 
+    // Returns a line of a comment or directive without the blanks and the carriage return that end it.
+    string_view withoutTrailingBlanks(string_view line) { return line.substr(0, line.find_last_not_of(" \t\r") + 1); }
+
     // Splits a comment or directive into its lines. A line after the first one keeps the indentation it has relative
     // to the first one.
     vector<string> splitLines(const Trivia& trivia)
     {
         auto column = static_cast<size_t>(trivia.column);
         vector<string> lines;
-        size_t start = 0;
-        while (start != string_view::npos)
+        string_view rest = trivia.text;
+        while (true)
         {
-            size_t end = trivia.text.find('\n', start);
-            string_view current = trivia.text.substr(start, end == string_view::npos ? end : end - start);
-            start = end == string_view::npos ? end : end + 1;
-
-            current = current.substr(0, current.find_last_not_of(" \t\r") + 1);
+            size_t end = rest.find('\n');
+            string_view current = withoutTrailingBlanks(rest.substr(0, end));
             size_t indentation = current.find_first_not_of(" \t");
             if (lines.empty() || current.empty())
             {
@@ -125,8 +131,13 @@ namespace
                 indented += current.substr(indentation);
                 lines.push_back(std::move(indented));
             }
+
+            if (end == string_view::npos)
+            {
+                return lines;
+            }
+            rest.remove_prefix(end + 1);
         }
-        return lines;
     }
 
     // The comments and directives before a token, without the blank line that precedes the first one or the space
@@ -171,22 +182,24 @@ namespace
     Doc trailingTrivia(const Token& token)
     {
         vector<Doc> docs;
+        docs.reserve(token.trailing.size());
         for (const Trivia& trivia : token.trailing)
         {
             // The comment keeps its column, which often aligns it with the comments of the lines around it.
-            docs.push_back(suffix(splitLines(trivia).front(), trivia.column));
+            docs.push_back(suffix(string{withoutTrailingBlanks(trivia.text)}, trivia.column));
         }
         return concat(std::move(docs));
     }
 
     // The text of a token and the comments that follow it on its line.
-    Doc textAndTrailingTrivia(const Token& token) { return concat({text(string{token.text}), trailingTrivia(token)}); }
+    Doc textAndTrailingTrivia(const Token& token) { return concat(text(string{token.text}), trailingTrivia(token)); }
 
     // What precedes the text of a token: the comments and directives before it, then the blank line or the space
     // that separates the last one from the token.
     Doc beforeText(const Token& token)
     {
-        vector<Doc> docs{leadingTrivia(token.leading)};
+        vector<Doc> docs;
+        docs.push_back(leadingTrivia(token.leading));
         if (!token.leading.empty())
         {
             if (token.blankLineBefore)
@@ -202,13 +215,13 @@ namespace
         return concat(std::move(docs));
     }
 
-    Doc print(const Token& token) { return concat({beforeText(token), textAndTrailingTrivia(token)}); }
+    Doc print(const Token& token) { return concat(beforeText(token), textAndTrailingTrivia(token)); }
 
     // Groups a list that starts with the token 'open'. The comments before that token stay out of the group, which
     // they would break.
     Doc listGroup(const Token& open, Doc items)
     {
-        return concat({beforeText(open), group(concat({textAndTrailingTrivia(open), indent(std::move(items))}))});
+        return concat(beforeText(open), group(concat(textAndTrailingTrivia(open), indent(std::move(items)))));
     }
 
     // Appends the children of a node from index 'first' to the one before 'last', each after what separates it from
@@ -276,7 +289,7 @@ namespace
     {
         vector<Doc> names;
         appendChildren(names, node, 1, node.children.size(), line());
-        return indent(concat({line(), print(node.children.front()), group(indent(concat(std::move(names))))}));
+        return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
     // An operation that doesn't fit on one line is broken in three steps, each one only when the previous ones are
@@ -293,7 +306,8 @@ namespace
         // The signature starts with 'idempotent' or the return type. The comments before it stay out of its group,
         // which they would break.
         const Node& start = node.children[first];
-        vector<Doc> tokens{textAndTrailingTrivia(start.token)};
+        vector<Doc> tokens;
+        tokens.push_back(textAndTrailingTrivia(start.token));
         for (size_t i = first + 1; i < node.children.size(); ++i)
         {
             const Node& child = node.children[i];
@@ -303,7 +317,7 @@ namespace
             }
             tokens.push_back(child.kind == NodeKind::Clause ? clause(child) : print(child));
         }
-        Doc signature = concat({beforeText(start.token), group(concat(std::move(tokens)))});
+        Doc signature = concat(beforeText(start.token), group(concat(std::move(tokens))));
         if (first == 0)
         {
             return signature;
@@ -312,7 +326,7 @@ namespace
         // Metadata written on the line above stays there.
         vector<Doc> docs;
         appendChildren(docs, node, 0, first, space());
-        docs.push_back(group(concat({startsLine(start) ? hardline() : line(), std::move(signature)})));
+        docs.push_back(group(concat(startsLine(start) ? hardline() : line(), std::move(signature))));
         return concat(std::move(docs));
     }
 
@@ -322,20 +336,15 @@ namespace
     {
         const Token& token = semicolon.token;
         vector<Trivia> leading = token.leading;
-        vector<Doc> trailing;
-        for (Trivia comment : token.trailing)
+        if (token.startsLine)
         {
-            if (token.startsLine)
+            // Nothing else is left on the line of the semicolon, so each comment around it has a line of its own.
+            leading.insert(leading.end(), token.trailing.begin(), token.trailing.end());
+            for (Trivia& comment : leading)
             {
-                // Nothing else is left on the line of the comment.
                 comment.ownLine = true;
-                leading.push_back(comment);
             }
-            else
-            {
-                // The comment moves left by the column the semicolon took.
-                trailing.push_back(suffix(splitLines(comment).front(), comment.column - 1));
-            }
+            return leadingTrivia(leading);
         }
 
         vector<Doc> docs;
@@ -344,17 +353,16 @@ namespace
             docs.push_back(space());
         }
         docs.push_back(leadingTrivia(leading));
-        docs.push_back(concat(std::move(trailing)));
+        for (const Trivia& comment : token.trailing)
+        {
+            // The comment moves left by the column the semicolon took.
+            docs.push_back(suffix(string{withoutTrailingBlanks(comment.text)}, comment.column - 1));
+        }
         return concat(std::move(docs));
     }
 
     Doc declaration(const Node& node)
     {
-        if (ranges::find(node.children, NodeKind::Parameters, &Node::kind) != node.children.end())
-        {
-            return operation(node);
-        }
-
         // Only an optional semicolon follows a body.
         size_t count = node.children.size();
         bool optionalSemicolon = count > 1 && node.children[count - 2].kind == NodeKind::Body;
@@ -422,17 +430,14 @@ namespace
         bool empty = last == 1 && close.leading.empty();
         bool broken = close.line > open.line || (open.startsLine && !empty);
 
-        // The comments before the closing brace are indented like the members. In a broken body the brace has a line
-        // of its own, so each of these comments has one too.
-        if (!close.leading.empty())
+        // The comments before the closing brace are indented like the members.
+        if (broken && !close.leading.empty())
         {
+            // The brace has a line of its own, so each of these comments has one too.
             vector<Trivia> comments = close.leading;
-            if (broken)
+            for (Trivia& comment : comments)
             {
-                for (Trivia& comment : comments)
-                {
-                    comment.ownLine = true;
-                }
+                comment.ownLine = true;
             }
 
             members.push_back(line());
@@ -442,11 +447,25 @@ namespace
             }
             members.push_back(leadingTrivia(comments));
         }
+        else
+        {
+            // The comments of a body written on one line follow the members on that line, or have a line each when
+            // the body doesn't fit on one.
+            for (const Trivia& comment : close.leading)
+            {
+                members.push_back(line());
+                members.push_back(text(string{comment.text}));
+            }
+        }
 
         Doc beforeClose = members.empty() ? softline() : line();
         return group(
             concat(
-                {line(), print(open), indent(concat(std::move(members))), beforeClose, textAndTrailingTrivia(close)}),
+                line(),
+                print(open),
+                indent(concat(std::move(members))),
+                std::move(beforeClose),
+                textAndTrailingTrivia(close)),
             broken);
     }
 
@@ -460,6 +479,8 @@ namespace
                 return file(node);
             case NodeKind::Declaration:
                 return declaration(node);
+            case NodeKind::Operation:
+                return operation(node);
             case NodeKind::Metadata:
                 return metadata(node);
             case NodeKind::Parameters:
@@ -488,8 +509,7 @@ IceFmt::formatSlice(string_view text)
     }
 
     // The file keeps the line endings its first line has.
-    size_t firstLineEnd = text.find('\n');
-    bool windowsLineEndings = firstLineEnd != string_view::npos && firstLineEnd > 0 && text[firstLineEnd - 1] == '\r';
+    bool windowsLineEndings = text.substr(0, text.find('\n')).ends_with('\r');
 
     for (char c : render(print(parse(text))))
     {

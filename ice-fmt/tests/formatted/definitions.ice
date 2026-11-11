@@ -55,6 +55,18 @@ module Demo
         void run();
     }
 
+    // The names of an extends clause go one per line when they don't fit on its line.
+    interface Hub
+        extends Printer,
+            Scanner,
+            Copier,
+            FaxMachineWithAVeryLongNameThatFillsTheLine,
+            Stapler,
+            AnotherDeviceWithAVeryLongNameThatFillsTheLine
+    {
+        void connect();
+    }
+
     // One space or none separates two tokens.
     sequence<string> Names;
     dictionary<string, int> Counts;

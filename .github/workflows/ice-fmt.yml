@@ -8,6 +8,9 @@ on:
     branches:
       - "main"
 
+permissions:
+  contents: read
+
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency#example-using-a-fallback-value
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -17,6 +20,7 @@ jobs:
   build-ice-fmt:
     timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-26
@@ -40,6 +44,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Configure
         run: >
@@ -58,3 +64,29 @@ jobs:
           name: ice-fmt_${{ matrix.target }}
           path: ./ice-fmt/build/${{ matrix.bin }}
           if-no-files-found: error
+
+  clang:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install clang-format and clang-tidy
+        run: |
+          # This LLVM script adds the LLVM apt repository: https://apt.llvm.org/
+          wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 19
+          sudo apt-get install -y clang-format-19 clang-tidy-19
+
+      - name: Check the format
+        run: clang-format-19 --dry-run --Werror ice-fmt/src/*.cpp ice-fmt/src/*.h
+
+      - name: Configure with clang-tidy
+        run: cmake -S ice-fmt -B ice-fmt/build -DCMAKE_CXX_CLANG_TIDY=clang-tidy-19
+
+      - name: Build
+        run: cmake --build ice-fmt/build

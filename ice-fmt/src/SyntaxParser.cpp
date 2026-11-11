@@ -1,10 +1,16 @@
 // Copyright (c) ZeroC, Inc.
 
 #include "SyntaxParser.h"
+#include "SyntaxError.h"
+#include "SyntaxScanner.h"
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 using namespace std;
 using namespace IceFmt;
@@ -12,7 +18,7 @@ using namespace IceFmt;
 namespace
 {
     // The keywords that name a type. 'Object' is apart: it is the only one that '*' can follow.
-    constexpr array<TokenKind, 9> typeKeywords{
+    constexpr array typeKeywords{
         TokenKind::Bool,
         TokenKind::Byte,
         TokenKind::Short,
@@ -29,8 +35,9 @@ namespace
     }
 
     // The preprocessor joins a line that ends with a backslash to the next one. Formatting removes the blanks that end
-    // a line and manages the blank lines, so a comment or directive is refused where that would change which lines
-    // are joined: blanks after a backslash, or an empty line after one.
+    // a line, manages the blank lines, and ends the file with a line break, so a comment or directive is refused where
+    // that would change which lines are joined: blanks after a backslash, or an empty line or the end of the file
+    // after one.
     void checkContinuations(const Lexeme& lexeme)
     {
         int line = lexeme.line;
@@ -57,6 +64,11 @@ namespace
 
             if (lastLine)
             {
+                // Only the end of the file stops a line that a backslash continues.
+                if (current.ends_with('\\'))
+                {
+                    throw SyntaxError{line, "line continued by a backslash at the end of the file"};
+                }
                 return;
             }
             rest.remove_prefix(end + 1);
@@ -64,7 +76,24 @@ namespace
         }
     }
 
+    // Returns whether the Slice compiler reads a comment as a doc comment: '///', or a block comment '/**' where
+    // neither '/' nor '*' follows.
+    bool isDocComment(const Lexeme& lexeme)
+    {
+        if (lexeme.kind == TokenKind::LineComment)
+        {
+            return lexeme.text.starts_with("///");
+        }
+        return lexeme.kind == TokenKind::BlockComment && lexeme.text.starts_with("/**") && lexeme.text[3] != '/' &&
+               lexeme.text[3] != '*';
+    }
+
     // Groups the lexemes into tokens, and attaches each comment and directive to the token it sits next to.
+    //
+    // The preprocessor of the Slice compiler moves a comment to the start of its line. Two layouts are refused because
+    // laying out the code around the comment again would change what the compiler reads: a doc comment after code on
+    // its line, which documents the first definition of that line, and a comment or directive between a '(' and the
+    // name before it, which the compiler reads as one token.
     vector<Token> attachTrivia(const vector<Lexeme>& lexemes)
     {
         vector<Token> tokens;
@@ -76,42 +105,63 @@ namespace
         for (auto lexeme = lexemes.begin(); lexeme != lexemes.end(); ++lexeme)
         {
             bool blankLineBefore = lexeme->line > endLine + 1;
-            auto lineCount = static_cast<int>(ranges::count(lexeme->text, '\n'));
+            auto lineBreaks = static_cast<int>(ranges::count(lexeme->text, '\n'));
 
             if (isTrivia(lexeme->kind))
             {
                 checkContinuations(*lexeme);
 
-                // The lexeme of a directive starts with the blanks that indent it.
-                size_t first = lexeme->text.find_first_not_of(" \t");
-                string_view text = lexeme->text.substr(first);
-                int column = lexeme->column + static_cast<int>(first);
-
-                auto isToken = [](const Lexeme& other) { return !isTrivia(other.kind); };
-                auto nextToken = find_if(lexeme + 1, lexemes.end(), isToken);
+                auto nextToken = ranges::find_if_not(lexeme + 1, lexemes.end(), isTrivia, &Lexeme::kind);
                 bool tokenFollows =
-                    nextToken->kind != TokenKind::EndOfFile && nextToken->line == lexeme->line + lineCount;
+                    nextToken->kind != TokenKind::EndOfFile && nextToken->line == lexeme->line + lineBreaks;
+
+                bool afterToken = !tokens.empty() && lexeme->line == tokens.back().line;
+                bool docComment = isDocComment(*lexeme);
+                if (docComment && afterToken)
+                {
+                    throw SyntaxError{lexeme->line, "doc comment after code on its line"};
+                }
 
                 // A comment that spans several lines never shares one with a token.
-                if (!tokens.empty() && lexeme->line == tokens.back().line && lineCount == 0 && !tokenFollows)
+                if (afterToken && lineBreaks == 0 && !tokenFollows)
                 {
-                    tokens.back().trailing.push_back({text, column, false, false});
+                    tokens.back().trailing.push_back(
+                        {.text = lexeme->text, .column = lexeme->column, .ownLine = false, .blankLineBefore = false});
                 }
                 else
                 {
-                    bool ownLine = lexeme->kind != TokenKind::BlockComment || lineCount > 0 || !tokenFollows;
-                    leading.push_back({text, column, ownLine, blankLineBefore});
+                    // A doc comment before code on its line gets the line to itself, which changes nothing for the
+                    // compiler.
+                    bool ownLine =
+                        lexeme->kind != TokenKind::BlockComment || lineBreaks > 0 || !tokenFollows || docComment;
+                    leading.push_back(
+                        {.text = lexeme->text,
+                         .column = lexeme->column,
+                         .ownLine = ownLine,
+                         .blankLineBefore = blankLineBefore});
                 }
             }
             else
             {
+                if (lexeme->kind == TokenKind::LeftParenthesis && !tokens.empty() &&
+                    (!leading.empty() || !tokens.back().trailing.empty()))
+                {
+                    throw SyntaxError{lexeme->line, "comment or directive before '('"};
+                }
+
                 bool firstOnLine = tokens.empty() || lexeme->line > tokens.back().line;
                 tokens.push_back(
-                    {lexeme->kind, lexeme->text, lexeme->line, firstOnLine, blankLineBefore, std::move(leading), {}});
+                    {.kind = lexeme->kind,
+                     .text = lexeme->text,
+                     .line = lexeme->line,
+                     .startsLine = firstOnLine,
+                     .blankLineBefore = blankLineBefore,
+                     .leading = std::move(leading),
+                     .trailing = {}});
                 leading.clear();
             }
 
-            endLine = lexeme->line + lineCount;
+            endLine = lexeme->line + lineBreaks;
         }
         return tokens;
     }
@@ -414,7 +464,7 @@ namespace
         // throws := 'throws' scopedName (',' scopedName)*
         Node operation()
         {
-            Node member{NodeKind::Declaration};
+            Node member{NodeKind::Operation};
             localMetadata(member);
             accept(member, TokenKind::Idempotent);
             if (!accept(member, TokenKind::Void))

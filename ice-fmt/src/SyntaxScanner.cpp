@@ -5,8 +5,11 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <optional>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 using namespace std;
 using namespace IceFmt;
@@ -21,7 +24,7 @@ namespace
         TokenKind kind;
     };
 
-    constexpr array<Spelling, 27> keywords{
+    constexpr auto keywords = to_array<Spelling>(
         {{"module", TokenKind::Module},
          {"class", TokenKind::Class},
          {"interface", TokenKind::Interface},
@@ -48,10 +51,10 @@ namespace
          {"false", TokenKind::False},
          {"true", TokenKind::True},
          {"idempotent", TokenKind::Idempotent},
-         {"optional", TokenKind::Optional}}};
+         {"optional", TokenKind::Optional}});
 
     // The two-character marks come first: the scanner takes the first mark that matches.
-    constexpr array<Spelling, 15> punctuationMarks{
+    constexpr auto punctuationMarks = to_array<Spelling>(
         {{"[[", TokenKind::DoubleLeftBracket},
          {"]]", TokenKind::DoubleRightBracket},
          {"[", TokenKind::LeftBracket},
@@ -66,7 +69,7 @@ namespace
          {";", TokenKind::Semicolon},
          {"=", TokenKind::Equals},
          {"*", TokenKind::Asterisk},
-         {":", TokenKind::Colon}}};
+         {":", TokenKind::Colon}});
 
     bool isBlank(char c) { return c == ' ' || c == '\t'; }
 
@@ -243,16 +246,6 @@ namespace
     // Returns the kind of the lexeme that starts at 'start', or nullopt for whitespace, and the offset where it ends.
     pair<optional<TokenKind>, size_t> lexemeAt(string_view text, size_t start)
     {
-        // The blanks that indent a directive belong to its lexeme.
-        if (start == 0 || text[start - 1] == '\n')
-        {
-            size_t hash = skip(text, start, isBlank);
-            if (isAt(text, hash, '#'))
-            {
-                return {TokenKind::Directive, continuedLineEnd(text, hash)};
-            }
-        }
-
         char c = text[start];
         if (c == '\n')
         {
@@ -263,6 +256,15 @@ namespace
             return {nullopt, skip(text, start, isWhitespace)};
         }
 
+        // A directive starts with a '#' that only blanks precede on its line.
+        if (c == '#')
+        {
+            size_t previous = text.substr(0, start).find_last_not_of(" \t");
+            if (previous == string_view::npos || text[previous] == '\n')
+            {
+                return {TokenKind::Directive, continuedLineEnd(text, start)};
+            }
+        }
         if (c == '/' && isAt(text, start + 1, '/'))
         {
             return {TokenKind::LineComment, continuedLineEnd(text, start)};
@@ -314,11 +316,6 @@ namespace
 string_view
 IceFmt::spelling(TokenKind kind)
 {
-    auto keyword = ranges::find(keywords, kind, &Spelling::kind);
-    if (keyword != keywords.end())
-    {
-        return keyword->text;
-    }
     auto mark = ranges::find(punctuationMarks, kind, &Spelling::kind);
     assert(mark != punctuationMarks.end());
     return mark->text;
