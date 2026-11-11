@@ -29,3 +29,38 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # The executable runs on any distribution, whatever its C and C++ libraries.
     target_link_options(ice-fmt PRIVATE -static)
 endif()
+
+enable_testing()
+
+set(tests "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+set(output "${CMAKE_CURRENT_BINARY_DIR}/tests")
+file(MAKE_DIRECTORY "${output}")
+
+# Each case is a file in tests/unformatted, and the file ice-fmt makes of it in tests/formatted.
+foreach(case comments crlf definitions metadata operations)
+    add_test(NAME format-${case} COMMAND "${CMAKE_COMMAND}"
+        -DICE_FMT=$<TARGET_FILE:ice-fmt>
+        -DUNFORMATTED=${tests}/unformatted/${case}.ice
+        -DFORMATTED=${tests}/formatted/${case}.ice
+        -DOUTPUT=${output}/${case}.ice
+        -P "${tests}/FormatTest.cmake")
+
+    # A formatted file is left as it is.
+    add_test(NAME keep-${case} COMMAND ice-fmt --check "${tests}/formatted/${case}.ice")
+endforeach()
+
+# --check fails on a file that formatting would change.
+add_test(NAME check COMMAND ice-fmt --check "${tests}/unformatted/operations.ice")
+set_tests_properties(check PROPERTIES WILL_FAIL TRUE)
+
+# A directory stands for the .ice files below it, except under a name that starts with a dot and under node_modules.
+# The directory is made here because the repository ignores node_modules.
+set(directory "${output}/directory")
+file(WRITE "${directory}/nested/found.ice" "module  Demo {}\n")
+file(WRITE "${directory}/nested/skipped.txt" "module  Demo {}\n")
+file(WRITE "${directory}/.hidden/skipped.ice" "module  Demo {}\n")
+file(WRITE "${directory}/node_modules/skipped.ice" "module  Demo {}\n")
+add_test(NAME directory COMMAND ice-fmt --check "${directory}")
+set_tests_properties(directory PROPERTIES
+    PASS_REGULAR_EXPRESSION "found\\.ice"
+    FAIL_REGULAR_EXPRESSION "skipped\\.")

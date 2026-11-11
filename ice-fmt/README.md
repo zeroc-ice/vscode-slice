@@ -87,4 +87,14 @@ cmake --build ice-fmt/build --config Release
 
 The executable is `ice-fmt/build/ice-fmt`, or `ice-fmt\build\Release\ice-fmt.exe` with Visual Studio.
 
-The `ice-fmt` workflow builds the executable for macOS, Linux, and Windows, and uploads each one as an artifact.
+The `ice-fmt` workflow builds and tests the executable for macOS, Linux, and Windows, and uploads each one as an
+artifact.
+
+## Testing
+
+```
+ctest --test-dir ice-fmt/build --build-config Release --output-on-failure
+```
+
+A test case is two files with the same name: `ice-fmt` must turn the one in `tests/unformatted` into the one in
+`tests/formatted`, and leave the latter as it is. A new case also goes in the list of cases in `CMakeLists.txt`.
