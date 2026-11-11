@@ -15,7 +15,7 @@
 #include <vector>
 
 using namespace std;
-using namespace SliceFormat;
+using namespace IceFmt;
 
 namespace
 {

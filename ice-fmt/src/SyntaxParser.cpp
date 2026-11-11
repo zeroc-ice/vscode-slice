@@ -7,7 +7,7 @@
 #include <string>
 
 using namespace std;
-using namespace SliceFormat;
+using namespace IceFmt;
 
 namespace
 {
@@ -537,7 +537,7 @@ namespace
 }
 
 Node
-SliceFormat::parse(string_view text)
+IceFmt::parse(string_view text)
 {
     return Parser{attachTrivia(scan(text))}.file();
 }

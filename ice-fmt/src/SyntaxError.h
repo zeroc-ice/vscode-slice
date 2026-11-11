@@ -1,12 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
-#ifndef SLICE_FORMAT_SYNTAX_ERROR_H
-#define SLICE_FORMAT_SYNTAX_ERROR_H
+#ifndef ICE_FMT_SYNTAX_ERROR_H
+#define ICE_FMT_SYNTAX_ERROR_H
 
 #include <stdexcept>
 #include <string>
 
-namespace SliceFormat
+namespace IceFmt
 {
     /// The exception that is thrown when the text of a Slice file doesn't follow the Slice grammar.
     class SyntaxError final : public std::runtime_error

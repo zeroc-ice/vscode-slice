@@ -9,7 +9,7 @@
 #include <utility>
 
 using namespace std;
-using namespace SliceFormat;
+using namespace IceFmt;
 
 // The tokens are those of the Slice compilers' scanner, cpp/src/Slice/Scanner.l in zeroc-ice/ice. Each function below
 // returns the offset where the lexeme that starts at 'start' ends, or 'start' when no such lexeme starts there.
@@ -312,7 +312,7 @@ namespace
 }
 
 string_view
-SliceFormat::spelling(TokenKind kind)
+IceFmt::spelling(TokenKind kind)
 {
     auto keyword = ranges::find(keywords, kind, &Spelling::kind);
     if (keyword != keywords.end())
@@ -325,7 +325,7 @@ SliceFormat::spelling(TokenKind kind)
 }
 
 vector<Lexeme>
-SliceFormat::scan(string_view text)
+IceFmt::scan(string_view text)
 {
     vector<Lexeme> lexemes;
     size_t offset = 0;

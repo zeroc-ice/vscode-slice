@@ -6,7 +6,7 @@
 #include <string_view>
 
 using namespace std;
-using namespace SliceFormat;
+using namespace IceFmt;
 
 namespace
 {
@@ -236,37 +236,37 @@ namespace
 }
 
 Doc
-SliceFormat::text(string text)
+IceFmt::text(string text)
 {
     return make(Doc::Kind::Text, std::move(text));
 }
 
 Doc
-SliceFormat::space()
+IceFmt::space()
 {
     return make(Doc::Kind::Space);
 }
 
 Doc
-SliceFormat::line()
+IceFmt::line()
 {
     return make(Doc::Kind::Line, " ");
 }
 
 Doc
-SliceFormat::softline()
+IceFmt::softline()
 {
     return make(Doc::Kind::Line);
 }
 
 Doc
-SliceFormat::hardline()
+IceFmt::hardline()
 {
     return make(Doc::Kind::HardLine);
 }
 
 Doc
-SliceFormat::suffix(string text, int column)
+IceFmt::suffix(string text, int column)
 {
     Doc result = make(Doc::Kind::Suffix, std::move(text));
     result.column = column;
@@ -274,13 +274,13 @@ SliceFormat::suffix(string text, int column)
 }
 
 Doc
-SliceFormat::endOfLine()
+IceFmt::endOfLine()
 {
     return make(Doc::Kind::EndOfLine);
 }
 
 Doc
-SliceFormat::indent(Doc doc)
+IceFmt::indent(Doc doc)
 {
     Doc result = make(Doc::Kind::Indent);
     result.children.push_back(std::move(doc));
@@ -288,7 +288,7 @@ SliceFormat::indent(Doc doc)
 }
 
 Doc
-SliceFormat::group(Doc doc, bool broken)
+IceFmt::group(Doc doc, bool broken)
 {
     Doc result = make(Doc::Kind::Group);
     result.children.push_back(std::move(doc));
@@ -297,7 +297,7 @@ SliceFormat::group(Doc doc, bool broken)
 }
 
 Doc
-SliceFormat::concat(vector<Doc> docs)
+IceFmt::concat(vector<Doc> docs)
 {
     Doc result = make(Doc::Kind::Concat);
     result.children = std::move(docs);
@@ -305,7 +305,7 @@ SliceFormat::concat(vector<Doc> docs)
 }
 
 string
-SliceFormat::render(const Doc& doc)
+IceFmt::render(const Doc& doc)
 {
     return Renderer{}.render(doc);
 }

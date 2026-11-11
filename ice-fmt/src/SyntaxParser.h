@@ -1,7 +1,7 @@
 // Copyright (c) ZeroC, Inc.
 
-#ifndef SLICE_FORMAT_SYNTAX_PARSER_H
-#define SLICE_FORMAT_SYNTAX_PARSER_H
+#ifndef ICE_FMT_SYNTAX_PARSER_H
+#define ICE_FMT_SYNTAX_PARSER_H
 
 #include "SyntaxError.h"
 #include "SyntaxScanner.h"
@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace SliceFormat
+namespace IceFmt
 {
     /// A comment or preprocessor directive, attached to the token it sits next to.
     struct Trivia

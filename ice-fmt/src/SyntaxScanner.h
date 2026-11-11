@@ -1,12 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
-#ifndef SLICE_FORMAT_SYNTAX_SCANNER_H
-#define SLICE_FORMAT_SYNTAX_SCANNER_H
+#ifndef ICE_FMT_SYNTAX_SCANNER_H
+#define ICE_FMT_SYNTAX_SCANNER_H
 
 #include <string_view>
 #include <vector>
 
-namespace SliceFormat
+namespace IceFmt
 {
     enum class TokenKind
     {

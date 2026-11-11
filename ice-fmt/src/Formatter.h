@@ -1,14 +1,14 @@
 // Copyright (c) ZeroC, Inc.
 
-#ifndef SLICE_FORMAT_FORMATTER_H
-#define SLICE_FORMAT_FORMATTER_H
+#ifndef ICE_FMT_FORMATTER_H
+#define ICE_FMT_FORMATTER_H
 
 #include "SyntaxError.h"
 
 #include <string>
 #include <string_view>
 
-namespace SliceFormat
+namespace IceFmt
 {
     /// Formats the text of a Slice file: four spaces for each level of indentation, a single space or none between
     /// tokens, each brace on its own line, and lines of at most 120 columns. A list of parameters, names, or metadata

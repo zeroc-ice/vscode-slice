@@ -9,7 +9,7 @@
 #include <cassert>
 
 using namespace std;
-using namespace SliceFormat;
+using namespace IceFmt;
 
 namespace
 {
@@ -476,7 +476,7 @@ namespace
 }
 
 string
-SliceFormat::formatSlice(string_view text)
+IceFmt::formatSlice(string_view text)
 {
     // A byte order mark belongs to the file, not to its Slice text, and is kept.
     constexpr string_view byteOrderMark = "\xEF\xBB\xBF";

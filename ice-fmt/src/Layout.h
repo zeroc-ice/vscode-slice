@@ -1,12 +1,12 @@
 // Copyright (c) ZeroC, Inc.
 
-#ifndef SLICE_FORMAT_LAYOUT_H
-#define SLICE_FORMAT_LAYOUT_H
+#ifndef ICE_FMT_LAYOUT_H
+#define ICE_FMT_LAYOUT_H
 
 #include <string>
 #include <vector>
 
-namespace SliceFormat
+namespace IceFmt
 {
     /// A document to lay out: text, and the places where a line can end. The documents follow Philip Wadler's
     /// "A prettier printer", with the additions Prettier made for comments.
