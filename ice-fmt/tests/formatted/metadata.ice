@@ -5,6 +5,7 @@
 {
     // Metadata stays on the line of its declaration or on the line above, as written.
     ["deprecated"] struct Old { int x; }
+
     ["deprecated"]
     struct Older { int x; }
 

@@ -2,15 +2,15 @@
 
 module Demo {
 
-    // A definition written on one line stays on one line.
-    enum Color { red, green, blue }   
+    // A definition written on one line stays on one line. A blank line separates two definitions with a body.
+    enum Color { Red, Green, Blue }   
     struct Point { int x; int y; }
 
     // A definition written on several lines has one member per line.
     enum Shape
     {
-        circle,square,
-        triangle
+        Circle,Square,
+        Triangle
     }
     struct Size { int width;
         int height; }
@@ -58,7 +58,7 @@ module Demo {
     }
         module Nested
         {
-    enum Mode { draft, final }
+    enum Mode { Draft, Final }
         }
 
 }

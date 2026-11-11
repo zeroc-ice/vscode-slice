@@ -9,9 +9,9 @@ module Demo
     // A comment on its own line takes the indentation of the code.
     enum Color
     {
-        red,    // A comment that follows code keeps its column.
-        green,  // green
-        blue    // blue
+        Red,    // A comment that follows code keeps its column.
+        Green,  // Green
+        Blue    // Blue
     }
 
     /* A block comment keeps the indentation

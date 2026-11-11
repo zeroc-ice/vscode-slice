@@ -56,6 +56,27 @@ namespace
         return token.leading.empty() ? token.blankLineBefore : token.leading.front().blankLineBefore;
     }
 
+    // Returns whether a node is a definition with a body: a module, class, interface, exception, struct, or enum.
+    bool hasBody(const Node& node)
+    {
+        return ranges::find(node.children, NodeKind::Body, &Node::kind) != node.children.end();
+    }
+
+    // Returns whether a blank line separates a node from the one before it: the author left one, or both nodes are
+    // definitions with a body and nothing separates them yet. A preprocessor directive between the two leaves the
+    // choice to the author, since the directive can belong to either one.
+    bool blankLineBetween(const Node& previous, const Node& node)
+    {
+        if (blankLineBefore(node))
+        {
+            return true;
+        }
+        const Token& token = firstToken(node);
+        bool separated = token.blankLineBefore || ranges::any_of(token.leading, &Trivia::blankLineBefore);
+        auto isDirective = [](const Trivia& trivia) { return trivia.text.starts_with('#'); };
+        return hasBody(previous) && hasBody(node) && !separated && ranges::none_of(token.leading, isDirective);
+    }
+
     bool needsSpace(const Node& left, const Node& right)
     {
         // A body and a clause start with a line break of their own.
@@ -217,19 +238,20 @@ namespace
     Doc file(const Node& node)
     {
         vector<Doc> docs;
-        for (const Node& child : node.children)
+        for (size_t i = 0; i < node.children.size(); ++i)
         {
             // The EndOfFile token is only there for the comments that end the file.
+            const Node& child = node.children[i];
             bool endOfFile = child.kind == NodeKind::Token;
             if (endOfFile && child.token.leading.empty())
             {
                 break;
             }
 
-            if (!docs.empty())
+            if (i > 0)
             {
                 docs.push_back(hardline());
-                if (blankLineBefore(child))
+                if (blankLineBetween(node.children[i - 1], child))
                 {
                     docs.push_back(hardline());
                 }
@@ -382,9 +404,9 @@ namespace
                 continue;
             }
 
-            // A blank line is kept between two members, not after the opening brace.
+            // No blank line follows the opening brace.
             members.push_back(line());
-            if (i > 1 && blankLineBefore(child))
+            if (i > 1 && blankLineBetween(node.children[i - 1], child))
             {
                 members.push_back(hardline());
             }

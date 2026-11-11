@@ -7,5 +7,5 @@ module Demo
         int y;
     }
 
-    enum Color { red, green, blue }
+    enum Color { Red, Green, Blue }
 }
