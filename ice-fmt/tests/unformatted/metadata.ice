@@ -3,10 +3,17 @@
 
 ["cs:namespace:Example"] module Demo
 {
-    // Metadata stays on the line of its declaration or on the line above, as written.
+    // The metadata of a definition with a body goes on the line above it.
     ["deprecated"] struct Old { int x; }
+    ["deprecated"] enum Older
+    {
+        First
+    }
+
+    // The metadata of any other declaration stays on its line or on the line above, as written.
+    ["deprecated"] sequence<Old> OldSeq;
     ["deprecated"]
-    struct Older { int x; }
+    sequence<Older> OlderSeq;
 
     // The directives go one per line when they don't fit on one line.
     ["cpp:type:std::map<std::string, std::vector<std::string>>", "java:type:java.util.TreeMap<String, java.util.List<String>>", "cs:generic:SortedDictionary"]

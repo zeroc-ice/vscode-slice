@@ -240,8 +240,10 @@ namespace
                 }
                 else if (previous.kind == NodeKind::Metadata)
                 {
-                    // The declaration stays on the line of its metadata only when the author wrote it there.
-                    docs.push_back(startsLine(child) ? hardline() : space());
+                    // A definition with a body starts the line after its metadata. Any other declaration stays on the
+                    // line of its metadata when the author wrote it there.
+                    bool afterMetadata = hasBody(node) && child.kind != NodeKind::Metadata;
+                    docs.push_back(afterMetadata || startsLine(child) ? hardline() : space());
                 }
                 else if (needsSpace(previous, child))
                 {

@@ -1,13 +1,23 @@
 [["cpp:include:list"]]
 [["java:package:com.example", "js:module:demo"]]
 
-["cs:namespace:Example"] module Demo
+["cs:namespace:Example"]
+module Demo
 {
-    // Metadata stays on the line of its declaration or on the line above, as written.
-    ["deprecated"] struct Old { int x; }
+    // The metadata of a definition with a body goes on the line above it.
+    ["deprecated"]
+    struct Old { int x; }
 
     ["deprecated"]
-    struct Older { int x; }
+    enum Older
+    {
+        First
+    }
+
+    // The metadata of any other declaration stays on its line or on the line above, as written.
+    ["deprecated"] sequence<Old> OldSeq;
+    ["deprecated"]
+    sequence<Older> OlderSeq;
 
     // The directives go one per line when they don't fit on one line.
     ["cpp:type:std::map<std::string, std::vector<std::string>>",

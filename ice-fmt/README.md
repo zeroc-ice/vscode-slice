@@ -75,7 +75,7 @@ module Demo
 - Braces go on their own line. An empty body written as `{}` is the exception: it follows its definition on the same
   line.
 - A blank line separates a module, class, interface, exception, struct, or enum from the definition before it and
-  from the definition after it.
+  from the definition after it. Its metadata goes on the line above it.
 - A list goes on one line when it fits. When it doesn't:
   - An operation is broken in three steps, each one only when the previous ones are not enough: its metadata moves to
     the line above, its `throws` clause moves to its own line, then its parameters go one per line, after a line
@@ -84,7 +84,8 @@ module Demo
     still don't fit.
   - Metadata directives go one per line.
 - Three choices are the author's:
-  - Metadata sits on the line of its declaration or on the line above, unless an operation doesn't fit on that line.
+  - The metadata of any other declaration sits on its line or on the line above, unless an operation doesn't fit
+    on that line.
   - A definition written on one line stays on one line when it fits.
   - A blank line between two definitions or two members stays.
 - Comments and preprocessor directives keep their text. One on its own line takes the indentation of the code around
