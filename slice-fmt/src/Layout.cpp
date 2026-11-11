@@ -78,28 +78,7 @@ namespace
                     case Doc::Kind::Group:
                     {
                         Command contents{command.indent, true, &doc.children.front()};
-                        // The contents start a new line when the current line is complete.
-                        int remaining = lineWidth - (lineIsEmpty() || _endOfLine ? contents.indent : _column);
-                        contents.flat = command.flat || (!doc.broken && fits(contents, commands, remaining));
-                        commands.push_back(contents);
-                        break;
-                    }
-                    case Doc::Kind::LineIfFits:
-                    {
-                        // A new line is worth it only when the flat contents don't fit on this one and do on the next.
-                        Command contents{command.indent, true, &doc.children.front()};
-                        bool newLine = !command.flat && !lineIsEmpty() && !_endOfLine &&
-                                       !fits(contents, commands, lineWidth - _column - 1) &&
-                                       fits(contents, commands, lineWidth - contents.indent);
-                        if (newLine)
-                        {
-                            startLine();
-                        }
-                        else
-                        {
-                            writeSpace();
-                        }
-                        contents.flat = command.flat;
+                        contents.flat = command.flat || (!doc.broken && fits(contents, commands));
                         commands.push_back(contents);
                         break;
                     }
@@ -166,10 +145,12 @@ namespace
             }
         }
 
-        // Returns whether flat contents fit in the remaining columns of a line, together with what follows them up
-        // to the next place where the line can end. 'rest' holds what follows, last in first out.
-        [[nodiscard]] static bool fits(Command contents, const vector<Command>& rest, int remaining)
+        // Returns whether the flat contents of a group fit on the current line, together with what follows the group
+        // up to the next place where the line can end. 'rest' holds what follows, last in first out.
+        [[nodiscard]] bool fits(Command contents, const vector<Command>& rest) const
         {
+            // The contents start a new line when the current line is complete.
+            int remaining = lineWidth - (lineIsEmpty() || _endOfLine ? contents.indent : _column);
             bool endOfLine = false;
             vector<Command> commands{contents};
             auto next = rest.rbegin();
@@ -204,24 +185,6 @@ namespace
                     case Doc::Kind::Space:
                         remaining--;
                         break;
-                    case Doc::Kind::LineIfFits:
-                    {
-                        Command child{command.indent, true, &doc.children.front()};
-                        if (!command.flat)
-                        {
-                            // The line can end here when the child fits on the next one.
-                            vector<Command> following{rest.begin(), next.base()};
-                            following.insert(following.end(), commands.begin(), commands.end());
-                            if (fits(child, following, lineWidth - command.indent))
-                            {
-                                return true;
-                            }
-                        }
-                        remaining--;
-                        child.flat = command.flat;
-                        commands.push_back(child);
-                        break;
-                    }
                     case Doc::Kind::Line:
                         if (!command.flat)
                         {
@@ -330,14 +293,6 @@ SliceFormat::group(Doc doc, bool broken)
     Doc result = make(Doc::Kind::Group);
     result.children.push_back(std::move(doc));
     result.broken = broken;
-    return result;
-}
-
-Doc
-SliceFormat::lineIfFits(Doc doc)
-{
-    Doc result = make(Doc::Kind::LineIfFits);
-    result.children.push_back(std::move(doc));
     return result;
 }
 

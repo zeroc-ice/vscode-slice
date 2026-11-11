@@ -22,7 +22,6 @@ namespace SliceFormat
             EndOfLine,
             Indent,
             Group,
-            LineIfFits,
             Concat,
         };
 
@@ -31,7 +30,7 @@ namespace SliceFormat
         /// The text of a Text or Suffix, and what a Line becomes when its group is flat.
         std::string text;
 
-        /// The child of an Indent, Group, or LineIfFits, and the parts of a Concat.
+        /// The child of an Indent or Group, and the parts of a Concat.
         std::vector<Doc> children;
 
         /// Whether a Group is broken even when it fits on the line.
@@ -74,10 +73,6 @@ namespace SliceFormat
     /// @param doc The contents of the group.
     /// @param broken Whether the group is broken even when it fits on the line.
     [[nodiscard]] Doc group(Doc doc, bool broken = false);
-
-    /// Creates a document that starts a new line when it doesn't fit flat on the current line and does on a new one.
-    /// Otherwise a space separates it from what precedes it, and it is laid out as usual.
-    [[nodiscard]] Doc lineIfFits(Doc doc);
 
     /// Concatenates documents.
     [[nodiscard]] Doc concat(std::vector<Doc> docs);

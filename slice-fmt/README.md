@@ -35,8 +35,11 @@ module Demo
     {
         ["cpp:const"] idempotent string status() throws PrinterException;
 
-        ["amd"] idempotent Ice::StringSeq
-        listQueuedDocuments(string user, Color color, bool doubleSidedOnly, optional(1) int limit);
+        ["amd"]
+        idempotent Ice::StringSeq listQueuedDocuments(string user, Color color, bool doubleSided, optional(1) int max);
+
+        void cancel(string user, Ice::StringSeq documents, bool notifyOwner, out Ice::StringSeq cancelled)
+            throws PrinterException;
 
         void print(
             string document,
@@ -45,7 +48,8 @@ module Demo
             bool doubleSided,
             optional(1) string tray,
             out int pages,
-            out optional(2) string warning) throws PrinterException;
+            out optional(2) string warning)
+            throws PrinterException;
     }
 }
 ```
@@ -53,12 +57,14 @@ module Demo
 - Indentation is 4 spaces, and a line is at most 120 columns.
 - Braces go on their own line.
 - A list goes on one line when it fits. When it doesn't:
-  - The name of an operation starts a new line, below the return type, when the parameters then fit on that line.
-    Otherwise the parameters go one per line, after a line break that follows the `(`.
-  - A `throws` or `extends` clause moves to its own line, and its names go one per line if they still don't fit.
+  - An operation is broken in three steps, each one only when the previous ones are not enough: its metadata moves to
+    the line above, its `throws` clause moves to its own line, then its parameters go one per line, after a line
+    break that follows the `(`.
+  - An `extends` clause moves to its own line. Its names, like those of a `throws` clause, go one per line if they
+    still don't fit.
   - Metadata directives go one per line.
 - Three choices are the author's:
-  - Metadata sits on the line of its declaration or on the line above.
+  - Metadata sits on the line of its declaration or on the line above, unless an operation doesn't fit on that line.
   - A definition written on one line stays on one line when it fits.
   - A blank line between two definitions or two members stays.
 - Comments and preprocessor directives keep their text. One on its own line takes the indentation of the code around
@@ -66,7 +72,7 @@ module Demo
 - No line ends with a space or a tab.
 - At most one blank line separates two things, and none starts the file, follows a `{`, or precedes a `}`. The
   text of a block comment is the exception: its blank lines stay.
-- No token is added, removed, or reordered.
+- No token is added or reordered. The only token removed is a `;` after a `}`, where Slice doesn't require one.
 - A file keeps its line endings, and ends with one line break.
 
 ## Building

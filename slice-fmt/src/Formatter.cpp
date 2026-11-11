@@ -142,10 +142,10 @@ namespace
         return concat(std::move(docs));
     }
 
-    // The text of a token and the comments that follow it on its line.
-    Doc textAndTrailingTrivia(const Token& token)
+    // The comments that follow a token on its line.
+    Doc trailingTrivia(const Token& token)
     {
-        vector<Doc> docs{text(string{token.text})};
+        vector<Doc> docs;
         for (const Trivia& trivia : token.trailing)
         {
             // The comment keeps its column, which often aligns it with the comments of the lines around it.
@@ -153,6 +153,9 @@ namespace
         }
         return concat(std::move(docs));
     }
+
+    // The text of a token and the comments that follow it on its line.
+    Doc textAndTrailingTrivia(const Token& token) { return concat({text(string{token.text}), trailingTrivia(token)}); }
 
     // What precedes the text of a token: the comments and directives before it, then the blank line or the space
     // that separates the last one from the token.
@@ -241,27 +244,101 @@ namespace
         return concat(std::move(docs));
     }
 
-    Doc declaration(const Node& node)
+    // An 'extends' or 'throws' clause, after a line break that belongs to the enclosing group. Its names are on one
+    // line when they fit, and each one starts a line after the first otherwise.
+    Doc clause(const Node& node)
     {
-        vector<Doc> docs;
-        auto parameterList = ranges::find(node.children, NodeKind::Parameters, &Node::kind);
-        if (parameterList == node.children.end())
+        vector<Doc> names;
+        appendChildren(names, node, 1, node.children.size(), line());
+        return indent(concat({line(), print(node.children.front()), group(indent(concat(std::move(names))))}));
+    }
+
+    // An operation that doesn't fit on one line is broken in three steps, each one only when the previous ones are
+    // not enough: its metadata takes the line above, its throws clause takes a line of its own, then each parameter
+    // takes one. Each step is a group inside the group of the previous step.
+    Doc operation(const Node& node)
+    {
+        size_t first = 0;
+        while (node.children[first].kind == NodeKind::Metadata)
         {
-            appendChildren(docs, node, 0, node.children.size(), space());
-            return concat(std::move(docs));
+            ++first;
         }
 
-        // The name of an operation starts a line when that keeps its parameters on one line.
-        auto name = static_cast<size_t>(parameterList - node.children.begin()) - 1;
-        appendChildren(docs, node, 0, name, space());
-        vector<Doc> signature{print(node.children[name])};
-        if (needsSpace(node.children[name], *parameterList))
+        // The signature starts with 'idempotent' or the return type. The comments before it stay out of its group,
+        // which they would break.
+        const Node& start = node.children[first];
+        vector<Doc> tokens{textAndTrailingTrivia(start.token)};
+        for (size_t i = first + 1; i < node.children.size(); ++i)
         {
-            signature.push_back(space());
+            const Node& child = node.children[i];
+            if (needsSpace(node.children[i - 1], child))
+            {
+                tokens.push_back(space());
+            }
+            tokens.push_back(child.kind == NodeKind::Clause ? clause(child) : print(child));
         }
-        signature.push_back(print(*parameterList));
-        docs.push_back(lineIfFits(concat(std::move(signature))));
-        appendChildren(docs, node, name + 2, node.children.size(), space());
+        Doc signature = concat({beforeText(start.token), group(concat(std::move(tokens)))});
+        if (first == 0)
+        {
+            return signature;
+        }
+
+        // Metadata written on the line above stays there.
+        vector<Doc> docs;
+        appendChildren(docs, node, 0, first, space());
+        docs.push_back(group(concat({startsLine(start) ? hardline() : line(), std::move(signature)})));
+        return concat(std::move(docs));
+    }
+
+    // The comments of the semicolon that follows a body, which is optional and is not written. They are laid out as
+    // they read without it.
+    Doc commentsOfOptionalSemicolon(const Node& body, const Node& semicolon)
+    {
+        const Token& token = semicolon.token;
+        vector<Trivia> leading = token.leading;
+        vector<Doc> trailing;
+        for (Trivia comment : token.trailing)
+        {
+            if (token.startsLine)
+            {
+                // Nothing else is left on the line of the comment.
+                comment.ownLine = true;
+                leading.push_back(comment);
+            }
+            else
+            {
+                // The comment moves left by the column the semicolon took.
+                trailing.push_back(suffix(splitLines(comment).front(), comment.column - 1));
+            }
+        }
+
+        vector<Doc> docs;
+        if (needsSpace(body, semicolon))
+        {
+            docs.push_back(space());
+        }
+        docs.push_back(leadingTrivia(leading));
+        docs.push_back(concat(std::move(trailing)));
+        return concat(std::move(docs));
+    }
+
+    Doc declaration(const Node& node)
+    {
+        if (ranges::find(node.children, NodeKind::Parameters, &Node::kind) != node.children.end())
+        {
+            return operation(node);
+        }
+
+        // Only an optional semicolon follows a body.
+        size_t count = node.children.size();
+        bool optionalSemicolon = count > 1 && node.children[count - 2].kind == NodeKind::Body;
+
+        vector<Doc> docs;
+        appendChildren(docs, node, 0, optionalSemicolon ? count - 1 : count, space());
+        if (optionalSemicolon)
+        {
+            docs.push_back(commentsOfOptionalSemicolon(node.children[count - 2], node.children.back()));
+        }
         return concat(std::move(docs));
     }
 
@@ -283,15 +360,6 @@ namespace
         }
         appendChildren(items, node, 1, node.children.size(), line());
         return listGroup(node.children.front().token, concat(std::move(items)));
-    }
-
-    // An 'extends' or 'throws' clause moves to the next line when it doesn't fit on the current one. Its names are on
-    // one line when they fit, and each one starts a line after the first otherwise.
-    Doc clause(const Node& node)
-    {
-        vector<Doc> names;
-        appendChildren(names, node, 1, node.children.size(), line());
-        return group(indent(concat({line(), print(node.children.front()), group(indent(concat(std::move(names))))})));
     }
 
     Doc body(const Node& node)
@@ -369,7 +437,8 @@ namespace
             case NodeKind::Parameters:
                 return parameters(node);
             case NodeKind::Clause:
-                return clause(node);
+                // An 'extends' clause moves to the next line when it doesn't fit on the current one.
+                return group(clause(node));
             case NodeKind::Body:
                 return body(node);
         }
