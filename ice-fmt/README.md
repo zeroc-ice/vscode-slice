@@ -82,12 +82,15 @@ module Demo
     break that follows the `(`.
   - An `extends` clause moves to its own line. Its names, like those of a `throws` clause, go one per line if they
     still don't fit.
+  - The types of a `sequence` or `dictionary` go one per line, after a line break that follows the `<`.
   - Metadata directives go one per line.
 - Three choices are the author's:
-  - The metadata of any other declaration sits on its line or on the line above, unless an operation doesn't fit
-    on that line.
+  - The metadata of any other declaration sits on its line or on the line above. It moves to the line above when
+    the declaration doesn't fit after it.
   - A definition written on one line stays on one line when it fits.
   - A blank line between two definitions or two members stays.
+- Metadata inside a declaration, such as on the element type of a sequence or after `out`, stays on the line of
+  what it applies to.
 - Comments and preprocessor directives keep their text. One on its own line takes the indentation of the code around
   it, and the later lines of a block comment keep their indentation relative to its first line. A comment that follows
   code keeps its column when the code leaves room for it.

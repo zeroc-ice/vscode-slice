@@ -240,10 +240,10 @@ namespace
                 }
                 else if (previous.kind == NodeKind::Metadata)
                 {
-                    // A definition with a body starts the line after its metadata. Any other declaration stays on the
-                    // line of its metadata when the author wrote it there.
-                    bool afterMetadata = hasBody(node) && child.kind != NodeKind::Metadata;
-                    docs.push_back(afterMetadata || startsLine(child) ? hardline() : space());
+                    // Metadata inside a declaration stays on the line of what it applies to. Two metadata lists keep
+                    // the line break the author put between them.
+                    bool ownLine = child.kind == NodeKind::Metadata && startsLine(child);
+                    docs.push_back(ownLine ? hardline() : space());
                 }
                 else if (needsSpace(previous, child))
                 {
@@ -294,16 +294,40 @@ namespace
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
+    // Returns the number of metadata lists that lead a declaration.
+    size_t leadingMetadata(const Node& node)
+    {
+        size_t count = 0;
+        while (node.children[count].kind == NodeKind::Metadata)
+        {
+            ++count;
+        }
+        return count;
+    }
+
+    // Lays out the 'count' metadata lists that lead a declaration, then 'rest', which is what follows them. A
+    // definition with a body starts the line after its metadata, and so does a declaration that the author put there.
+    // Any other declaration follows its metadata on the same line when it fits there.
+    Doc afterLeadingMetadata(const Node& node, size_t count, Doc rest)
+    {
+        if (count == 0)
+        {
+            return rest;
+        }
+
+        vector<Doc> docs;
+        appendChildren(docs, node, 0, count, space());
+        bool ownLine = hasBody(node) || startsLine(node.children[count]);
+        docs.push_back(group(concat(ownLine ? hardline() : line(), std::move(rest))));
+        return concat(std::move(docs));
+    }
+
     // An operation that doesn't fit on one line is broken in three steps, each one only when the previous ones are
     // not enough: its metadata takes the line above, its throws clause takes a line of its own, then each parameter
     // takes one. Each step is a group inside the group of the previous step.
     Doc operation(const Node& node)
     {
-        size_t first = 0;
-        while (node.children[first].kind == NodeKind::Metadata)
-        {
-            ++first;
-        }
+        size_t first = leadingMetadata(node);
 
         // The signature starts with 'idempotent' or the return type. The comments before it stay out of its group,
         // which they would break.
@@ -320,16 +344,7 @@ namespace
             tokens.push_back(child.kind == NodeKind::Clause ? clause(child) : print(child));
         }
         Doc signature = concat(beforeText(start.token), group(concat(std::move(tokens))));
-        if (first == 0)
-        {
-            return signature;
-        }
-
-        // Metadata written on the line above stays there.
-        vector<Doc> docs;
-        appendChildren(docs, node, 0, first, space());
-        docs.push_back(group(concat(startsLine(start) ? hardline() : line(), std::move(signature))));
-        return concat(std::move(docs));
+        return afterLeadingMetadata(node, first, std::move(signature));
     }
 
     // The comments of the semicolon that follows a body, which is optional and is not written. They are laid out as
@@ -369,13 +384,15 @@ namespace
         size_t count = node.children.size();
         bool optionalSemicolon = count > 1 && node.children[count - 2].kind == NodeKind::Body;
 
+        size_t first = leadingMetadata(node);
         vector<Doc> docs;
-        appendChildren(docs, node, 0, optionalSemicolon ? count - 1 : count, space());
+        docs.push_back(print(node.children[first]));
+        appendChildren(docs, node, first + 1, optionalSemicolon ? count - 1 : count, space());
         if (optionalSemicolon)
         {
             docs.push_back(commentsOfOptionalSemicolon(node.children[count - 2], node.children.back()));
         }
-        return concat(std::move(docs));
+        return afterLeadingMetadata(node, first, concat(std::move(docs)));
     }
 
     // The directives are on one line when they fit, and each one starts a line after the first otherwise.
@@ -386,8 +403,9 @@ namespace
         return listGroup(node.children.front().token, concat(std::move(directives)));
     }
 
-    // The parameters are on one line when they fit, and each one has its own line after the parenthesis otherwise.
-    Doc parameters(const Node& node)
+    // The parameters of an operation, or the types of a sequence or dictionary, are on one line when they fit, and each
+    // one has its own line after the opening token otherwise.
+    Doc list(const Node& node)
     {
         vector<Doc> items;
         if (node.children.size() > 2)
@@ -486,7 +504,8 @@ namespace
             case NodeKind::Metadata:
                 return metadata(node);
             case NodeKind::Parameters:
-                return parameters(node);
+            case NodeKind::Types:
+                return list(node);
             case NodeKind::Clause:
                 // An 'extends' clause moves to the next line when it doesn't fit on the current one.
                 return group(clause(node));

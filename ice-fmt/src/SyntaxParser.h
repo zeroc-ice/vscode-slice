@@ -70,6 +70,9 @@ namespace IceFmt
         /// The parameters of an operation, from '(' to ')'.
         Parameters,
 
+        /// The element type of a sequence, or the key and value types of a dictionary, from '<' to '>'.
+        Types,
+
         /// An 'extends' or 'throws' clause.
         Clause,
 

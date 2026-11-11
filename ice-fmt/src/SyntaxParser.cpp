@@ -570,10 +570,12 @@ namespace
         void sequence(Node& declaration)
         {
             take(declaration);
-            expect(declaration, TokenKind::LeftAngle);
-            localMetadata(declaration);
-            type(declaration);
-            expect(declaration, TokenKind::RightAngle);
+            Node types{NodeKind::Types};
+            expect(types, TokenKind::LeftAngle);
+            localMetadata(types);
+            type(types);
+            expect(types, TokenKind::RightAngle);
+            declaration.children.push_back(std::move(types));
             name(declaration);
             expect(declaration, TokenKind::Semicolon);
         }
@@ -582,13 +584,15 @@ namespace
         void dictionary(Node& declaration)
         {
             take(declaration);
-            expect(declaration, TokenKind::LeftAngle);
-            localMetadata(declaration);
-            type(declaration);
-            expect(declaration, TokenKind::Comma);
-            localMetadata(declaration);
-            type(declaration);
-            expect(declaration, TokenKind::RightAngle);
+            Node types{NodeKind::Types};
+            expect(types, TokenKind::LeftAngle);
+            localMetadata(types);
+            type(types);
+            expect(types, TokenKind::Comma);
+            localMetadata(types);
+            type(types);
+            expect(types, TokenKind::RightAngle);
+            declaration.children.push_back(std::move(types));
             name(declaration);
             expect(declaration, TokenKind::Semicolon);
         }
