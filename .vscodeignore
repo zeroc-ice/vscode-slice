@@ -18,4 +18,4 @@ slice/**/Internal
 slice/**/!(*.slice)
 
 # Formatter
-slice-fmt/**
+ice-fmt/**

@@ -71,7 +71,7 @@ main(int argc, char* argv[])
         }
         if (argument == "-v" || argument == "--version")
         {
-            cout << SLICE_FMT_VERSION << endl;
+            cout << ICE_FMT_VERSION << endl;
             return EXIT_SUCCESS;
         }
 

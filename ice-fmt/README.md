@@ -1,14 +1,14 @@
-# slice-fmt
+# ice-fmt
 
-`slice-fmt` formats Slice files that use the original Slice syntax (`.ice` files). It has one style and no options.
+`ice-fmt` formats Slice files that use the original Slice syntax (`.ice` files). It has one style and no options.
 
 ## Usage
 
 ```
-slice-fmt [options] paths...
+ice-fmt [options] paths...
 ```
 
-`slice-fmt` rewrites each file in place, and leaves a file that is already formatted untouched. A directory stands for
+`ice-fmt` rewrites each file in place, and leaves a file that is already formatted untouched. A directory stands for
 the `.ice` files in it and in the directories below it. In a directory, a name that starts with a dot is skipped, and
 so is `node_modules`.
 
@@ -16,7 +16,7 @@ so is `node_modules`.
 - `-h`, `--help` shows the usage.
 - `-v`, `--version` shows the version.
 
-A file with a syntax error is not formatted: `slice-fmt` reports the error as `file:line: message` and goes on with the
+A file with a syntax error is not formatted: `ice-fmt` reports the error as `file:line: message` and goes on with the
 next file. It reads a file as written, without preprocessing it, so a file where a macro stands in for Slice syntax is
 a syntax error too.
 
@@ -78,13 +78,13 @@ module Demo
 
 ## Building
 
-Building `slice-fmt` requires CMake 3.24 or later and a C++20 compiler.
+Building `ice-fmt` requires CMake 3.24 or later and a C++20 compiler.
 
 ```
-cmake -S slice-fmt -B slice-fmt/build -DCMAKE_BUILD_TYPE=Release
-cmake --build slice-fmt/build --config Release
+cmake -S ice-fmt -B ice-fmt/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ice-fmt/build --config Release
 ```
 
-The executable is `slice-fmt/build/slice-fmt`, or `slice-fmt\build\Release\slice-fmt.exe` with Visual Studio.
+The executable is `ice-fmt/build/ice-fmt`, or `ice-fmt\build\Release\ice-fmt.exe` with Visual Studio.
 
-The `slice-fmt` workflow builds the executable for macOS, Linux, and Windows, and uploads each one as an artifact.
+The `ice-fmt` workflow builds the executable for macOS, Linux, and Windows, and uploads each one as an artifact.
