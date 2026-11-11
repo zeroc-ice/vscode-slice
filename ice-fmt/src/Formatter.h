@@ -18,7 +18,7 @@ namespace SliceFormat
     ///
     /// The formatter keeps the author's choice where the Slice files of Ice vary: a blank line between definitions,
     /// a line break after metadata, and a definition written on a single line. An empty body written as {} follows
-    /// its definition on the same line, and a blank line separates two definitions that each have a body. The
+    /// its definition on the same line, and a blank line separates a definition with a body from its neighbors. The
     /// formatter never adds or reorders a token or a comment, and the only token it removes is the optional
     /// semicolon after a closing brace.
     /// @param text The text of the file.

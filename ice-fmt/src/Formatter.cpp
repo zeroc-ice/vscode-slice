@@ -62,19 +62,23 @@ namespace
         return ranges::find(node.children, NodeKind::Body, &Node::kind) != node.children.end();
     }
 
-    // Returns whether a blank line separates a node from the one before it: the author left one, or both nodes are
-    // definitions with a body and nothing separates them yet. A preprocessor directive between the two leaves the
-    // choice to the author, since the directive can belong to either one.
+    // Returns whether a blank line separates a node from the one before it: the author left one, or the two are
+    // definitions, at least one of them with a body, and nothing separates them yet. A preprocessor directive between
+    // the two leaves the choice to the author, since the directive can belong to either one.
     bool blankLineBetween(const Node& previous, const Node& node)
     {
         if (blankLineBefore(node))
         {
             return true;
         }
+        if (previous.kind != NodeKind::Declaration || node.kind != NodeKind::Declaration)
+        {
+            return false;
+        }
         const Token& token = firstToken(node);
         bool separated = token.blankLineBefore || ranges::any_of(token.leading, &Trivia::blankLineBefore);
         auto isDirective = [](const Trivia& trivia) { return trivia.text.starts_with('#'); };
-        return hasBody(previous) && hasBody(node) && !separated && ranges::none_of(token.leading, isDirective);
+        return (hasBody(previous) || hasBody(node)) && !separated && ranges::none_of(token.leading, isDirective);
     }
 
     bool needsSpace(const Node& left, const Node& right)

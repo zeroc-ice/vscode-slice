@@ -2,7 +2,8 @@
 
 module Demo {
 
-    // A definition written on one line stays on one line. A blank line separates two definitions with a body.
+    // A definition written on one line stays on one line. A blank line separates a definition with a body from the
+    // definitions around it.
     enum Color { Red, Green, Blue }   
     struct Point { int x; int y; }
 

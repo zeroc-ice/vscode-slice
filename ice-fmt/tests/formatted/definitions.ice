@@ -1,6 +1,7 @@
 module Demo
 {
-    // A definition written on one line stays on one line. A blank line separates two definitions with a body.
+    // A definition written on one line stays on one line. A blank line separates a definition with a body from the
+    // definitions around it.
     enum Color { Red, Green, Blue }
 
     struct Point { int x; int y; }
@@ -37,6 +38,7 @@ module Demo
 
     // The semicolon after a closing brace goes. The others stay.
     class Forward;
+
     interface Named {}
 
     struct Pair { int first; int second; }
@@ -57,6 +59,7 @@ module Demo
     sequence<string> Names;
     dictionary<string, int> Counts;
     const int MaxCopies = 10;
+
     class Job
     {
         Printer* printer;
