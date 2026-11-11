@@ -110,8 +110,8 @@ cmake --build ice-fmt/build --config Release
 The executable is `ice-fmt/build/ice-fmt`, or `ice-fmt\build\Release\ice-fmt.exe` with Visual Studio.
 
 The `ice-fmt` workflow builds and tests the executable for macOS, Linux, and Windows, and uploads each one as an
-artifact. It also checks the sources with clang-format and clang-tidy. To run clang-tidy during a build, configure
-with `-DCMAKE_CXX_CLANG_TIDY=clang-tidy`.
+artifact. It also checks the sources with version 23 of clang-format and clang-tidy. To run clang-tidy during a
+build, configure with `-DCMAKE_CXX_CLANG_TIDY=clang-tidy`.
 
 ## Testing
 

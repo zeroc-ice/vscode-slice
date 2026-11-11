@@ -79,14 +79,14 @@ jobs:
           # This LLVM script adds the LLVM apt repository: https://apt.llvm.org/
           wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
           chmod +x /tmp/llvm.sh
-          sudo /tmp/llvm.sh 19
-          sudo apt-get install -y clang-format-19 clang-tidy-19
+          sudo /tmp/llvm.sh 23
+          sudo apt-get install -y clang-format-23 clang-tidy-23
 
       - name: Check the format
-        run: clang-format-19 --dry-run --Werror ice-fmt/src/*.cpp ice-fmt/src/*.h
+        run: clang-format-23 --dry-run --Werror ice-fmt/src/*.cpp ice-fmt/src/*.h
 
       - name: Configure with clang-tidy
-        run: cmake -S ice-fmt -B ice-fmt/build -DCMAKE_CXX_CLANG_TIDY=clang-tidy-19
+        run: cmake -S ice-fmt -B ice-fmt/build -DCMAKE_CXX_CLANG_TIDY=clang-tidy-23
 
       - name: Build
         run: cmake --build ice-fmt/build
