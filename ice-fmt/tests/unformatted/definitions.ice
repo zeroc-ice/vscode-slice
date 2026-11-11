@@ -63,5 +63,9 @@ module Demo {
         }
 
 }
+// A module name can be nested.
+module Demo::Internal::Detail {
+    struct Token { string value; }
+}
 
 
