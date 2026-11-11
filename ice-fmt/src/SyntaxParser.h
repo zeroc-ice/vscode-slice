@@ -99,8 +99,8 @@ namespace IceFmt
     /// rejects for what its definitions mean.
     /// @param text The text of the file. The tokens of the tree are views into it.
     /// @return The File node.
-    /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar, or continues a line of a comment or
-    /// directive with a backslash in a way that formatting would change.
+    /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar, or holds a comment or directive that
+    /// formatting can't keep as the Slice compiler reads it.
     [[nodiscard]] Node parse(std::string_view text);
 }
 

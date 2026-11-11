@@ -90,10 +90,13 @@ namespace
 
     // Groups the lexemes into tokens, and attaches each comment and directive to the token it sits next to.
     //
-    // The preprocessor of the Slice compiler moves a comment to the start of its line. Two layouts are refused because
-    // laying out the code around the comment again would change what the compiler reads: a doc comment after code on
-    // its line, which documents the first definition of that line, and a comment or directive between a '(' and the
-    // name before it, which the compiler reads as one token.
+    // The preprocessor of the Slice compiler moves a comment above its line, so a doc comment after code documents the
+    // first definition of that line. Such a comment is attached to the first token of its line, which keeps what it
+    // documents when the line is laid out again. For the preprocessor, a block comment joins the lines it spans into
+    // one line.
+    //
+    // A comment or directive between a '(' and the name before it is refused: the compiler reads the two as one
+    // token, and laying out the lines around the comment could leave it between them.
     vector<Token> attachTrivia(const vector<Lexeme>& lexemes)
     {
         vector<Token> tokens;
@@ -102,9 +105,16 @@ namespace
         // The line where the previous lexeme ends.
         int endLine = 0;
 
+        // The line where the preprocessor's current line starts.
+        int joinedLine = 0;
+
         for (auto lexeme = lexemes.begin(); lexeme != lexemes.end(); ++lexeme)
         {
             bool blankLineBefore = lexeme->line > endLine + 1;
+            if (lexeme->line > endLine)
+            {
+                joinedLine = lexeme->line;
+            }
             auto lineBreaks = static_cast<int>(ranges::count(lexeme->text, '\n'));
 
             if (isTrivia(lexeme->kind))
@@ -117,13 +127,24 @@ namespace
 
                 bool afterToken = !tokens.empty() && lexeme->line == tokens.back().line;
                 bool docComment = isDocComment(*lexeme);
-                if (docComment && afterToken)
+                if (docComment && !tokens.empty() && tokens.back().line >= joinedLine)
                 {
-                    throw SyntaxError{lexeme->line, "doc comment after code on its line"};
+                    // The comment goes above its line, between what led the first token of the line and that token.
+                    // A comment that led that token on its line no longer shares the line with it.
+                    auto first = ranges::lower_bound(tokens, joinedLine, {}, &Token::line);
+                    for (Trivia& trivia : first->leading)
+                    {
+                        trivia.ownLine = true;
+                    }
+                    first->leading.push_back(
+                        {.text = lexeme->text,
+                         .column = lexeme->column,
+                         .ownLine = true,
+                         .blankLineBefore = first->blankLineBefore});
+                    first->blankLineBefore = false;
                 }
-
                 // A comment that spans several lines never shares one with a token.
-                if (afterToken && lineBreaks == 0 && !tokenFollows)
+                else if (afterToken && lineBreaks == 0 && !tokenFollows)
                 {
                     tokens.back().trailing.push_back(
                         {.text = lexeme->text, .column = lexeme->column, .ownLine = false, .blankLineBefore = false});
@@ -143,12 +164,6 @@ namespace
             }
             else
             {
-                if (lexeme->kind == TokenKind::LeftParenthesis && !tokens.empty() &&
-                    (!leading.empty() || !tokens.back().trailing.empty()))
-                {
-                    throw SyntaxError{lexeme->line, "comment or directive before '('"};
-                }
-
                 bool firstOnLine = tokens.empty() || lexeme->line > tokens.back().line;
                 tokens.push_back(
                     {.kind = lexeme->kind,
@@ -162,6 +177,15 @@ namespace
             }
 
             endLine = lexeme->line + lineBreaks;
+        }
+
+        for (size_t i = 1; i < tokens.size(); ++i)
+        {
+            if (tokens[i].kind == TokenKind::LeftParenthesis &&
+                (!tokens[i].leading.empty() || !tokens[i - 1].trailing.empty()))
+            {
+                throw SyntaxError{tokens[i].line, "comment or directive before '('"};
+            }
         }
         return tokens;
     }

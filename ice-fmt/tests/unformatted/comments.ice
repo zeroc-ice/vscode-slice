@@ -41,6 +41,13 @@ module Demo
 
     /** A doc comment before code on its line gets the line to itself. */ struct Triple { int first; int second; int third; }
 
+    struct Options
+    {
+        int timeout; /// A doc comment after code moves above its line, where the Slice compiler reads it.
+        int retries; int delay; /** This one documents retries,
+                                    the first member of its line. */
+    }
+
     // The comments before a closing brace have a line each when the body doesn't fit on one line.
     struct Quad { int first; int second; int third; int fourth; /* The first comment is here. */ /* The second comment is here. */ }
 }

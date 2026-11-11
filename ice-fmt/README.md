@@ -29,8 +29,6 @@ a syntax error too.
 
 `ice-fmt` also refuses a file that it can't lay out again without changing what the Slice compiler reads:
 
-- A doc comment (`///` or `/** */`) that follows code on its line. The compiler's preprocessor moves a comment to the
-  start of its line, so such a comment documents the first definition of that line.
 - A comment or directive between a `(` and the name before it, which the compiler reads as one token.
 - A comment or directive line that a backslash continues onto an empty line or the end of the file, or that has
   blanks after that backslash. The preprocessor joins such a line to the next one.
@@ -91,8 +89,9 @@ module Demo
   - A blank line between two definitions or two members stays.
 - Comments and preprocessor directives keep their text. One on its own line takes the indentation of the code around
   it, and the later lines of a block comment keep their indentation relative to its first line. A comment that follows
-  code keeps its column when the code leaves room for it. A doc comment before code on its line moves to the line
-  above.
+  code keeps its column when the code leaves room for it.
+- A doc comment (`///` or `/** */`) on a line with code moves above that line. The Slice compiler reads it there: its
+  preprocessor moves a comment above its line, so a doc comment documents the first definition of that line.
 - No line ends with a space or a tab.
 - At most one blank line separates two things, and none starts the file, follows a `{`, or precedes a `}`. The
   text of a block comment is the exception: its blank lines stay.

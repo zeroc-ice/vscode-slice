@@ -9,7 +9,7 @@
 namespace IceFmt
 {
     /// The exception that is thrown when the text of a Slice file can't be formatted: it doesn't follow the Slice
-    /// grammar, or a backslash continues a line of a comment or directive in a way that formatting would change.
+    /// grammar, or it holds a comment or directive that formatting can't keep as the Slice compiler reads it.
     class SyntaxError final : public std::runtime_error
     {
     public:
