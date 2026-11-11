@@ -17,8 +17,9 @@ namespace SliceFormat
     /// parameter, and stops at the first step that makes it fit.
     ///
     /// The formatter keeps the author's choice where the Slice files of Ice vary: a blank line between definitions,
-    /// a line break after metadata, and a definition written on a single line. It never adds or reorders a token or
-    /// a comment, and the only token it removes is the optional semicolon after a closing brace.
+    /// a line break after metadata, and a definition written on a single line. An empty body written as {} follows
+    /// its definition on the same line. The formatter never adds or reorders a token or a comment, and the only
+    /// token it removes is the optional semicolon after a closing brace.
     /// @param text The text of the file.
     /// @return The formatted text, with the line endings of @p text and its byte order mark when it has one.
     /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar.

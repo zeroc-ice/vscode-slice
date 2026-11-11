@@ -391,8 +391,10 @@ namespace
             members.push_back(print(child));
         }
 
-        // A definition stays on a single line only when the author wrote all of it on one.
-        bool broken = open.startsLine || close.line > open.line;
+        // A definition stays on a single line only when the author wrote all of it on one. An empty body written as {}
+        // is the exception: it follows its definition on the same line.
+        bool empty = last == 1 && close.leading.empty();
+        bool broken = close.line > open.line || (open.startsLine && !empty);
 
         // The comments before the closing brace are indented like the members. In a broken body the brace has a line
         // of its own, so each of these comments has one too.

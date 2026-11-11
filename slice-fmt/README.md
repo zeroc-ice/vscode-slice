@@ -55,7 +55,8 @@ module Demo
 ```
 
 - Indentation is 4 spaces, and a line is at most 120 columns.
-- Braces go on their own line.
+- Braces go on their own line. An empty body written as `{}` is the exception: it follows its definition on the same
+  line.
 - A list goes on one line when it fits. When it doesn't:
   - An operation is broken in three steps, each one only when the previous ones are not enough: its metadata moves to
     the line above, its `throws` clause moves to its own line, then its parameters go one per line, after a line
