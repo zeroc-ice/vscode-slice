@@ -62,14 +62,15 @@ namespace
         return token.leading.empty() ? token.blankLineBefore : token.leading.front().blankLineBefore;
     }
 
-    // Returns whether a node is a definition with a body: a module, class, interface, exception, struct, or enum.
-    bool hasBody(const Node& node)
+    // Returns whether a node is a container: a module, class, interface, exception, struct, or enum. Unlike the Slice
+    // compiler, it doesn't count an operation as the container of its parameters.
+    bool isContainer(const Node& node)
     {
         return ranges::find(node.children, NodeKind::Body, &Node::kind) != node.children.end();
     }
 
-    // Returns whether a blank line separates a node from the one before it: the author left one, or the two are
-    // definitions, at least one of them with a body, and nothing separates them yet. A preprocessor directive between
+    // Returns whether a blank line separates a node from the one before it: the author left one, or both are contained,
+    // at least one of them is a container, and nothing separates them yet. A preprocessor directive between
     // the two leaves the choice to the author, since the directive can belong to either one.
     bool blankLineBetween(const Node& previous, const Node& node)
     {
@@ -77,14 +78,15 @@ namespace
         {
             return true;
         }
-        if (previous.kind != NodeKind::Declaration || node.kind != NodeKind::Declaration)
+        if (previous.kind != NodeKind::Contained || node.kind != NodeKind::Contained)
         {
             return false;
         }
         const Token& token = firstToken(node);
         bool separated = token.blankLineBefore || ranges::any_of(token.leading, &Trivia::blankLineBefore);
         auto isDirective = [](const Trivia& trivia) { return trivia.text.starts_with('#'); };
-        return (hasBody(previous) || hasBody(node)) && !separated && ranges::none_of(token.leading, isDirective);
+        return (isContainer(previous) || isContainer(node)) && !separated &&
+               ranges::none_of(token.leading, isDirective);
     }
 
     bool needsSpace(const Node& left, const Node& right)
@@ -240,8 +242,8 @@ namespace
                 }
                 else if (previous.kind == NodeKind::Metadata)
                 {
-                    // Metadata inside a declaration stays on the line of what it applies to. Two metadata lists keep
-                    // the line break the author put between them.
+                    // Metadata stays on the line of the type or name it applies to. Two metadata lists keep the line
+                    // break the author put between them.
                     bool ownLine = child.kind == NodeKind::Metadata && startsLine(child);
                     docs.push_back(ownLine ? hardline() : space());
                 }
@@ -294,7 +296,7 @@ namespace
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
-    // Returns the number of metadata lists that lead a declaration.
+    // Returns the number of metadata lists that lead a node.
     size_t leadingMetadata(const Node& node)
     {
         size_t count = 0;
@@ -305,9 +307,9 @@ namespace
         return count;
     }
 
-    // Lays out the 'count' metadata lists that lead a declaration, then 'rest', which is what follows them. A
-    // definition with a body starts the line after its metadata, and so does a declaration that the author put there.
-    // Any other declaration follows its metadata on the same line when it fits there.
+    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A container starts
+    // the line after its metadata, and so does a node that the author put there. Any other node follows its metadata
+    // on the same line when it fits there.
     Doc afterLeadingMetadata(const Node& node, size_t count, Doc rest)
     {
         if (count == 0)
@@ -317,7 +319,7 @@ namespace
 
         vector<Doc> docs;
         appendChildren(docs, node, 0, count, space());
-        bool ownLine = hasBody(node) || startsLine(node.children[count]);
+        bool ownLine = isContainer(node) || startsLine(node.children[count]);
         docs.push_back(group(concat(ownLine ? hardline() : line(), std::move(rest))));
         return concat(std::move(docs));
     }
@@ -378,7 +380,7 @@ namespace
         return concat(std::move(docs));
     }
 
-    Doc declaration(const Node& node)
+    Doc contained(const Node& node)
     {
         // Only an optional semicolon follows a body.
         size_t count = node.children.size();
@@ -497,8 +499,8 @@ namespace
                 return print(node.token);
             case NodeKind::File:
                 return file(node);
-            case NodeKind::Declaration:
-                return declaration(node);
+            case NodeKind::Contained:
+                return contained(node);
             case NodeKind::Operation:
                 return operation(node);
             case NodeKind::Metadata:

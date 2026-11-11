@@ -17,8 +17,8 @@ using namespace IceFmt;
 
 namespace
 {
-    // The keywords that name a type. 'Object' is apart: it is the only one that '*' can follow.
-    constexpr array typeKeywords{
+    // The builtin types. 'Object' is the only one that '*' can follow.
+    constexpr array builtinTypes{
         TokenKind::Bool,
         TokenKind::Byte,
         TokenKind::Short,
@@ -27,6 +27,7 @@ namespace
         TokenKind::Float,
         TokenKind::Double,
         TokenKind::String,
+        TokenKind::Object,
         TokenKind::Value};
 
     bool isTrivia(TokenKind kind)
@@ -266,11 +267,11 @@ namespace
             take(parent);
         }
 
-        // type := typeKeyword | 'Object' '*'? | scopedName '*'?
+        // type := builtin | 'Object' '*' | scopedName '*'?
         void type(Node& parent)
         {
             bool canBeProxy = atScopedName() || at(TokenKind::Object);
-            if (!canBeProxy && ranges::find(typeKeywords, current().kind) == typeKeywords.end())
+            if (!atScopedName() && ranges::find(builtinTypes, current().kind) == builtinTypes.end())
             {
                 fail("a type");
             }
@@ -298,7 +299,7 @@ namespace
         {
             if (!at(TokenKind::IntegerLiteral) && !atScopedName())
             {
-                fail("an integer");
+                fail("an integer constant");
             }
             take(parent);
         }
@@ -330,7 +331,7 @@ namespace
                     {
                         if (!at(TokenKind::StringLiteral))
                         {
-                            fail("a string");
+                            fail("a string literal");
                         }
                         take(node);
                     } while (at(TokenKind::StringLiteral));
@@ -357,45 +358,45 @@ namespace
                 return metadata(TokenKind::DoubleLeftBracket, TokenKind::DoubleRightBracket);
             }
 
-            Node declaration{NodeKind::Declaration};
-            localMetadata(declaration);
+            Node contained{NodeKind::Contained};
+            localMetadata(contained);
             if (at(TokenKind::Module))
             {
-                moduleDefinition(declaration);
+                moduleDefinition(contained);
             }
             else if (
                 at(TokenKind::Class) || at(TokenKind::Interface) || at(TokenKind::Exception) || at(TokenKind::Struct))
             {
-                typeDefinition(declaration);
+                typeDefinition(contained);
             }
             else if (at(TokenKind::Enum))
             {
-                enumeration(declaration);
+                enumeration(contained);
             }
             else if (at(TokenKind::Sequence))
             {
-                sequence(declaration);
+                sequence(contained);
             }
             else if (at(TokenKind::Dictionary))
             {
-                dictionary(declaration);
+                dictionary(contained);
             }
             else if (at(TokenKind::Const))
             {
-                constant(declaration);
+                constant(contained);
             }
             else
             {
                 fail("a definition");
             }
-            return declaration;
+            return contained;
         }
 
         // moduleDefinition := 'module' scopedName '{' definition* '}' ';'?
-        void moduleDefinition(Node& declaration)
+        void moduleDefinition(Node& contained)
         {
-            take(declaration);
-            scopedName(declaration);
+            take(contained);
+            scopedName(contained);
 
             Node body{NodeKind::Body};
             expect(body, TokenKind::LeftBrace);
@@ -404,36 +405,37 @@ namespace
                 body.children.push_back(definition());
             }
             take(body);
-            declaration.children.push_back(std::move(body));
-            accept(declaration, TokenKind::Semicolon);
+            contained.children.push_back(std::move(body));
+            accept(contained, TokenKind::Semicolon);
         }
 
         // typeDefinition := ('class' | 'interface') name ';'
-        //                 | 'class' name ('(' integerConstant ')')? (extends scopedName)? dataMembers ';'?
-        //                 | 'interface' name (extends base (',' base)*)? operations ';'?
+        //                 | 'class' name compactId? (extends scopedName)? dataMembers ';'?
+        //                 | 'interface' name (extends interfaceList)? operations ';'?
         //                 | 'exception' name (extends scopedName)? dataMembers ';'?
         //                 | 'struct' name dataMembers ';'?
         // extends := 'extends' | ':'
-        // base := scopedName | 'Object' | 'Value'
+        // compactId := '(' integerConstant ')'
+        // interfaceList := (scopedName | 'Object' | 'Value') (',' (scopedName | 'Object' | 'Value'))*
         // dataMembers := '{' dataMember* '}'
         // operations := '{' operation* '}'
-        void typeDefinition(Node& declaration)
+        void typeDefinition(Node& contained)
         {
             TokenKind keyword = current().kind;
-            take(declaration);
-            name(declaration);
+            take(contained);
+            name(contained);
 
             // A forward declaration.
             if ((keyword == TokenKind::Class || keyword == TokenKind::Interface) &&
-                accept(declaration, TokenKind::Semicolon))
+                accept(contained, TokenKind::Semicolon))
             {
                 return;
             }
 
-            if (keyword == TokenKind::Class && accept(declaration, TokenKind::LeftParenthesis))
+            if (keyword == TokenKind::Class && accept(contained, TokenKind::LeftParenthesis))
             {
-                integerConstant(declaration);
-                expect(declaration, TokenKind::RightParenthesis);
+                integerConstant(contained);
+                expect(contained, TokenKind::RightParenthesis);
             }
             if (keyword != TokenKind::Struct && (at(TokenKind::Extends) || at(TokenKind::Colon)))
             {
@@ -454,7 +456,7 @@ namespace
                 {
                     scopedName(clause);
                 }
-                declaration.children.push_back(std::move(clause));
+                contained.children.push_back(std::move(clause));
             }
 
             Node body{NodeKind::Body};
@@ -464,14 +466,14 @@ namespace
                 body.children.push_back(keyword == TokenKind::Interface ? operation() : dataMember());
             }
             take(body);
-            declaration.children.push_back(std::move(body));
-            accept(declaration, TokenKind::Semicolon);
+            contained.children.push_back(std::move(body));
+            accept(contained, TokenKind::Semicolon);
         }
 
         // dataMember := metadata* optionalType name ('=' constInitializer)? ';'
         Node dataMember()
         {
-            Node member{NodeKind::Declaration};
+            Node member{NodeKind::Contained};
             localMetadata(member);
             optionalType(member);
             name(member);
@@ -526,28 +528,28 @@ namespace
         // parameter := (metadata | 'out')* optionalType name
         Node parameter()
         {
-            Node declaration{NodeKind::Declaration};
+            Node contained{NodeKind::Contained};
             do
             {
-                localMetadata(declaration);
-            } while (accept(declaration, TokenKind::Out));
-            optionalType(declaration);
-            name(declaration);
-            return declaration;
+                localMetadata(contained);
+            } while (accept(contained, TokenKind::Out));
+            optionalType(contained);
+            name(contained);
+            return contained;
         }
 
         // enum := 'enum' name '{' (enumerator (',' enumerator)* ','?)? '}' ';'?
         // enumerator := metadata* name ('=' integerConstant)?
-        void enumeration(Node& declaration)
+        void enumeration(Node& contained)
         {
-            take(declaration);
-            name(declaration);
+            take(contained);
+            name(contained);
 
             Node body{NodeKind::Body};
             expect(body, TokenKind::LeftBrace);
             while (!at(TokenKind::RightBrace))
             {
-                Node enumerator{NodeKind::Declaration};
+                Node enumerator{NodeKind::Contained};
                 localMetadata(enumerator);
                 name(enumerator);
                 if (accept(enumerator, TokenKind::Equals))
@@ -562,28 +564,28 @@ namespace
                 }
             }
             take(body);
-            declaration.children.push_back(std::move(body));
-            accept(declaration, TokenKind::Semicolon);
+            contained.children.push_back(std::move(body));
+            accept(contained, TokenKind::Semicolon);
         }
 
         // sequence := 'sequence' '<' metadata* type '>' name ';'
-        void sequence(Node& declaration)
+        void sequence(Node& contained)
         {
-            take(declaration);
+            take(contained);
             Node types{NodeKind::Types};
             expect(types, TokenKind::LeftAngle);
             localMetadata(types);
             type(types);
             expect(types, TokenKind::RightAngle);
-            declaration.children.push_back(std::move(types));
-            name(declaration);
-            expect(declaration, TokenKind::Semicolon);
+            contained.children.push_back(std::move(types));
+            name(contained);
+            expect(contained, TokenKind::Semicolon);
         }
 
         // dictionary := 'dictionary' '<' metadata* type ',' metadata* type '>' name ';'
-        void dictionary(Node& declaration)
+        void dictionary(Node& contained)
         {
-            take(declaration);
+            take(contained);
             Node types{NodeKind::Types};
             expect(types, TokenKind::LeftAngle);
             localMetadata(types);
@@ -592,21 +594,21 @@ namespace
             localMetadata(types);
             type(types);
             expect(types, TokenKind::RightAngle);
-            declaration.children.push_back(std::move(types));
-            name(declaration);
-            expect(declaration, TokenKind::Semicolon);
+            contained.children.push_back(std::move(types));
+            name(contained);
+            expect(contained, TokenKind::Semicolon);
         }
 
         // const := 'const' metadata* type name '=' constInitializer ';'
-        void constant(Node& declaration)
+        void constant(Node& contained)
         {
-            take(declaration);
-            localMetadata(declaration);
-            type(declaration);
-            name(declaration);
-            expect(declaration, TokenKind::Equals);
-            constInitializer(declaration);
-            expect(declaration, TokenKind::Semicolon);
+            take(contained);
+            localMetadata(contained);
+            type(contained);
+            name(contained);
+            expect(contained, TokenKind::Equals);
+            constInitializer(contained);
+            expect(contained, TokenKind::Semicolon);
         }
 
         vector<Token> _tokens;

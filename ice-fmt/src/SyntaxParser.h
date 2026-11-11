@@ -59,7 +59,7 @@ namespace IceFmt
         File,
 
         /// A definition, data member, enumerator, or parameter, from its metadata to its last token.
-        Declaration,
+        Contained,
 
         /// An operation, from its metadata to its semicolon.
         Operation,

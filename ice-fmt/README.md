@@ -85,12 +85,12 @@ module Demo
   - The types of a `sequence` or `dictionary` go one per line, after a line break that follows the `<`.
   - Metadata directives go one per line.
 - Three choices are the author's:
-  - The metadata of any other declaration sits on its line or on the line above. It moves to the line above when
-    the declaration doesn't fit after it.
+  - The metadata of anything else, such as a sequence, a data member, or a parameter, sits on its line or on the
+    line above. It moves to the line above when what it leads doesn't fit after it.
   - A definition written on one line stays on one line when it fits.
   - A blank line between two definitions or two members stays.
-- Metadata inside a declaration, such as on the element type of a sequence or after `out`, stays on the line of
-  what it applies to.
+- Metadata that doesn't lead, such as on the element type of a sequence or after `out`, stays on the line of what it
+  applies to.
 - Comments and preprocessor directives keep their text. One on its own line takes the indentation of the code around
   it, and the later lines of a block comment keep their indentation relative to its first line. A comment that follows
   code keeps its column when the code leaves room for it.
