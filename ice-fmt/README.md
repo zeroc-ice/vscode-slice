@@ -10,8 +10,8 @@ ice-fmt [options] paths...
 ```
 
 `ice-fmt` rewrites each file in place. A directory stands for the `.ice` files below it, skipping `node_modules` and any
-name that starts with a dot. To leave a file out, put the comment `// ice-fmt: skip-file` in it, or pass only the files
-to format:
+name that starts with a dot. To leave a file out, put the comment `// ice-fmt: ignore-file` in it, or pass only the
+files to format:
 
 ```
 git ls-files -z '*.ice' ':!:test/errors' | xargs -0 ice-fmt --check

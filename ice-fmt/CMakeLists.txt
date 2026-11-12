@@ -57,8 +57,8 @@ foreach(case comments crlf definitions metadata operations)
     add_test(NAME keep-${case} COMMAND ice-fmt --check "${tests}/formatted/${case}.ice")
 endforeach()
 
-# A file with the comment "// ice-fmt: skip-file" is left as it is.
-add_test(NAME skip-file COMMAND ice-fmt --check "${tests}/skip-file.ice")
+# A file with the comment "// ice-fmt: ignore-file" is left as it is.
+add_test(NAME ignore-file COMMAND ice-fmt --check "${tests}/ignore-file.ice")
 
 # A directory stands for the .ice files below it, except under a name that starts with a dot and under node_modules.
 # The directory is made here because the repository ignores node_modules.

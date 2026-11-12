@@ -14,7 +14,7 @@ namespace IceFmt
     /// token, and the only token it removes is the optional semicolon after a closing brace.
     /// @param text The text of the file.
     /// @return The formatted text, with the line endings of the first line of @p text and its byte order mark when it
-    /// has one, or @p text as it is when it holds the comment `// ice-fmt: skip-file`.
+    /// has one, or @p text as it is when it holds the comment `// ice-fmt: ignore-file`.
     /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar, or holds a comment or directive that
     /// formatting can't keep as the Slice compiler reads it.
     /// @throws std::logic_error Thrown when the formatted text would not keep the tokens and comments of @p text, or

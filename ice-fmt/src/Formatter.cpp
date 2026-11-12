@@ -664,9 +664,11 @@ IceFmt::formatSlice(string_view text)
         text.remove_prefix(byteOrderMark.size());
     }
 
-    auto skipsFile = [](const Lexeme& lexeme)
-    { return lexeme.kind == TokenKind::LineComment && withoutTrailingBlanks(lexeme.text) == "// ice-fmt: skip-file"; };
-    if (ranges::any_of(scan(text), skipsFile))
+    auto ignoresFile = [](const Lexeme& lexeme)
+    {
+        return lexeme.kind == TokenKind::LineComment && withoutTrailingBlanks(lexeme.text) == "// ice-fmt: ignore-file";
+    };
+    if (ranges::any_of(scan(text), ignoresFile))
     {
         return string{file};
     }
