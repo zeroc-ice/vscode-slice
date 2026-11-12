@@ -4,43 +4,69 @@
 #define ICE_FMT_LAYOUT_H
 
 #include <concepts>
+#include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace IceFmt
 {
     /// Text to lay out, and the places where a line can end: what Philip Wadler's "A prettier printer" calls a
-    /// document, with the additions Prettier made for comments.
+    /// document, with the additions Prettier made for comments. A layout doesn't change once made, so its copies share
+    /// the layouts it holds.
     struct Layout
     {
-        enum class Kind
+        struct Text
         {
-            Text,
-            Space,
-            Line,
-            HardLine,
-            Suffix,
-            EndOfLine,
-            Indent,
-            Group,
-            Concat,
+            std::string text;
         };
 
-        Kind kind = Kind::Text;
+        struct Space
+        {
+        };
 
-        /// The text of a Text or Suffix. A Line that becomes a space when its group is flat has a space here, and a
-        /// Line that becomes nothing has no text.
-        std::string text{};
+        struct Line
+        {
+            /// Whether the line break becomes nothing, rather than a space, when its group is flat.
+            bool soft;
+        };
 
-        /// The child of an Indent or Group, and the parts of a Concat.
-        std::vector<Layout> children{};
+        struct HardLine
+        {
+        };
 
-        /// Whether a Group is broken even when it fits on the line.
-        bool broken = false;
+        struct Suffix
+        {
+            std::string text;
 
-        /// The zero-based column, in bytes, where a Suffix starts when the line doesn't reach it.
-        int column = 0;
+            /// The zero-based column, in bytes, where the text starts when the line doesn't reach it.
+            int column;
+        };
+
+        struct EndOfLine
+        {
+        };
+
+        struct Indent
+        {
+            std::shared_ptr<const Layout> contents;
+        };
+
+        struct Group
+        {
+            std::shared_ptr<const Layout> contents;
+
+            /// Whether the group is broken even when it fits on the line.
+            bool broken;
+        };
+
+        struct Concat
+        {
+            std::vector<Layout> parts;
+        };
+
+        std::variant<Text, Space, Line, HardLine, Suffix, EndOfLine, Indent, Group, Concat> value;
     };
 
     /// Creates text that holds no line break.

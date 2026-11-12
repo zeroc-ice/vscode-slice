@@ -4,9 +4,12 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 using namespace std;
@@ -16,6 +19,12 @@ namespace
 {
     constexpr int lineWidth = 120;
     constexpr int indentWidth = 4;
+
+    // A visitor made of one lambda for each kind of layout.
+    template<typename... Lambdas> struct Overloaded : Lambdas...
+    {
+        using Lambdas::operator()...;
+    };
 
     // Returns the number of columns the text takes: one for each UTF-8 code point.
     int columns(string_view text)
@@ -34,57 +43,47 @@ namespace
             {
                 Command command = commands.back();
                 commands.pop_back();
-                const Layout& layout = *command.layout;
-                switch (layout.kind)
-                {
-                    case Layout::Kind::Text:
-                        writeText(layout.text, command.indent);
-                        break;
-                    case Layout::Kind::Space:
-                        writeSpace();
-                        break;
-                    case Layout::Kind::Line:
-                        if (!command.flat)
+                visit(
+                    Overloaded{
+                        [&](const Layout::Text& text) { writeText(text.text, command.indent); },
+                        [&](const Layout::Space&) { writeSpace(); },
+                        [&](const Layout::Line& line)
                         {
-                            startLine();
-                        }
-                        else if (!layout.text.empty())
+                            if (!command.flat)
+                            {
+                                startLine();
+                            }
+                            else if (!line.soft)
+                            {
+                                writeSpace();
+                            }
+                        },
+                        [&](const Layout::HardLine&) { startLine(); },
+                        [&](const Layout::Suffix& suffix)
                         {
-                            writeSpace();
-                        }
-                        break;
-                    case Layout::Kind::HardLine:
-                        startLine();
-                        break;
-                    case Layout::Kind::Suffix:
-                    {
-                        size_t length = _out.size() - _lineStart;
-                        auto column = static_cast<size_t>(layout.column);
-                        _out.append(column > length ? column - length : 1, ' ');
-                        _out += layout.text;
-                        _endOfLine = true;
-                        break;
-                    }
-                    case Layout::Kind::EndOfLine:
-                        _endOfLine = !lineIsEmpty();
-                        break;
-                    case Layout::Kind::Indent:
-                        commands.push_back({command.indent + indentWidth, command.flat, &layout.children.front()});
-                        break;
-                    case Layout::Kind::Group:
-                    {
-                        Command contents{command.indent, true, &layout.children.front()};
-                        contents.flat = command.flat || (!layout.broken && fits(contents, commands));
-                        commands.push_back(contents);
-                        break;
-                    }
-                    case Layout::Kind::Concat:
-                        for (auto child = layout.children.rbegin(); child != layout.children.rend(); ++child)
+                            size_t length = _out.size() - _lineStart;
+                            auto column = static_cast<size_t>(suffix.column);
+                            _out.append(column > length ? column - length : 1, ' ');
+                            _out += suffix.text;
+                            _endOfLine = true;
+                        },
+                        [&](const Layout::EndOfLine&) { _endOfLine = !lineIsEmpty(); },
+                        [&](const Layout::Indent& indent)
+                        { commands.push_back({command.indent + indentWidth, command.flat, indent.contents.get()}); },
+                        [&](const Layout::Group& group)
                         {
-                            commands.push_back({command.indent, command.flat, &*child});
-                        }
-                        break;
-                }
+                            Command contents{command.indent, true, group.contents.get()};
+                            contents.flat = command.flat || (!group.broken && fits(contents, commands));
+                            commands.push_back(contents);
+                        },
+                        [&](const Layout::Concat& concat)
+                        {
+                            for (auto part = concat.parts.rbegin(); part != concat.parts.rend(); ++part)
+                            {
+                                commands.push_back({command.indent, command.flat, &*part});
+                            }
+                        }},
+                    command.layout->value);
             }
             return std::move(_out);
         }
@@ -160,56 +159,82 @@ namespace
 
                 Command command = commands.back();
                 commands.pop_back();
-                const Layout& layout = *command.layout;
-                switch (layout.kind)
+
+                // A layout that settles whether the contents fit returns the answer, and the others return nothing.
+                optional<bool> answer = visit(
+                    Overloaded{
+                        [&](const Layout::Text& text) -> optional<bool>
+                        {
+                            if (text.text.empty())
+                            {
+                                return nullopt;
+                            }
+                            if (endOfLine)
+                            {
+                                // The text starts a new line, which the flat contents can't do.
+                                return !command.flat;
+                            }
+                            remaining -= columns(text.text);
+                            return nullopt;
+                        },
+                        [&](const Layout::Space&) -> optional<bool>
+                        {
+                            remaining--;
+                            return nullopt;
+                        },
+                        [&](const Layout::Line& line) -> optional<bool>
+                        {
+                            if (!command.flat)
+                            {
+                                return true;
+                            }
+                            if (endOfLine)
+                            {
+                                return false;
+                            }
+                            if (!line.soft)
+                            {
+                                remaining--;
+                            }
+                            return nullopt;
+                        },
+                        [&](const Layout::HardLine&) -> optional<bool> { return !command.flat; },
+                        [&](const Layout::Suffix&) -> optional<bool>
+                        {
+                            endOfLine = true;
+                            return nullopt;
+                        },
+                        [&](const Layout::EndOfLine&) -> optional<bool>
+                        {
+                            endOfLine = true;
+                            return nullopt;
+                        },
+                        [&](const Layout::Indent& indent) -> optional<bool>
+                        {
+                            commands.push_back({command.indent, command.flat, indent.contents.get()});
+                            return nullopt;
+                        },
+                        [&](const Layout::Group& group) -> optional<bool>
+                        {
+                            if (command.flat && group.broken)
+                            {
+                                return false;
+                            }
+                            commands.push_back({command.indent, command.flat, group.contents.get()});
+                            return nullopt;
+                        },
+                        [&](const Layout::Concat& concat) -> optional<bool>
+                        {
+                            for (auto part = concat.parts.rbegin(); part != concat.parts.rend(); ++part)
+                            {
+                                commands.push_back({command.indent, command.flat, &*part});
+                            }
+                            return nullopt;
+                        }},
+                    command.layout->value);
+                if (answer)
                 {
-                    case Layout::Kind::Text:
-                        if (layout.text.empty())
-                        {
-                            break;
-                        }
-                        if (endOfLine)
-                        {
-                            // The text starts a new line, which the flat contents can't do.
-                            return !command.flat;
-                        }
-                        remaining -= columns(layout.text);
-                        break;
-                    case Layout::Kind::Space:
-                        remaining--;
-                        break;
-                    case Layout::Kind::Line:
-                        if (!command.flat)
-                        {
-                            return true;
-                        }
-                        if (endOfLine)
-                        {
-                            return false;
-                        }
-                        remaining -= columns(layout.text);
-                        break;
-                    case Layout::Kind::HardLine:
-                        return !command.flat;
-                    case Layout::Kind::Suffix:
-                    case Layout::Kind::EndOfLine:
-                        endOfLine = true;
-                        break;
-                    case Layout::Kind::Group:
-                        if (command.flat && layout.broken)
-                        {
-                            return false;
-                        }
-                        [[fallthrough]];
-                    case Layout::Kind::Indent:
-                        commands.push_back({command.indent, command.flat, &layout.children.front()});
-                        break;
-                    case Layout::Kind::Concat:
-                        for (auto child = layout.children.rbegin(); child != layout.children.rend(); ++child)
-                        {
-                            commands.push_back({command.indent, command.flat, &*child});
-                        }
-                        break;
+                    return *answer;
                 }
             }
             return false;
@@ -228,66 +253,61 @@ namespace
 Layout
 IceFmt::text(string text)
 {
-    return {.kind = Layout::Kind::Text, .text = std::move(text)};
+    return {Layout::Text{std::move(text)}};
 }
 
 Layout
 IceFmt::space()
 {
-    return {.kind = Layout::Kind::Space};
+    return {Layout::Space{}};
 }
 
 Layout
 IceFmt::line()
 {
-    return {.kind = Layout::Kind::Line, .text = " "};
+    return {Layout::Line{.soft = false}};
 }
 
 Layout
 IceFmt::softline()
 {
-    return {.kind = Layout::Kind::Line};
+    return {Layout::Line{.soft = true}};
 }
 
 Layout
 IceFmt::hardline()
 {
-    return {.kind = Layout::Kind::HardLine};
+    return {Layout::HardLine{}};
 }
 
 Layout
 IceFmt::suffix(string text, int column)
 {
-    return {.kind = Layout::Kind::Suffix, .text = std::move(text), .column = column};
+    return {Layout::Suffix{.text = std::move(text), .column = column}};
 }
 
 Layout
 IceFmt::endOfLine()
 {
-    return {.kind = Layout::Kind::EndOfLine};
+    return {Layout::EndOfLine{}};
 }
 
-// Indent and Group push their child, which an initializer list would copy.
 Layout
 IceFmt::indent(Layout layout)
 {
-    Layout result{.kind = Layout::Kind::Indent};
-    result.children.push_back(std::move(layout));
-    return result;
+    return {Layout::Indent{make_shared<const Layout>(std::move(layout))}};
 }
 
 Layout
 IceFmt::group(Layout layout, bool broken)
 {
-    Layout result{.kind = Layout::Kind::Group, .broken = broken};
-    result.children.push_back(std::move(layout));
-    return result;
+    return {Layout::Group{.contents = make_shared<const Layout>(std::move(layout)), .broken = broken}};
 }
 
 Layout
 IceFmt::concat(vector<Layout> parts)
 {
-    return {.kind = Layout::Kind::Concat, .children = std::move(parts)};
+    return {Layout::Concat{std::move(parts)}};
 }
 
 string
