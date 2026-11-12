@@ -37,7 +37,7 @@ namespace
         TokenKind::LeftAngle,
         TokenKind::Asterisk};
 
-    Doc print(const Node& node);
+    Layout print(const Node& node);
 
     bool contains(const auto& kinds, TokenKind kind) { return ranges::find(kinds, kind) != kinds.end(); }
 
@@ -173,90 +173,90 @@ namespace
 
     // The comments and directives before a token, without the blank line that precedes the first one or the space
     // that follows the last one.
-    Doc leadingTrivia(const vector<Trivia>& leading)
+    Layout leadingTrivia(const vector<Trivia>& leading)
     {
-        vector<Doc> docs;
+        vector<Layout> parts;
         for (const Trivia& trivia : leading)
         {
-            if (!docs.empty() && trivia.blankLineBefore)
+            if (!parts.empty() && trivia.blankLineBefore)
             {
                 // The first line break ends the previous comment.
-                docs.push_back(hardline());
-                docs.push_back(hardline());
+                parts.push_back(hardline());
+                parts.push_back(hardline());
             }
 
             if (trivia.ownLine)
             {
                 vector<string> lines = splitLines(trivia);
-                docs.push_back(endOfLine());
-                docs.push_back(text(lines.front()));
+                parts.push_back(endOfLine());
+                parts.push_back(text(lines.front()));
                 for (size_t i = 1; i < lines.size(); ++i)
                 {
-                    docs.push_back(hardline());
-                    docs.push_back(text(lines[i]));
+                    parts.push_back(hardline());
+                    parts.push_back(text(lines[i]));
                 }
-                docs.push_back(endOfLine());
+                parts.push_back(endOfLine());
             }
             else
             {
-                if (!docs.empty())
+                if (!parts.empty())
                 {
-                    docs.push_back(space());
+                    parts.push_back(space());
                 }
-                docs.push_back(text(string{trivia.text}));
+                parts.push_back(text(string{trivia.text}));
             }
         }
-        return concat(std::move(docs));
+        return concat(std::move(parts));
     }
 
     // The comments that follow a token on its line.
-    Doc trailingTrivia(const Token& token)
+    Layout trailingTrivia(const Token& token)
     {
-        vector<Doc> docs;
-        docs.reserve(token.trailing.size());
+        vector<Layout> parts;
+        parts.reserve(token.trailing.size());
         for (const Trivia& trivia : token.trailing)
         {
             // The comment keeps its column, which often aligns it with the comments of the lines around it.
-            docs.push_back(suffix(string{withoutTrailingBlanks(trivia.text)}, trivia.column));
+            parts.push_back(suffix(string{withoutTrailingBlanks(trivia.text)}, trivia.column));
         }
-        return concat(std::move(docs));
+        return concat(std::move(parts));
     }
 
     // The text of a token and the comments that follow it on its line.
-    Doc textAndTrailingTrivia(const Token& token) { return concat(text(string{token.text}), trailingTrivia(token)); }
+    Layout textAndTrailingTrivia(const Token& token) { return concat(text(string{token.text}), trailingTrivia(token)); }
 
     // What precedes the text of a token: the comments and directives before it, then the blank line or the space
     // that separates the last one from the token.
-    Doc beforeText(const Token& token)
+    Layout beforeText(const Token& token)
     {
-        vector<Doc> docs;
-        docs.push_back(leadingTrivia(token.leading));
+        vector<Layout> parts;
+        parts.push_back(leadingTrivia(token.leading));
         if (!token.leading.empty())
         {
             if (token.blankLineBefore)
             {
-                docs.push_back(hardline());
-                docs.push_back(hardline());
+                parts.push_back(hardline());
+                parts.push_back(hardline());
             }
             if (!token.leading.back().ownLine && !contains(noSpaceBefore, token.kind))
             {
-                docs.push_back(space());
+                parts.push_back(space());
             }
         }
-        return concat(std::move(docs));
+        return concat(std::move(parts));
     }
 
-    Doc print(const Token& token) { return concat(beforeText(token), textAndTrailingTrivia(token)); }
+    Layout print(const Token& token) { return concat(beforeText(token), textAndTrailingTrivia(token)); }
 
     // Groups a list that starts with the token 'open'. The comments before that token would break the group, so the
     // caller lays them out before it.
-    Doc listGroup(const Token& open, Doc items)
+    Layout listGroup(const Token& open, Layout items)
     {
         return group(concat(textAndTrailingTrivia(open), indent(std::move(items))));
     }
 
     // What separates a child from the child before it. 'afterComma' is what follows a comma.
-    Doc separator(const Node& previous, const Node& child, const Doc& afterComma)
+    Layout separator(const Node& previous, const Node& child, const Layout& afterComma)
     {
         if (isToken(previous, TokenKind::Comma))
         {
@@ -274,32 +274,32 @@ namespace
 
     // Appends the children of a node from index 'first' to the one before 'last', each after what separates it from
     // the previous child. 'afterComma' is what follows a comma.
-    void appendChildren(vector<Doc>& docs, const Node& node, size_t first, size_t last, const Doc& afterComma)
+    void appendChildren(vector<Layout>& parts, const Node& node, size_t first, size_t last, const Layout& afterComma)
     {
         for (size_t i = first; i < last; ++i)
         {
             if (i > 0)
             {
-                docs.push_back(separator(node.children[i - 1], node.children[i], afterComma));
+                parts.push_back(separator(node.children[i - 1], node.children[i], afterComma));
             }
-            docs.push_back(print(node.children[i]));
+            parts.push_back(print(node.children[i]));
         }
     }
 
     // The directives of a metadata list, in its brackets, without the comments before it. They are on one line when
     // they fit, and each one starts a line after the first otherwise.
-    Doc directives(const Node& metadata)
+    Layout directives(const Node& metadata)
     {
-        vector<Doc> items;
+        vector<Layout> items;
         appendChildren(items, metadata, 1, metadata.children.size(), line());
         return listGroup(metadata.children.front().token, concat(std::move(items)));
     }
 
-    Doc metadata(const Node& node) { return concat(beforeText(firstToken(node)), directives(node)); }
+    Layout metadata(const Node& node) { return concat(beforeText(firstToken(node)), directives(node)); }
 
-    Doc file(const Node& node)
+    Layout file(const Node& node)
     {
-        vector<Doc> docs;
+        vector<Layout> parts;
         for (size_t i = 0; i < node.children.size(); ++i)
         {
             // The EndOfFile token is only there for the comments that end the file.
@@ -312,27 +312,27 @@ namespace
 
             if (i > 0)
             {
-                docs.push_back(hardline());
+                parts.push_back(hardline());
                 if (blankLineBetween(node.children[i - 1], child))
                 {
-                    docs.push_back(hardline());
+                    parts.push_back(hardline());
                 }
             }
-            docs.push_back(endOfFile ? leadingTrivia(child.token.leading) : print(child));
+            parts.push_back(endOfFile ? leadingTrivia(child.token.leading) : print(child));
         }
 
-        if (!docs.empty())
+        if (!parts.empty())
         {
-            docs.push_back(hardline());
+            parts.push_back(hardline());
         }
-        return concat(std::move(docs));
+        return concat(std::move(parts));
     }
 
     // An 'extends' or 'throws' clause, after a line break that belongs to the enclosing group. Its names are on one
     // line when they fit, and each one starts a line after the first otherwise.
-    Doc clause(const Node& node)
+    Layout clause(const Node& node)
     {
-        vector<Doc> names;
+        vector<Layout> names;
         appendChildren(names, node, 1, node.children.size(), line());
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
@@ -340,39 +340,39 @@ namespace
     // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A container starts
     // the line after its metadata, and so does a node that the author put there. Any other node follows its metadata
     // on the same line when it fits there with the last metadata list on one line.
-    Doc afterLeadingMetadata(const Node& node, size_t count, Doc rest)
+    Layout afterLeadingMetadata(const Node& node, size_t count, Layout rest)
     {
         if (count == 0)
         {
             return rest;
         }
 
-        vector<Doc> docs;
-        appendChildren(docs, node, 0, count - 1, space());
+        vector<Layout> parts;
+        appendChildren(parts, node, 0, count - 1, space());
         const Node& last = node.children[count - 1];
         if (count > 1)
         {
-            docs.push_back(separator(node.children[count - 2], last, space()));
+            parts.push_back(separator(node.children[count - 2], last, space()));
         }
 
         // The last metadata list shares a group with the node, so a list that breaks puts the node on the next line.
         bool ownLine = isContainer(node) || startsLine(node.children[count]);
-        docs.push_back(beforeText(firstToken(last)));
-        docs.push_back(group(concat(directives(last), ownLine ? hardline() : line(), std::move(rest))));
-        return concat(std::move(docs));
+        parts.push_back(beforeText(firstToken(last)));
+        parts.push_back(group(concat(directives(last), ownLine ? hardline() : line(), std::move(rest))));
+        return concat(std::move(parts));
     }
 
     // An operation that doesn't fit on one line is broken in three steps, each one only when the previous ones are
     // not enough: its metadata takes the line above, its throws clause takes a line of its own, then each parameter
     // takes one. Each step is a group inside the group of the previous step.
-    Doc operation(const Node& node)
+    Layout operation(const Node& node)
     {
         size_t first = leadingMetadata(node);
 
         // The signature starts with 'idempotent' or the return type. The comments before it stay out of its group,
         // which they would break.
         const Node& start = node.children[first];
-        vector<Doc> tokens;
+        vector<Layout> tokens;
         tokens.push_back(textAndTrailingTrivia(start.token));
         for (size_t i = first + 1; i < node.children.size(); ++i)
         {
@@ -383,13 +383,13 @@ namespace
             }
             tokens.push_back(child.kind == NodeKind::Clause ? clause(child) : print(child));
         }
-        Doc signature = concat(beforeText(start.token), group(concat(std::move(tokens))));
+        Layout signature = concat(beforeText(start.token), group(concat(std::move(tokens))));
         return afterLeadingMetadata(node, first, std::move(signature));
     }
 
     // The comments of the semicolon that follows a body, which is optional and is not written. They are laid out as
     // they read without it.
-    Doc commentsOfOptionalSemicolon(const Node& body, const Node& semicolon)
+    Layout commentsOfOptionalSemicolon(const Node& body, const Node& semicolon)
     {
         const Token& token = semicolon.token;
         vector<Trivia> leading = token.leading;
@@ -404,42 +404,42 @@ namespace
             return leadingTrivia(leading);
         }
 
-        vector<Doc> docs;
+        vector<Layout> parts;
         if (needsSpace(body, semicolon))
         {
-            docs.push_back(space());
+            parts.push_back(space());
         }
-        docs.push_back(leadingTrivia(leading));
+        parts.push_back(leadingTrivia(leading));
         for (const Trivia& comment : token.trailing)
         {
             // The comment moves left by the column the semicolon took.
-            docs.push_back(suffix(string{withoutTrailingBlanks(comment.text)}, comment.column - 1));
+            parts.push_back(suffix(string{withoutTrailingBlanks(comment.text)}, comment.column - 1));
         }
-        return concat(std::move(docs));
+        return concat(std::move(parts));
     }
 
-    Doc contained(const Node& node)
+    Layout contained(const Node& node)
     {
         // Only an optional semicolon follows a body.
         size_t count = node.children.size();
         bool optionalSemicolon = count > 1 && node.children[count - 2].kind == NodeKind::Body;
 
         size_t first = leadingMetadata(node);
-        vector<Doc> docs;
-        docs.push_back(print(node.children[first]));
-        appendChildren(docs, node, first + 1, optionalSemicolon ? count - 1 : count, space());
+        vector<Layout> parts;
+        parts.push_back(print(node.children[first]));
+        appendChildren(parts, node, first + 1, optionalSemicolon ? count - 1 : count, space());
         if (optionalSemicolon)
         {
-            docs.push_back(commentsOfOptionalSemicolon(node.children[count - 2], node.children.back()));
+            parts.push_back(commentsOfOptionalSemicolon(node.children[count - 2], node.children.back()));
         }
-        return afterLeadingMetadata(node, first, concat(std::move(docs)));
+        return afterLeadingMetadata(node, first, concat(std::move(parts)));
     }
 
     // The parameters of an operation, or the types of a sequence or dictionary, are on one line when they fit, and each
     // one has its own line after the opening token otherwise.
-    Doc list(const Node& node)
+    Layout list(const Node& node)
     {
-        vector<Doc> items;
+        vector<Layout> items;
         if (node.children.size() > 2)
         {
             items.push_back(softline());
@@ -451,9 +451,9 @@ namespace
 
     // The members of a body, each after a line break, and each comma after its member. No blank line follows the
     // opening brace.
-    Doc members(const Node& node)
+    Layout members(const Node& node)
     {
-        vector<Doc> docs;
+        vector<Layout> parts;
         for (size_t i = 1; i < node.children.size() - 1; ++i)
         {
             const Node& previous = node.children[i - 1];
@@ -462,24 +462,24 @@ namespace
             {
                 if (needsSpace(previous, child))
                 {
-                    docs.push_back(space());
+                    parts.push_back(space());
                 }
             }
             else
             {
-                docs.push_back(line());
+                parts.push_back(line());
                 if (i > 1 && blankLineBetween(previous, child))
                 {
-                    docs.push_back(hardline());
+                    parts.push_back(hardline());
                 }
             }
-            docs.push_back(print(child));
+            parts.push_back(print(child));
         }
-        return concat(std::move(docs));
+        return concat(std::move(parts));
     }
 
     // The comments before the closing brace of a body, indented like the members.
-    Doc commentsBeforeClose(const Node& node, bool broken)
+    Layout commentsBeforeClose(const Node& node, bool broken)
     {
         const vector<Trivia>& leading = node.children.back().token.leading;
         if (leading.empty())
@@ -491,13 +491,13 @@ namespace
         {
             // The comments of a body written on one line follow the members on that line, or have a line each when the
             // body doesn't fit on one.
-            vector<Doc> docs;
+            vector<Layout> parts;
             for (const Trivia& comment : leading)
             {
-                docs.push_back(line());
-                docs.push_back(text(string{comment.text}));
+                parts.push_back(line());
+                parts.push_back(text(string{comment.text}));
             }
-            return concat(std::move(docs));
+            return concat(std::move(parts));
         }
 
         // The brace has a line of its own, so each of these comments has one too.
@@ -506,17 +506,17 @@ namespace
         {
             comment.ownLine = true;
         }
-        vector<Doc> docs;
-        docs.push_back(line());
+        vector<Layout> parts;
+        parts.push_back(line());
         if (node.children.size() > 2 && comments.front().blankLineBefore)
         {
-            docs.push_back(hardline());
+            parts.push_back(hardline());
         }
-        docs.push_back(leadingTrivia(comments));
-        return concat(std::move(docs));
+        parts.push_back(leadingTrivia(comments));
+        return concat(std::move(parts));
     }
 
-    Doc body(const Node& node)
+    Layout body(const Node& node)
     {
         const Token& open = node.children.front().token;
         const Token& close = node.children.back().token;
@@ -536,7 +536,7 @@ namespace
             broken);
     }
 
-    Doc print(const Node& node)
+    Layout print(const Node& node)
     {
         switch (node.kind)
         {

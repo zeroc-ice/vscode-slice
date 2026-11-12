@@ -24,70 +24,70 @@ namespace
         return static_cast<int>(ranges::count_if(text, startsCodePoint));
     }
 
-    Doc make(Doc::Kind kind, string text = {})
+    Layout make(Layout::Kind kind, string text = {})
     {
-        Doc doc;
-        doc.kind = kind;
-        doc.text = std::move(text);
-        return doc;
+        Layout layout;
+        layout.kind = kind;
+        layout.text = std::move(text);
+        return layout;
     }
 
     class Renderer final
     {
     public:
-        string render(const Doc& root)
+        string render(const Layout& root)
         {
             vector<Command> commands{{0, false, &root}};
             while (!commands.empty())
             {
                 Command command = commands.back();
                 commands.pop_back();
-                const Doc& doc = *command.doc;
-                switch (doc.kind)
+                const Layout& layout = *command.layout;
+                switch (layout.kind)
                 {
-                    case Doc::Kind::Text:
-                        writeText(doc.text, command.indent);
+                    case Layout::Kind::Text:
+                        writeText(layout.text, command.indent);
                         break;
-                    case Doc::Kind::Space:
+                    case Layout::Kind::Space:
                         writeSpace();
                         break;
-                    case Doc::Kind::Line:
+                    case Layout::Kind::Line:
                         if (!command.flat)
                         {
                             startLine();
                         }
-                        else if (!doc.text.empty())
+                        else if (!layout.text.empty())
                         {
                             writeSpace();
                         }
                         break;
-                    case Doc::Kind::HardLine:
+                    case Layout::Kind::HardLine:
                         startLine();
                         break;
-                    case Doc::Kind::Suffix:
+                    case Layout::Kind::Suffix:
                     {
                         size_t length = _out.size() - _lineStart;
-                        auto column = static_cast<size_t>(doc.column);
+                        auto column = static_cast<size_t>(layout.column);
                         _out.append(column > length ? column - length : 1, ' ');
-                        _out += doc.text;
+                        _out += layout.text;
                         _endOfLine = true;
                         break;
                     }
-                    case Doc::Kind::EndOfLine:
+                    case Layout::Kind::EndOfLine:
                         _endOfLine = !lineIsEmpty();
                         break;
-                    case Doc::Kind::Indent:
-                        commands.push_back({command.indent + indentWidth, command.flat, &doc.children.front()});
+                    case Layout::Kind::Indent:
+                        commands.push_back({command.indent + indentWidth, command.flat, &layout.children.front()});
                         break;
-                    case Doc::Kind::Group:
+                    case Layout::Kind::Group:
                     {
-                        Command contents{command.indent, true, &doc.children.front()};
-                        contents.flat = command.flat || (!doc.broken && fits(contents, commands));
+                        Command contents{command.indent, true, &layout.children.front()};
+                        contents.flat = command.flat || (!layout.broken && fits(contents, commands));
                         commands.push_back(contents);
                         break;
                     }
-                    case Doc::Kind::Concat:
-                        for (auto child = doc.children.rbegin(); child != doc.children.rend(); ++child)
+                    case Layout::Kind::Concat:
+                        for (auto child = layout.children.rbegin(); child != layout.children.rend(); ++child)
                         {
                             commands.push_back({command.indent, command.flat, &*child});
                         }
@@ -98,13 +98,13 @@ namespace
         }
 
     private:
-        // A document to lay out, with the indentation of the lines that start within it, and whether its line breaks
+        // A layout to render, with the indentation of the lines that start within it, and whether its line breaks
         // are flat.
         struct Command
         {
             int indent;
             bool flat;
-            const Doc* doc;
+            const Layout* layout;
         };
 
         [[nodiscard]] bool lineIsEmpty() const { return _out.size() == _lineStart; }
@@ -168,11 +168,11 @@ namespace
 
                 Command command = commands.back();
                 commands.pop_back();
-                const Doc& doc = *command.doc;
-                switch (doc.kind)
+                const Layout& layout = *command.layout;
+                switch (layout.kind)
                 {
-                    case Doc::Kind::Text:
-                        if (doc.text.empty())
+                    case Layout::Kind::Text:
+                        if (layout.text.empty())
                         {
                             break;
                         }
@@ -181,12 +181,12 @@ namespace
                             // The text starts a new line, which the flat contents can't do.
                             return !command.flat;
                         }
-                        remaining -= columns(doc.text);
+                        remaining -= columns(layout.text);
                         break;
-                    case Doc::Kind::Space:
+                    case Layout::Kind::Space:
                         remaining--;
                         break;
-                    case Doc::Kind::Line:
+                    case Layout::Kind::Line:
                         if (!command.flat)
                         {
                             return true;
@@ -195,25 +195,25 @@ namespace
                         {
                             return false;
                         }
-                        remaining -= columns(doc.text);
+                        remaining -= columns(layout.text);
                         break;
-                    case Doc::Kind::HardLine:
+                    case Layout::Kind::HardLine:
                         return !command.flat;
-                    case Doc::Kind::Suffix:
-                    case Doc::Kind::EndOfLine:
+                    case Layout::Kind::Suffix:
+                    case Layout::Kind::EndOfLine:
                         endOfLine = true;
                         break;
-                    case Doc::Kind::Group:
-                        if (command.flat && doc.broken)
+                    case Layout::Kind::Group:
+                        if (command.flat && layout.broken)
                         {
                             return false;
                         }
                         [[fallthrough]];
-                    case Doc::Kind::Indent:
-                        commands.push_back({command.indent, command.flat, &doc.children.front()});
+                    case Layout::Kind::Indent:
+                        commands.push_back({command.indent, command.flat, &layout.children.front()});
                         break;
-                    case Doc::Kind::Concat:
-                        for (auto child = doc.children.rbegin(); child != doc.children.rend(); ++child)
+                    case Layout::Kind::Concat:
+                        for (auto child = layout.children.rbegin(); child != layout.children.rend(); ++child)
                         {
                             commands.push_back({command.indent, command.flat, &*child});
                         }
@@ -233,77 +233,77 @@ namespace
     };
 }
 
-Doc
+Layout
 IceFmt::text(string text)
 {
-    return make(Doc::Kind::Text, std::move(text));
+    return make(Layout::Kind::Text, std::move(text));
 }
 
-Doc
+Layout
 IceFmt::space()
 {
-    return make(Doc::Kind::Space);
+    return make(Layout::Kind::Space);
 }
 
-Doc
+Layout
 IceFmt::line()
 {
-    return make(Doc::Kind::Line, " ");
+    return make(Layout::Kind::Line, " ");
 }
 
-Doc
+Layout
 IceFmt::softline()
 {
-    return make(Doc::Kind::Line);
+    return make(Layout::Kind::Line);
 }
 
-Doc
+Layout
 IceFmt::hardline()
 {
-    return make(Doc::Kind::HardLine);
+    return make(Layout::Kind::HardLine);
 }
 
-Doc
+Layout
 IceFmt::suffix(string text, int column)
 {
-    Doc result = make(Doc::Kind::Suffix, std::move(text));
+    Layout result = make(Layout::Kind::Suffix, std::move(text));
     result.column = column;
     return result;
 }
 
-Doc
+Layout
 IceFmt::endOfLine()
 {
-    return make(Doc::Kind::EndOfLine);
+    return make(Layout::Kind::EndOfLine);
 }
 
-Doc
-IceFmt::indent(Doc doc)
+Layout
+IceFmt::indent(Layout layout)
 {
-    Doc result = make(Doc::Kind::Indent);
-    result.children.push_back(std::move(doc));
+    Layout result = make(Layout::Kind::Indent);
+    result.children.push_back(std::move(layout));
     return result;
 }
 
-Doc
-IceFmt::group(Doc doc, bool broken)
+Layout
+IceFmt::group(Layout layout, bool broken)
 {
-    Doc result = make(Doc::Kind::Group);
-    result.children.push_back(std::move(doc));
+    Layout result = make(Layout::Kind::Group);
+    result.children.push_back(std::move(layout));
     result.broken = broken;
     return result;
 }
 
-Doc
-IceFmt::concat(vector<Doc> docs)
+Layout
+IceFmt::concat(vector<Layout> parts)
 {
-    Doc result = make(Doc::Kind::Concat);
-    result.children = std::move(docs);
+    Layout result = make(Layout::Kind::Concat);
+    result.children = std::move(parts);
     return result;
 }
 
 string
-IceFmt::render(const Doc& doc)
+IceFmt::render(const Layout& layout)
 {
-    return Renderer{}.render(doc);
+    return Renderer{}.render(layout);
 }
