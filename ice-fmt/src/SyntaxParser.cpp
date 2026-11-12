@@ -89,15 +89,79 @@ namespace
                lexeme.text[3] != '*';
     }
 
+    // Where a comment or directive goes, relative to the tokens around it.
+    enum class Placement
+    {
+        // On lines of its own, before the next token.
+        OwnLine,
+
+        // On the line of the next token, before it.
+        BeforeToken,
+
+        // At the end of the line of the previous token.
+        AfterToken,
+
+        // Above its line, as the preprocessor of the Slice compiler counts lines: a block comment joins the lines it
+        // spans. The preprocessor moves a comment above its line, so a doc comment after code documents the first
+        // definition of that line. Attached to the first token of that line, it keeps documenting that definition when
+        // the line is laid out again.
+        AboveLine,
+    };
+
+    // Returns where a comment or directive goes. 'tokens' are the tokens before it, 'joinedLine' is the line where its
+    // line starts for the preprocessor, which joins the lines a block comment spans, and 'tokenFollows' is whether a
+    // token follows it on its last line.
+    Placement placement(const Lexeme& trivia, const vector<Token>& tokens, int joinedLine, bool tokenFollows)
+    {
+        bool docComment = isDocComment(trivia);
+        if (docComment && !tokens.empty() && tokens.back().line >= joinedLine)
+        {
+            return Placement::AboveLine;
+        }
+
+        // A comment that spans several lines never shares one with a token. A doc comment before code on its line gets
+        // the line to itself, which changes nothing for the compiler.
+        bool oneLine = trivia.text.find('\n') == string_view::npos;
+        if (oneLine && !tokenFollows && !tokens.empty() && tokens.back().line == trivia.line)
+        {
+            return Placement::AfterToken;
+        }
+        if (oneLine && tokenFollows && trivia.kind == TokenKind::BlockComment && !docComment)
+        {
+            return Placement::BeforeToken;
+        }
+        return Placement::OwnLine;
+    }
+
+    // Puts a comment above the line that starts at 'joinedLine', between what leads the first token of that line and
+    // that token. A comment that led that token on its line no longer shares the line with it.
+    void moveAboveLine(vector<Token>& tokens, int joinedLine, Trivia comment)
+    {
+        auto first = ranges::lower_bound(tokens, joinedLine, {}, &Token::line);
+        for (Trivia& trivia : first->leading)
+        {
+            trivia.ownLine = true;
+        }
+        comment.blankLineBefore = first->blankLineBefore;
+        first->leading.push_back(comment);
+        first->blankLineBefore = false;
+    }
+
+    // Refuses a comment or directive between a '(' and the name before it: the compiler reads the two as one token, and
+    // laying out the lines around the comment could leave it between them.
+    void checkParentheses(const vector<Token>& tokens)
+    {
+        for (size_t i = 1; i < tokens.size(); ++i)
+        {
+            if (tokens[i].kind == TokenKind::LeftParenthesis &&
+                (!tokens[i].leading.empty() || !tokens[i - 1].trailing.empty()))
+            {
+                throw SyntaxError{tokens[i].line, "comment or directive before '('"};
+            }
+        }
+    }
+
     // Groups the lexemes into tokens, and attaches each comment and directive to the token it sits next to.
-    //
-    // The preprocessor of the Slice compiler moves a comment above its line, so a doc comment after code documents the
-    // first definition of that line. Such a comment is attached to the first token of its line, which keeps what it
-    // documents when the line is laid out again. For the preprocessor, a block comment joins the lines it spans into
-    // one line.
-    //
-    // A comment or directive between a '(' and the name before it is refused: the compiler reads the two as one
-    // token, and laying out the lines around the comment could leave it between them.
     vector<Token> attachTrivia(const vector<Lexeme>& lexemes)
     {
         vector<Token> tokens;
@@ -116,54 +180,10 @@ namespace
             {
                 joinedLine = lexeme->line;
             }
-            auto lineBreaks = static_cast<int>(ranges::count(lexeme->text, '\n'));
+            int lastLine = lexeme->line + static_cast<int>(ranges::count(lexeme->text, '\n'));
+            endLine = lastLine;
 
-            if (isTrivia(lexeme->kind))
-            {
-                checkContinuations(*lexeme);
-
-                auto nextToken = ranges::find_if_not(lexeme + 1, lexemes.end(), isTrivia, &Lexeme::kind);
-                bool tokenFollows =
-                    nextToken->kind != TokenKind::EndOfFile && nextToken->line == lexeme->line + lineBreaks;
-
-                bool afterToken = !tokens.empty() && lexeme->line == tokens.back().line;
-                bool docComment = isDocComment(*lexeme);
-                if (docComment && !tokens.empty() && tokens.back().line >= joinedLine)
-                {
-                    // The comment goes above its line, between what led the first token of the line and that token.
-                    // A comment that led that token on its line no longer shares the line with it.
-                    auto first = ranges::lower_bound(tokens, joinedLine, {}, &Token::line);
-                    for (Trivia& trivia : first->leading)
-                    {
-                        trivia.ownLine = true;
-                    }
-                    first->leading.push_back(
-                        {.text = lexeme->text,
-                         .column = lexeme->column,
-                         .ownLine = true,
-                         .blankLineBefore = first->blankLineBefore});
-                    first->blankLineBefore = false;
-                }
-                // A comment that spans several lines never shares one with a token.
-                else if (afterToken && lineBreaks == 0 && !tokenFollows)
-                {
-                    tokens.back().trailing.push_back(
-                        {.text = lexeme->text, .column = lexeme->column, .ownLine = false, .blankLineBefore = false});
-                }
-                else
-                {
-                    // A doc comment before code on its line gets the line to itself, which changes nothing for the
-                    // compiler.
-                    bool ownLine =
-                        lexeme->kind != TokenKind::BlockComment || lineBreaks > 0 || !tokenFollows || docComment;
-                    leading.push_back(
-                        {.text = lexeme->text,
-                         .column = lexeme->column,
-                         .ownLine = ownLine,
-                         .blankLineBefore = blankLineBefore});
-                }
-            }
-            else
+            if (!isTrivia(lexeme->kind))
             {
                 bool firstOnLine = tokens.empty() || lexeme->line > tokens.back().line;
                 tokens.push_back(
@@ -175,19 +195,38 @@ namespace
                      .leading = std::move(leading),
                      .trailing = {}});
                 leading.clear();
+                continue;
             }
 
-            endLine = lexeme->line + lineBreaks;
-        }
-
-        for (size_t i = 1; i < tokens.size(); ++i)
-        {
-            if (tokens[i].kind == TokenKind::LeftParenthesis &&
-                (!tokens[i].leading.empty() || !tokens[i - 1].trailing.empty()))
+            checkContinuations(*lexeme);
+            auto nextToken = ranges::find_if_not(lexeme + 1, lexemes.end(), isTrivia, &Lexeme::kind);
+            bool tokenFollows = nextToken->kind != TokenKind::EndOfFile && nextToken->line == lastLine;
+            Trivia trivia{
+                .text = lexeme->text,
+                .column = lexeme->column,
+                .ownLine = true,
+                .blankLineBefore = blankLineBefore};
+            switch (placement(*lexeme, tokens, joinedLine, tokenFollows))
             {
-                throw SyntaxError{tokens[i].line, "comment or directive before '('"};
+                case Placement::OwnLine:
+                    leading.push_back(trivia);
+                    break;
+                case Placement::BeforeToken:
+                    trivia.ownLine = false;
+                    leading.push_back(trivia);
+                    break;
+                case Placement::AfterToken:
+                    trivia.ownLine = false;
+                    trivia.blankLineBefore = false;
+                    tokens.back().trailing.push_back(trivia);
+                    break;
+                case Placement::AboveLine:
+                    moveAboveLine(tokens, joinedLine, trivia);
+                    break;
             }
         }
+
+        checkParentheses(tokens);
         return tokens;
     }
 
@@ -316,8 +355,8 @@ namespace
             take(parent);
         }
 
-        // metadata := '[' (StringLiteral+ (',' StringLiteral+)*)? ']'
-        // fileMetadata := '[[' (StringLiteral+ (',' StringLiteral+)*)? ']]'
+        // metadata := '[' (directive (',' directive)*)? ']'
+        // fileMetadata := '[[' (directive (',' directive)*)? ']]'
         Node metadata(TokenKind open, TokenKind close)
         {
             Node node{NodeKind::Metadata};
@@ -326,19 +365,25 @@ namespace
             {
                 do
                 {
-                    // Adjacent string literals make a single directive.
-                    do
-                    {
-                        if (!at(TokenKind::StringLiteral))
-                        {
-                            fail("a string literal");
-                        }
-                        take(node);
-                    } while (at(TokenKind::StringLiteral));
+                    directive(node);
                 } while (accept(node, TokenKind::Comma));
             }
             expect(node, close);
             return node;
+        }
+
+        // directive := StringLiteral+
+        void directive(Node& parent)
+        {
+            // Adjacent string literals make a single directive.
+            do
+            {
+                if (!at(TokenKind::StringLiteral))
+                {
+                    fail("a string literal");
+                }
+                take(parent);
+            } while (at(TokenKind::StringLiteral));
         }
 
         void localMetadata(Node& parent)
@@ -350,7 +395,8 @@ namespace
         }
 
         // definition := fileMetadata
-        //             | metadata* (moduleDefinition | typeDefinition | enum | sequence | dictionary | const)
+        //             | metadata* (moduleDefinition | classDefinition | interfaceDefinition | exceptionDefinition
+        //                          | structDefinition | enum | sequence | dictionary | const)
         Node definition()
         {
             if (at(TokenKind::DoubleLeftBracket))
@@ -360,36 +406,54 @@ namespace
 
             Node contained{NodeKind::Contained};
             localMetadata(contained);
-            if (at(TokenKind::Module))
+            switch (current().kind)
             {
-                moduleDefinition(contained);
-            }
-            else if (
-                at(TokenKind::Class) || at(TokenKind::Interface) || at(TokenKind::Exception) || at(TokenKind::Struct))
-            {
-                typeDefinition(contained);
-            }
-            else if (at(TokenKind::Enum))
-            {
-                enumeration(contained);
-            }
-            else if (at(TokenKind::Sequence))
-            {
-                sequence(contained);
-            }
-            else if (at(TokenKind::Dictionary))
-            {
-                dictionary(contained);
-            }
-            else if (at(TokenKind::Const))
-            {
-                constant(contained);
-            }
-            else
-            {
-                fail("a definition");
+                case TokenKind::Module:
+                    moduleDefinition(contained);
+                    break;
+                case TokenKind::Class:
+                    classDefinition(contained);
+                    break;
+                case TokenKind::Interface:
+                    interfaceDefinition(contained);
+                    break;
+                case TokenKind::Exception:
+                    exceptionDefinition(contained);
+                    break;
+                case TokenKind::Struct:
+                    structDefinition(contained);
+                    break;
+                case TokenKind::Enum:
+                    enumeration(contained);
+                    break;
+                case TokenKind::Sequence:
+                    sequence(contained);
+                    break;
+                case TokenKind::Dictionary:
+                    dictionary(contained);
+                    break;
+                case TokenKind::Const:
+                    constant(contained);
+                    break;
+                default:
+                    fail("a definition");
             }
             return contained;
+        }
+
+        // body := '{' member* '}' ';'?
+        // Each member is the node that 'member' returns.
+        void body(Node& contained, const auto& member)
+        {
+            Node node{NodeKind::Body};
+            expect(node, TokenKind::LeftBrace);
+            while (!at(TokenKind::RightBrace))
+            {
+                node.children.push_back(member());
+            }
+            take(node);
+            contained.children.push_back(std::move(node));
+            accept(contained, TokenKind::Semicolon);
         }
 
         // moduleDefinition := 'module' scopedName '{' definition* '}' ';'?
@@ -397,77 +461,98 @@ namespace
         {
             take(contained);
             scopedName(contained);
-
-            Node body{NodeKind::Body};
-            expect(body, TokenKind::LeftBrace);
-            while (!at(TokenKind::RightBrace))
-            {
-                body.children.push_back(definition());
-            }
-            take(body);
-            contained.children.push_back(std::move(body));
-            accept(contained, TokenKind::Semicolon);
+            body(contained, [this] { return definition(); });
         }
 
-        // typeDefinition := ('class' | 'interface') name ';'
-        //                 | 'class' name compactId? (extends scopedName)? dataMembers ';'?
-        //                 | 'interface' name (extends interfaceList)? operations ';'?
-        //                 | 'exception' name (extends scopedName)? dataMembers ';'?
-        //                 | 'struct' name dataMembers ';'?
-        // extends := 'extends' | ':'
+        // classDefinition := 'class' name ';'
+        //                  | 'class' name compactId? extends? '{' dataMember* '}' ';'?
         // compactId := '(' integerConstant ')'
-        // interfaceList := (scopedName | 'Object' | 'Value') (',' (scopedName | 'Object' | 'Value'))*
-        // dataMembers := '{' dataMember* '}'
-        // operations := '{' operation* '}'
-        void typeDefinition(Node& contained)
+        void classDefinition(Node& contained)
         {
-            TokenKind keyword = current().kind;
             take(contained);
             name(contained);
-
-            // A forward declaration.
-            if ((keyword == TokenKind::Class || keyword == TokenKind::Interface) &&
-                accept(contained, TokenKind::Semicolon))
+            if (accept(contained, TokenKind::Semicolon))
             {
+                // A forward declaration.
                 return;
             }
 
-            if (keyword == TokenKind::Class && accept(contained, TokenKind::LeftParenthesis))
+            if (accept(contained, TokenKind::LeftParenthesis))
             {
                 integerConstant(contained);
                 expect(contained, TokenKind::RightParenthesis);
             }
-            if (keyword != TokenKind::Struct && (at(TokenKind::Extends) || at(TokenKind::Colon)))
+            extends(contained);
+            body(contained, [this] { return dataMember(); });
+        }
+
+        // interfaceDefinition := 'interface' name ';'
+        //                      | 'interface' name interfaceExtends? '{' operation* '}' ';'?
+        void interfaceDefinition(Node& contained)
+        {
+            take(contained);
+            name(contained);
+            if (accept(contained, TokenKind::Semicolon))
             {
-                Node clause{NodeKind::Clause};
-                take(clause);
-                if (keyword == TokenKind::Interface)
-                {
-                    do
-                    {
-                        if (!atScopedName() && !at(TokenKind::Object) && !at(TokenKind::Value))
-                        {
-                            fail("a name");
-                        }
-                        take(clause);
-                    } while (accept(clause, TokenKind::Comma));
-                }
-                else
-                {
-                    scopedName(clause);
-                }
-                contained.children.push_back(std::move(clause));
+                // A forward declaration.
+                return;
             }
 
-            Node body{NodeKind::Body};
-            expect(body, TokenKind::LeftBrace);
-            while (!at(TokenKind::RightBrace))
+            interfaceExtends(contained);
+            body(contained, [this] { return operation(); });
+        }
+
+        // exceptionDefinition := 'exception' name extends? '{' dataMember* '}' ';'?
+        void exceptionDefinition(Node& contained)
+        {
+            take(contained);
+            name(contained);
+            extends(contained);
+            body(contained, [this] { return dataMember(); });
+        }
+
+        // structDefinition := 'struct' name '{' dataMember* '}' ';'?
+        void structDefinition(Node& contained)
+        {
+            take(contained);
+            name(contained);
+            body(contained, [this] { return dataMember(); });
+        }
+
+        // extends := ('extends' | ':') scopedName
+        void extends(Node& contained)
+        {
+            if (!at(TokenKind::Extends) && !at(TokenKind::Colon))
             {
-                body.children.push_back(keyword == TokenKind::Interface ? operation() : dataMember());
+                return;
             }
-            take(body);
-            contained.children.push_back(std::move(body));
-            accept(contained, TokenKind::Semicolon);
+
+            Node clause{NodeKind::Clause};
+            take(clause);
+            scopedName(clause);
+            contained.children.push_back(std::move(clause));
+        }
+
+        // interfaceExtends := ('extends' | ':') interfaceList
+        // interfaceList := (scopedName | 'Object' | 'Value') (',' (scopedName | 'Object' | 'Value'))*
+        void interfaceExtends(Node& contained)
+        {
+            if (!at(TokenKind::Extends) && !at(TokenKind::Colon))
+            {
+                return;
+            }
+
+            Node clause{NodeKind::Clause};
+            take(clause);
+            do
+            {
+                if (!atScopedName() && !at(TokenKind::Object) && !at(TokenKind::Value))
+                {
+                    fail("a name");
+                }
+                take(clause);
+            } while (accept(clause, TokenKind::Comma));
+            contained.children.push_back(std::move(clause));
         }
 
         // dataMember := metadata* optionalType name ('=' constInitializer)? ';'
@@ -486,8 +571,6 @@ namespace
         }
 
         // operation := metadata* 'idempotent'? ('void' | optionalType) name parameters throws? ';'
-        // parameters := '(' (parameter (',' parameter)*)? ')'
-        // throws := 'throws' scopedName (',' scopedName)*
         Node operation()
         {
             Node member{NodeKind::Operation};
@@ -498,31 +581,43 @@ namespace
                 optionalType(member);
             }
             name(member);
+            member.children.push_back(parameters());
+            throws(member);
+            expect(member, TokenKind::Semicolon);
+            return member;
+        }
 
-            Node parameters{NodeKind::Parameters};
-            expect(parameters, TokenKind::LeftParenthesis);
+        // parameters := '(' (parameter (',' parameter)*)? ')'
+        Node parameters()
+        {
+            Node node{NodeKind::Parameters};
+            expect(node, TokenKind::LeftParenthesis);
             if (!at(TokenKind::RightParenthesis))
             {
                 do
                 {
-                    parameters.children.push_back(parameter());
-                } while (accept(parameters, TokenKind::Comma));
+                    node.children.push_back(parameter());
+                } while (accept(node, TokenKind::Comma));
             }
-            expect(parameters, TokenKind::RightParenthesis);
-            member.children.push_back(std::move(parameters));
+            expect(node, TokenKind::RightParenthesis);
+            return node;
+        }
 
-            if (at(TokenKind::Throws))
+        // throws := 'throws' scopedName (',' scopedName)*
+        void throws(Node& member)
+        {
+            if (!at(TokenKind::Throws))
             {
-                Node clause{NodeKind::Clause};
-                take(clause);
-                do
-                {
-                    scopedName(clause);
-                } while (accept(clause, TokenKind::Comma));
-                member.children.push_back(std::move(clause));
+                return;
             }
-            expect(member, TokenKind::Semicolon);
-            return member;
+
+            Node clause{NodeKind::Clause};
+            take(clause);
+            do
+            {
+                scopedName(clause);
+            } while (accept(clause, TokenKind::Comma));
+            member.children.push_back(std::move(clause));
         }
 
         // parameter := (metadata | 'out')* optionalType name
@@ -539,33 +634,38 @@ namespace
         }
 
         // enum := 'enum' name '{' (enumerator (',' enumerator)* ','?)? '}' ';'?
-        // enumerator := metadata* name ('=' integerConstant)?
         void enumeration(Node& contained)
         {
             take(contained);
             name(contained);
 
-            Node body{NodeKind::Body};
-            expect(body, TokenKind::LeftBrace);
+            // Unlike the other bodies, commas separate the members.
+            Node members{NodeKind::Body};
+            expect(members, TokenKind::LeftBrace);
             while (!at(TokenKind::RightBrace))
             {
-                Node enumerator{NodeKind::Contained};
-                localMetadata(enumerator);
-                name(enumerator);
-                if (accept(enumerator, TokenKind::Equals))
-                {
-                    integerConstant(enumerator);
-                }
-                body.children.push_back(std::move(enumerator));
-
+                members.children.push_back(enumerator());
                 if (!at(TokenKind::RightBrace))
                 {
-                    expect(body, TokenKind::Comma);
+                    expect(members, TokenKind::Comma);
                 }
             }
-            take(body);
-            contained.children.push_back(std::move(body));
+            take(members);
+            contained.children.push_back(std::move(members));
             accept(contained, TokenKind::Semicolon);
+        }
+
+        // enumerator := metadata* name ('=' integerConstant)?
+        Node enumerator()
+        {
+            Node node{NodeKind::Contained};
+            localMetadata(node);
+            name(node);
+            if (accept(node, TokenKind::Equals))
+            {
+                integerConstant(node);
+            }
+            return node;
         }
 
         // sequence := 'sequence' '<' metadata* type '>' name ';'

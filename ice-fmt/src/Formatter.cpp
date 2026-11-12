@@ -448,75 +448,89 @@ namespace
         return concat(beforeText(open), listGroup(open, concat(std::move(items))));
     }
 
+    // The members of a body, each after a line break, and each comma after its member. No blank line follows the
+    // opening brace.
+    Doc members(const Node& node)
+    {
+        vector<Doc> docs;
+        for (size_t i = 1; i < node.children.size() - 1; ++i)
+        {
+            const Node& previous = node.children[i - 1];
+            const Node& child = node.children[i];
+            if (isToken(child, TokenKind::Comma))
+            {
+                if (needsSpace(previous, child))
+                {
+                    docs.push_back(space());
+                }
+            }
+            else
+            {
+                docs.push_back(line());
+                if (i > 1 && blankLineBetween(previous, child))
+                {
+                    docs.push_back(hardline());
+                }
+            }
+            docs.push_back(print(child));
+        }
+        return concat(std::move(docs));
+    }
+
+    // The comments before the closing brace of a body, indented like the members.
+    Doc commentsBeforeClose(const Node& node, bool broken)
+    {
+        const vector<Trivia>& leading = node.children.back().token.leading;
+        if (leading.empty())
+        {
+            return concat();
+        }
+
+        if (!broken)
+        {
+            // The comments of a body written on one line follow the members on that line, or have a line each when the
+            // body doesn't fit on one.
+            vector<Doc> docs;
+            for (const Trivia& comment : leading)
+            {
+                docs.push_back(line());
+                docs.push_back(text(string{comment.text}));
+            }
+            return concat(std::move(docs));
+        }
+
+        // The brace has a line of its own, so each of these comments has one too.
+        vector<Trivia> comments = leading;
+        for (Trivia& comment : comments)
+        {
+            comment.ownLine = true;
+        }
+        vector<Doc> docs;
+        docs.push_back(line());
+        if (node.children.size() > 2 && comments.front().blankLineBefore)
+        {
+            docs.push_back(hardline());
+        }
+        docs.push_back(leadingTrivia(comments));
+        return concat(std::move(docs));
+    }
+
     Doc body(const Node& node)
     {
         const Token& open = node.children.front().token;
         const Token& close = node.children.back().token;
-        size_t last = node.children.size() - 1;
-
-        vector<Doc> members;
-        for (size_t i = 1; i < last; ++i)
-        {
-            const Node& child = node.children[i];
-            if (isToken(child, TokenKind::Comma))
-            {
-                if (needsSpace(node.children[i - 1], child))
-                {
-                    members.push_back(space());
-                }
-                members.push_back(print(child));
-                continue;
-            }
-
-            // No blank line follows the opening brace.
-            members.push_back(line());
-            if (i > 1 && blankLineBetween(node.children[i - 1], child))
-            {
-                members.push_back(hardline());
-            }
-            members.push_back(print(child));
-        }
 
         // A definition stays on a single line only when the author wrote all of it on one. An empty body written as {}
         // is the exception: it follows its definition on the same line.
-        bool empty = last == 1 && close.leading.empty();
+        bool empty = node.children.size() == 2 && close.leading.empty();
         bool broken = close.line > open.line || (open.startsLine && !empty);
 
-        // The comments before the closing brace are indented like the members.
-        if (broken && !close.leading.empty())
-        {
-            // The brace has a line of its own, so each of these comments has one too.
-            vector<Trivia> comments = close.leading;
-            for (Trivia& comment : comments)
-            {
-                comment.ownLine = true;
-            }
-
-            members.push_back(line());
-            if (last > 1 && comments.front().blankLineBefore)
-            {
-                members.push_back(hardline());
-            }
-            members.push_back(leadingTrivia(comments));
-        }
-        else
-        {
-            // The comments of a body written on one line follow the members on that line, or have a line each when
-            // the body doesn't fit on one.
-            for (const Trivia& comment : close.leading)
-            {
-                members.push_back(line());
-                members.push_back(text(string{comment.text}));
-            }
-        }
-
-        Doc beforeClose = members.empty() ? softline() : line();
         return group(
             concat(
                 line(),
                 print(open),
-                indent(concat(std::move(members))),
-                std::move(beforeClose),
+                indent(concat(members(node), commentsBeforeClose(node, broken))),
+                empty ? softline() : line(),
                 textAndTrailingTrivia(close)),
             broken);
     }
