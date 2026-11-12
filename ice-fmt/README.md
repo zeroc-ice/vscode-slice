@@ -30,8 +30,8 @@ a syntax error too.
 `ice-fmt` also refuses a file that it can't lay out again without changing what the Slice compiler reads:
 
 - A comment or directive between a `(` and the name before it, which the compiler reads as one token.
-- A comment or directive line that a backslash continues onto an empty line or the end of the file, or that has
-  blanks after that backslash. The preprocessor joins such a line to the next one.
+- A comment or directive line that a backslash continues onto an empty line or the end of the file. The preprocessor
+  joins such a line to the next one.
 
 `ice-fmt` checks that the formatted text keeps every token, directive, and comment, and the definition each doc comment
 documents, apart from the changes this README describes. A file that fails this check is left unchanged, even without

@@ -61,5 +61,13 @@ module Demo
         /* The first comment is here. */
         /* The second comment is here. */
     }
+
+    // The blanks that end a line go, even after a backslash.
+    /**
+     * A tree:
+     *   /\
+     *  /  \
+     */
+    struct Tree { int depth; }
 }
 // The end.

@@ -35,10 +35,9 @@ namespace
         return kind == TokenKind::LineComment || kind == TokenKind::BlockComment || kind == TokenKind::Directive;
     }
 
-    // The preprocessor joins a line that ends with a backslash to the next one. Formatting removes the blanks that end
-    // a line, manages the blank lines, and ends the file with a line break, so a comment or directive is refused where
-    // that would change which lines are joined: blanks after a backslash, or an empty line or the end of the file
-    // after one.
+    // The preprocessor joins a line that ends with a backslash to the next one. Formatting manages the blank lines and
+    // ends the file with a line break, so a comment or directive is refused where that would change which lines are
+    // joined: an empty line or the end of the file after a backslash.
     void checkContinuations(const Lexeme& lexeme)
     {
         int line = lexeme.line;
@@ -57,10 +56,6 @@ namespace
             if (last == string_view::npos && lastLine && line > lexeme.line)
             {
                 throw SyntaxError{line - 1, "line continued by a backslash onto an empty line"};
-            }
-            if (last != string_view::npos && current[last] == '\\' && last + 1 < current.size())
-            {
-                throw SyntaxError{line, "blanks after the backslash that ends the line"};
             }
 
             if (lastLine)

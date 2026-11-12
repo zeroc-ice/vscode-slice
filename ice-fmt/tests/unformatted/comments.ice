@@ -50,5 +50,13 @@ module Demo
 
     // The comments before a closing brace have a line each when the body doesn't fit on one line.
     struct Quad { int first; int second; int third; int fourth; /* The first comment is here. */ /* The second comment is here. */ }
+
+    // The blanks that end a line go, even after a backslash.
+    /**
+     * A tree:
+     *   /\  
+     *  /  \  
+     */
+    struct Tree { int depth; }
 }
 // The end.
