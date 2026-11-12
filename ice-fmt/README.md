@@ -33,8 +33,12 @@ a syntax error too.
 - A comment or directive line that a backslash continues onto an empty line or the end of the file, or that has
   blanks after that backslash. The preprocessor joins such a line to the next one.
 
-The exit status is `1` when the command line is invalid, when a file has a syntax error or cannot be read or written,
-and, with `--check`, when a file would change.
+`ice-fmt` checks that the formatted text keeps every token, directive, and comment, and the definition each doc comment
+documents, apart from the changes this README describes. A file that fails this check is left unchanged, even without
+`--check`, and reported as `file: internal error: message`, which is a bug in `ice-fmt`.
+
+The exit status is `1` when the command line is invalid, when a file has a syntax error, fails that check, or cannot be
+read or written, and, with `--check`, when a file would change.
 
 ## Style
 

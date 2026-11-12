@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -65,6 +66,11 @@ namespace
         catch (const SyntaxError& error)
         {
             cerr << file << ':' << error.line << ": " << error.what() << endl;
+            return false;
+        }
+        catch (const logic_error& error)
+        {
+            cerr << file << ": internal error: " << error.what() << endl;
             return false;
         }
 

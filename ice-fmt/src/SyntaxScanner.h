@@ -91,6 +91,10 @@ namespace IceFmt
         int column;
     };
 
+    /// Returns whether the Slice compiler reads a lexeme as a doc comment: `///`, or a block comment `/**` where
+    /// neither `/` nor `*` follows.
+    [[nodiscard]] bool isDocComment(const Lexeme& lexeme);
+
     /// Returns how a punctuation mark is written, such as `;` for TokenKind::Semicolon.
     /// @param kind The kind of a punctuation mark.
     [[nodiscard]] std::string_view spelling(TokenKind kind);

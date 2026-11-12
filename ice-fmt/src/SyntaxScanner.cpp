@@ -313,6 +313,17 @@ namespace
     }
 }
 
+bool
+IceFmt::isDocComment(const Lexeme& lexeme)
+{
+    if (lexeme.kind == TokenKind::LineComment)
+    {
+        return lexeme.text.starts_with("///");
+    }
+    return lexeme.kind == TokenKind::BlockComment && lexeme.text.starts_with("/**") && lexeme.text[3] != '/' &&
+           lexeme.text[3] != '*';
+}
+
 string_view
 IceFmt::spelling(TokenKind kind)
 {

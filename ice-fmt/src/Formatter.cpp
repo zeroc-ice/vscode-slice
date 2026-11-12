@@ -9,6 +9,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -561,6 +562,93 @@ namespace
         assert(false);
         return {};
     }
+
+    // Returns the lines of a comment or directive without the blanks around each one, which formatting manages.
+    string withoutBlanks(string_view text)
+    {
+        constexpr string_view blanks = " \t\r\f\v";
+        string result;
+        while (true)
+        {
+            size_t end = text.find('\n');
+            string_view line = text.substr(0, end);
+            size_t first = line.find_first_not_of(blanks);
+            if (first != string_view::npos)
+            {
+                result += line.substr(first, line.find_last_not_of(blanks) + 1 - first);
+            }
+
+            if (end == string_view::npos)
+            {
+                return result;
+            }
+            result += '\n';
+            text.remove_prefix(end + 1);
+        }
+    }
+
+    // What formatting keeps of a text: the tokens and directives, in order, the doc comments with their places, which
+    // decide what the compiler documents, and the other comments, in any order. The optional semicolon after a closing
+    // brace is left out, since formatting removes it.
+    struct Content
+    {
+        vector<string> code;
+
+        // The place of a doc comment is the size of the code before its line: the compiler's preprocessor moves a
+        // comment above its line, and a block comment joins the lines it spans.
+        vector<pair<size_t, string>> docComments;
+
+        vector<string> comments;
+
+        bool operator==(const Content&) const = default;
+    };
+
+    Content contentOf(string_view text)
+    {
+        Content content;
+        bool afterClosingBrace = false;
+
+        // The line where the previous lexeme ends, and the size of the code where the preprocessor's current line
+        // starts.
+        int endLine = 0;
+        size_t lineStart = 0;
+
+        for (const Lexeme& lexeme : scan(text))
+        {
+            if (lexeme.line > endLine)
+            {
+                lineStart = content.code.size();
+            }
+            endLine = lexeme.line + static_cast<int>(ranges::count(lexeme.text, '\n'));
+
+            switch (lexeme.kind)
+            {
+                case TokenKind::LineComment:
+                case TokenKind::BlockComment:
+                    if (isDocComment(lexeme))
+                    {
+                        content.docComments.emplace_back(lineStart, withoutBlanks(lexeme.text));
+                    }
+                    else
+                    {
+                        content.comments.push_back(withoutBlanks(lexeme.text));
+                    }
+                    break;
+                case TokenKind::Directive:
+                    content.code.push_back(withoutBlanks(lexeme.text));
+                    break;
+                default:
+                    if (!afterClosingBrace || lexeme.kind != TokenKind::Semicolon)
+                    {
+                        content.code.emplace_back(lexeme.text);
+                    }
+                    afterClosingBrace = lexeme.kind == TokenKind::RightBrace;
+                    break;
+            }
+        }
+        ranges::sort(content.comments);
+        return content;
+    }
 }
 
 string
@@ -578,7 +666,15 @@ IceFmt::formatSlice(string_view text)
     // The file keeps the line endings its first line has.
     bool windowsLineEndings = text.substr(0, text.find('\n')).ends_with('\r');
 
-    for (char c : render(print(parse(text))))
+    // A layout that loses or changes what the Slice compiler reads is a bug in the formatter, and the file stays as it
+    // is.
+    string rendered = render(print(parse(text)));
+    if (contentOf(rendered) != contentOf(text))
+    {
+        throw logic_error{"formatting would change the tokens or comments"};
+    }
+
+    for (char c : rendered)
     {
         if (c == '\n' && windowsLineEndings)
         {

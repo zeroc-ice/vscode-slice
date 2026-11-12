@@ -77,18 +77,6 @@ namespace
         }
     }
 
-    // Returns whether the Slice compiler reads a comment as a doc comment: '///', or a block comment '/**' where
-    // neither '/' nor '*' follows.
-    bool isDocComment(const Lexeme& lexeme)
-    {
-        if (lexeme.kind == TokenKind::LineComment)
-        {
-            return lexeme.text.starts_with("///");
-        }
-        return lexeme.kind == TokenKind::BlockComment && lexeme.text.starts_with("/**") && lexeme.text[3] != '/' &&
-               lexeme.text[3] != '*';
-    }
-
     // Where a comment or directive goes, relative to the tokens around it.
     enum class Placement
     {

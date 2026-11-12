@@ -17,6 +17,8 @@ namespace IceFmt
     /// has one.
     /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar, or holds a comment or directive that
     /// formatting can't keep as the Slice compiler reads it.
+    /// @throws std::logic_error Thrown when the formatted text would not keep the tokens and comments of @p text, or
+    /// the definition a doc comment documents, which is a bug in the formatter.
     [[nodiscard]] std::string formatSlice(std::string_view text);
 }
 
