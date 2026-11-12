@@ -24,14 +24,6 @@ namespace
         return static_cast<int>(ranges::count_if(text, startsCodePoint));
     }
 
-    Layout make(Layout::Kind kind, string text = {})
-    {
-        Layout layout;
-        layout.kind = kind;
-        layout.text = std::move(text);
-        return layout;
-    }
-
     class Renderer final
     {
     public:
@@ -236,51 +228,50 @@ namespace
 Layout
 IceFmt::text(string text)
 {
-    return make(Layout::Kind::Text, std::move(text));
+    return {.kind = Layout::Kind::Text, .text = std::move(text)};
 }
 
 Layout
 IceFmt::space()
 {
-    return make(Layout::Kind::Space);
+    return {.kind = Layout::Kind::Space};
 }
 
 Layout
 IceFmt::line()
 {
-    return make(Layout::Kind::Line, " ");
+    return {.kind = Layout::Kind::Line, .text = " "};
 }
 
 Layout
 IceFmt::softline()
 {
-    return make(Layout::Kind::Line);
+    return {.kind = Layout::Kind::Line};
 }
 
 Layout
 IceFmt::hardline()
 {
-    return make(Layout::Kind::HardLine);
+    return {.kind = Layout::Kind::HardLine};
 }
 
 Layout
 IceFmt::suffix(string text, int column)
 {
-    Layout result = make(Layout::Kind::Suffix, std::move(text));
-    result.column = column;
-    return result;
+    return {.kind = Layout::Kind::Suffix, .text = std::move(text), .column = column};
 }
 
 Layout
 IceFmt::endOfLine()
 {
-    return make(Layout::Kind::EndOfLine);
+    return {.kind = Layout::Kind::EndOfLine};
 }
 
+// Indent and Group push their child, which an initializer list would copy.
 Layout
 IceFmt::indent(Layout layout)
 {
-    Layout result = make(Layout::Kind::Indent);
+    Layout result{.kind = Layout::Kind::Indent};
     result.children.push_back(std::move(layout));
     return result;
 }
@@ -288,18 +279,15 @@ IceFmt::indent(Layout layout)
 Layout
 IceFmt::group(Layout layout, bool broken)
 {
-    Layout result = make(Layout::Kind::Group);
+    Layout result{.kind = Layout::Kind::Group, .broken = broken};
     result.children.push_back(std::move(layout));
-    result.broken = broken;
     return result;
 }
 
 Layout
 IceFmt::concat(vector<Layout> parts)
 {
-    Layout result = make(Layout::Kind::Concat);
-    result.children = std::move(parts);
-    return result;
+    return {.kind = Layout::Kind::Concat, .children = std::move(parts)};
 }
 
 string

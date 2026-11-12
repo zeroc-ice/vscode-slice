@@ -31,10 +31,10 @@ namespace IceFmt
 
         /// The text of a Text or Suffix. A Line that becomes a space when its group is flat has a space here, and a
         /// Line that becomes nothing has no text.
-        std::string text;
+        std::string text{};
 
         /// The child of an Indent or Group, and the parts of a Concat.
-        std::vector<Layout> children;
+        std::vector<Layout> children{};
 
         /// Whether a Group is broken even when it fits on the line.
         bool broken = false;
