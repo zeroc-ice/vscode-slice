@@ -666,7 +666,7 @@ IceFmt::formatSlice(string_view text)
     // The file keeps the line endings its first line has.
     bool windowsLineEndings = text.substr(0, text.find('\n')).ends_with('\r');
 
-    // A layout that loses or changes what the Slice compiler reads is a bug in the formatter, and the file stays as it
+    // Output that loses or changes what the Slice compiler reads is a bug in the formatter, and the file stays as it
     // is.
     string rendered = render(print(parse(text)));
     if (contentOf(rendered) != contentOf(text))
