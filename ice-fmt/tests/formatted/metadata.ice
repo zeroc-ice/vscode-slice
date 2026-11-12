@@ -19,7 +19,7 @@ module Demo
     ["deprecated"]
     sequence<Older> OlderSeq;
 
-    // The directives go one per line when they don't fit on one line.
+    // The directives go one per line when they don't fit on one line, and what they lead starts the next line.
     ["cpp:type:std::map<std::string, std::vector<std::string>>",
         "java:type:java.util.TreeMap<String, java.util.List<String>>",
         "cs:generic:SortedDictionary"]

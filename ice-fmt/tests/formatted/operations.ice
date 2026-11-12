@@ -46,6 +46,13 @@ module Demo
             out bool truncated)
             throws PrinterException;
 
+        // Metadata whose directives go one per line puts the operation on the next line.
+        ["amd",
+            "cpp:const",
+            "swift:attribute:@available(*, deprecated, message: \"use search\")",
+            "cs:attribute:System.Obsolete(\"use search\")"]
+        Ice::StringSeq find(string term);
+
         optional(1) string describe(
             string document,
             Color color,

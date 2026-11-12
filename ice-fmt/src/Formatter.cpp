@@ -69,9 +69,37 @@ namespace
         return ranges::find(node.children, NodeKind::Body, &Node::kind) != node.children.end();
     }
 
+    // Returns the number of metadata lists that lead a node.
+    size_t leadingMetadata(const Node& node)
+    {
+        size_t count = 0;
+        while (node.children[count].kind == NodeKind::Metadata)
+        {
+            ++count;
+        }
+        return count;
+    }
+
+    // Returns whether a node is the forward declaration of a definition, as 'class Node;' is of 'class Node { ... }'.
+    bool forwardDeclares(const Node& node, const Node& definition)
+    {
+        if (isContainer(node) || !isContainer(definition))
+        {
+            return false;
+        }
+
+        // The keyword and the name follow the metadata. Only a forward declaration starts with the keyword of a
+        // container without being one.
+        size_t first = leadingMetadata(node);
+        size_t definitionFirst = leadingMetadata(definition);
+        return node.children[first].token.kind == definition.children[definitionFirst].token.kind &&
+               node.children[first + 1].token.text == definition.children[definitionFirst + 1].token.text;
+    }
+
     // Returns whether a blank line separates a node from the one before it: the author left one, or both are contained,
-    // at least one of them is a container, and nothing separates them yet. A preprocessor directive between
-    // the two leaves the choice to the author, since the directive can belong to either one.
+    // at least one of them is a container, and nothing separates them yet. A forward declaration stays against the
+    // definition it declares. A preprocessor directive between the two leaves the choice to the author, since the
+    // directive can belong to either one.
     bool blankLineBetween(const Node& previous, const Node& node)
     {
         if (blankLineBefore(node))
@@ -85,7 +113,7 @@ namespace
         const Token& token = firstToken(node);
         bool separated = token.blankLineBefore || ranges::any_of(token.leading, &Trivia::blankLineBefore);
         auto isDirective = [](const Trivia& trivia) { return trivia.text.starts_with('#'); };
-        return (isContainer(previous) || isContainer(node)) && !separated &&
+        return (isContainer(previous) || isContainer(node)) && !separated && !forwardDeclares(previous, node) &&
                ranges::none_of(token.leading, isDirective);
     }
 
@@ -219,11 +247,28 @@ namespace
 
     Doc print(const Token& token) { return concat(beforeText(token), textAndTrailingTrivia(token)); }
 
-    // Groups a list that starts with the token 'open'. The comments before that token stay out of the group, which
-    // they would break.
+    // Groups a list that starts with the token 'open'. The comments before that token would break the group, so the
+    // caller lays them out before it.
     Doc listGroup(const Token& open, Doc items)
     {
-        return concat(beforeText(open), group(concat(textAndTrailingTrivia(open), indent(std::move(items)))));
+        return group(concat(textAndTrailingTrivia(open), indent(std::move(items))));
+    }
+
+    // What separates a child from the child before it. 'afterComma' is what follows a comma.
+    Doc separator(const Node& previous, const Node& child, const Doc& afterComma)
+    {
+        if (isToken(previous, TokenKind::Comma))
+        {
+            return afterComma;
+        }
+        if (previous.kind == NodeKind::Metadata)
+        {
+            // Metadata stays on the line of the type or name it applies to. Two metadata lists keep the line break the
+            // author put between them.
+            bool ownLine = child.kind == NodeKind::Metadata && startsLine(child);
+            return ownLine ? hardline() : space();
+        }
+        return needsSpace(previous, child) ? space() : concat();
     }
 
     // Appends the children of a node from index 'first' to the one before 'last', each after what separates it from
@@ -232,29 +277,24 @@ namespace
     {
         for (size_t i = first; i < last; ++i)
         {
-            const Node& child = node.children[i];
             if (i > 0)
             {
-                const Node& previous = node.children[i - 1];
-                if (isToken(previous, TokenKind::Comma))
-                {
-                    docs.push_back(afterComma);
-                }
-                else if (previous.kind == NodeKind::Metadata)
-                {
-                    // Metadata stays on the line of the type or name it applies to. Two metadata lists keep the line
-                    // break the author put between them.
-                    bool ownLine = child.kind == NodeKind::Metadata && startsLine(child);
-                    docs.push_back(ownLine ? hardline() : space());
-                }
-                else if (needsSpace(previous, child))
-                {
-                    docs.push_back(space());
-                }
+                docs.push_back(separator(node.children[i - 1], node.children[i], afterComma));
             }
-            docs.push_back(print(child));
+            docs.push_back(print(node.children[i]));
         }
     }
+
+    // The directives of a metadata list, in its brackets, without the comments before it. They are on one line when
+    // they fit, and each one starts a line after the first otherwise.
+    Doc directives(const Node& metadata)
+    {
+        vector<Doc> items;
+        appendChildren(items, metadata, 1, metadata.children.size(), line());
+        return listGroup(metadata.children.front().token, concat(std::move(items)));
+    }
+
+    Doc metadata(const Node& node) { return concat(beforeText(firstToken(node)), directives(node)); }
 
     Doc file(const Node& node)
     {
@@ -296,20 +336,9 @@ namespace
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
-    // Returns the number of metadata lists that lead a node.
-    size_t leadingMetadata(const Node& node)
-    {
-        size_t count = 0;
-        while (node.children[count].kind == NodeKind::Metadata)
-        {
-            ++count;
-        }
-        return count;
-    }
-
     // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A container starts
     // the line after its metadata, and so does a node that the author put there. Any other node follows its metadata
-    // on the same line when it fits there.
+    // on the same line when it fits there with the last metadata list on one line.
     Doc afterLeadingMetadata(const Node& node, size_t count, Doc rest)
     {
         if (count == 0)
@@ -318,9 +347,17 @@ namespace
         }
 
         vector<Doc> docs;
-        appendChildren(docs, node, 0, count, space());
+        appendChildren(docs, node, 0, count - 1, space());
+        const Node& last = node.children[count - 1];
+        if (count > 1)
+        {
+            docs.push_back(separator(node.children[count - 2], last, space()));
+        }
+
+        // The last metadata list shares a group with the node, so a list that breaks puts the node on the next line.
         bool ownLine = isContainer(node) || startsLine(node.children[count]);
-        docs.push_back(group(concat(ownLine ? hardline() : line(), std::move(rest))));
+        docs.push_back(beforeText(firstToken(last)));
+        docs.push_back(group(concat(directives(last), ownLine ? hardline() : line(), std::move(rest))));
         return concat(std::move(docs));
     }
 
@@ -397,14 +434,6 @@ namespace
         return afterLeadingMetadata(node, first, concat(std::move(docs)));
     }
 
-    // The directives are on one line when they fit, and each one starts a line after the first otherwise.
-    Doc metadata(const Node& node)
-    {
-        vector<Doc> directives;
-        appendChildren(directives, node, 1, node.children.size(), line());
-        return listGroup(node.children.front().token, concat(std::move(directives)));
-    }
-
     // The parameters of an operation, or the types of a sequence or dictionary, are on one line when they fit, and each
     // one has its own line after the opening token otherwise.
     Doc list(const Node& node)
@@ -415,7 +444,8 @@ namespace
             items.push_back(softline());
         }
         appendChildren(items, node, 1, node.children.size(), line());
-        return listGroup(node.children.front().token, concat(std::move(items)));
+        const Token& open = node.children.front().token;
+        return concat(beforeText(open), listGroup(open, concat(std::move(items))));
     }
 
     Doc body(const Node& node)

@@ -36,6 +36,12 @@ module Demo {
     interface Named { };
     struct Pair { int first; int second; };
 
+    // A forward declaration stays against the definition it declares, and only against that one.
+    class Link;
+    class Link { Link next; }
+    class Chain;
+    class Ring { Chain chain; }
+
     // An extends clause moves to its own line when it doesn't fit.
     interface Scanner
         extends Device

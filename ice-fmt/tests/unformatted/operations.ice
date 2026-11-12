@@ -32,6 +32,9 @@ module Demo
 
         ["amd", "cpp:const"] idempotent Ice::StringSeq search(["cpp:array"] Ice::StringSeq terms, Color color, bool doubleSided, optional(1) int max, out bool truncated) throws PrinterException;
 
+        // Metadata whose directives go one per line puts the operation on the next line.
+        ["amd", "cpp:const", "swift:attribute:@available(*, deprecated, message: \"use search\")", "cs:attribute:System.Obsolete(\"use search\")"] Ice::StringSeq find(string term);
+
         optional(1) string describe(string document, Color color, int copies, bool doubleSided, optional(2) string tray, out int pages);
 
         // The names of a throws clause go one per line when they don't fit on its line.
