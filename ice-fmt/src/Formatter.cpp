@@ -656,11 +656,19 @@ IceFmt::formatSlice(string_view text)
 {
     // A byte order mark belongs to the file, not to its Slice text, and is kept.
     constexpr string_view byteOrderMark = "\xEF\xBB\xBF";
+    string_view file = text;
     string formatted;
     if (text.starts_with(byteOrderMark))
     {
         formatted = byteOrderMark;
         text.remove_prefix(byteOrderMark.size());
+    }
+
+    auto skipsFile = [](const Lexeme& lexeme)
+    { return lexeme.kind == TokenKind::LineComment && withoutTrailingBlanks(lexeme.text) == "// ice-fmt: skip-file"; };
+    if (ranges::any_of(scan(text), skipsFile))
+    {
+        return string{file};
     }
 
     // The file keeps the line endings its first line has.
