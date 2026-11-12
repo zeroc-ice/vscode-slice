@@ -50,9 +50,7 @@ cmake -S ice-fmt -B ice-fmt/build -DCMAKE_BUILD_TYPE=Release
 cmake --build ice-fmt/build --config Release
 ```
 
-The executable is `ice-fmt/build/ice-fmt`, or `ice-fmt\build\Release\ice-fmt.exe` with Visual Studio. CI checks the
-sources with the clang-format and clang-tidy of Homebrew's `llvm`. To run clang-tidy during a build, configure with
-`-DCMAKE_CXX_CLANG_TIDY=clang-tidy`.
+The executable is `ice-fmt/build/ice-fmt`, or `ice-fmt\build\Release\ice-fmt.exe` with Visual Studio.
 
 ## Testing
 
