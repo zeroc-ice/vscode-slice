@@ -17,20 +17,6 @@
         "SERVER_PATH": "${workspaceFolder}/slice-lsp/target/",
         "BUILT_IN_SLICE_PATH": "${workspaceFolder}/vscode-extension/slice/"
       }
-    },
-    {
-      "name": "Launch Client (Production)",
-      "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/vscode-extension"],
-      "outFiles": ["${workspaceFolder}/vscode-extension/client/out/**/*.js"],
-      "preLaunchTask": "Build All (Production)",
-      "env": {
-        "NODE_ENV": "production",
-        "SERVER_PATH": "${workspaceFolder}/slice-lsp/target/",
-        "BUILT_IN_SLICE_PATH": "${workspaceFolder}/vscode-extension/slice/"
-      }
     }
   ]
 }
