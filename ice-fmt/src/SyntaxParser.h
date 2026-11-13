@@ -73,7 +73,7 @@ namespace IceFmt
         /// The element type of a sequence, or the key and value types of a dictionary, from '<' to '>'.
         Types,
 
-        /// An 'extends' or 'throws' clause.
+        /// An 'extends', 'implements', or 'throws' clause.
         Clause,
 
         /// The members of a definition, from '{' to '}'.

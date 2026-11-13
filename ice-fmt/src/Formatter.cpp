@@ -81,6 +81,13 @@ namespace
         return count;
     }
 
+    // Returns the index of the keyword of a definition, after its metadata and the 'local' of Ice 3.7.
+    size_t keywordIndex(const Node& definition)
+    {
+        size_t index = leadingMetadata(definition);
+        return definition.children[index].token.text == "local" ? index + 1 : index;
+    }
+
     // Returns whether a node is the forward declaration of a definition, as 'class Node;' is of 'class Node { ... }'.
     bool forwardDeclares(const Node& node, const Node& definition)
     {
@@ -89,10 +96,10 @@ namespace
             return false;
         }
 
-        // The keyword and the name follow the metadata. Only a forward declaration starts with the keyword of a
-        // container without being one.
-        size_t first = leadingMetadata(node);
-        size_t definitionFirst = leadingMetadata(definition);
+        // The name follows the keyword. Only a forward declaration starts with the keyword of a container without
+        // being one.
+        size_t first = keywordIndex(node);
+        size_t definitionFirst = keywordIndex(definition);
         return node.children[first].token.kind == definition.children[definitionFirst].token.kind &&
                node.children[first + 1].token.text == definition.children[definitionFirst + 1].token.text;
     }
@@ -327,8 +334,8 @@ namespace
         return concat(std::move(parts));
     }
 
-    // An 'extends' or 'throws' clause, after a line break that belongs to the enclosing group. Its names are on one
-    // line when they fit, and each one starts a line after the first otherwise.
+    // An 'extends', 'implements', or 'throws' clause, after a line break that belongs to the enclosing group. Its names
+    // are on one line when they fit, and each one starts a line after the first otherwise.
     Layout clause(const Node& node)
     {
         vector<Layout> names;
@@ -549,7 +556,7 @@ namespace
             case NodeKind::Types:
                 return list(node);
             case NodeKind::Clause:
-                // An 'extends' clause moves to the next line when it doesn't fit on the current one.
+                // An 'extends' or 'implements' clause moves to the next line when it doesn't fit on the current one.
                 return group(clause(node));
             case NodeKind::Body:
                 return body(node);

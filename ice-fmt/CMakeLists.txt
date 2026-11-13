@@ -38,7 +38,7 @@ set(output "${CMAKE_CURRENT_BINARY_DIR}/tests")
 file(MAKE_DIRECTORY "${output}")
 
 # Each case is a file in tests/unformatted, and the file ice-fmt makes of it in tests/formatted.
-foreach(case comments crlf definitions metadata operations)
+foreach(case comments crlf definitions ice37 metadata operations)
     add_test(NAME format-${case} COMMAND "${CMAKE_COMMAND}"
         -DICE_FMT=$<TARGET_FILE:ice-fmt>
         -DUNFORMATTED=${tests}/unformatted/${case}.ice

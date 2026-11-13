@@ -239,6 +239,13 @@ namespace
 
         [[nodiscard]] bool atScopedName() const { return at(TokenKind::Identifier) || at(TokenKind::ScopedIdentifier); }
 
+        // Returns whether the current token is a keyword of Ice 3.7 that Ice 3.8 removed, such as 'local'. Ice 3.8
+        // reads it as a name, so the parser reads it as a keyword only where Ice 3.8 doesn't allow a name.
+        [[nodiscard]] bool atIce37Keyword(string_view keyword) const
+        {
+            return at(TokenKind::Identifier) && current().text == keyword;
+        }
+
         [[noreturn]] void fail(const string& expected) const
         {
             const Token& token = current();
@@ -378,8 +385,10 @@ namespace
         }
 
         // definition := fileMetadata
-        //             | metadata* (moduleDefinition | classDefinition | interfaceDefinition | exceptionDefinition
-        //                          | structDefinition | enum | sequence | dictionary | const)
+        //             | metadata* 'local'? (moduleDefinition | classDefinition | interfaceDefinition
+        //                                   | exceptionDefinition | structDefinition | enum | sequence | dictionary
+        //                                   | const)
+        // Ice 3.7 marks a local definition with 'local'.
         Node definition()
         {
             if (at(TokenKind::DoubleLeftBracket))
@@ -389,6 +398,10 @@ namespace
 
             Node contained{NodeKind::Contained};
             localMetadata(contained);
+            if (atIce37Keyword("local"))
+            {
+                take(contained);
+            }
             switch (current().kind)
             {
                 case TokenKind::Module:
@@ -448,7 +461,7 @@ namespace
         }
 
         // classDefinition := 'class' name ';'
-        //                  | 'class' name compactId? extends? '{' dataMember* '}' ';'?
+        //                  | 'class' name compactId? extends? implements? '{' (dataMember | operation)* '}' ';'?
         // compactId := '(' integerConstant ')'
         void classDefinition(Node& contained)
         {
@@ -466,7 +479,35 @@ namespace
                 expect(contained, TokenKind::RightParenthesis);
             }
             extends(contained);
-            body(contained, [this] { return dataMember(); });
+            implements(contained);
+            body(contained, [this] { return atOperation() ? operation() : dataMember(); });
+        }
+
+        // Returns whether the class member at the current token is an operation, which Ice 3.7 allows in a class: a
+        // '(' other than the one after 'optional' comes before the end of the member.
+        [[nodiscard]] bool atOperation() const
+        {
+            for (size_t i = _next; i < _tokens.size(); ++i)
+            {
+                switch (_tokens[i].kind)
+                {
+                    case TokenKind::LeftParenthesis:
+                        if (_tokens[i - 1].kind != TokenKind::Optional)
+                        {
+                            return true;
+                        }
+                        break;
+                    case TokenKind::Semicolon:
+                    case TokenKind::Equals:
+                    case TokenKind::LeftBrace:
+                    case TokenKind::RightBrace:
+                    case TokenKind::EndOfFile:
+                        return false;
+                    default:
+                        break;
+                }
+            }
+            return false;
         }
 
         // interfaceDefinition := 'interface' name ';'
@@ -517,7 +558,6 @@ namespace
         }
 
         // interfaceExtends := ('extends' | ':') interfaceList
-        // interfaceList := (scopedName | 'Object' | 'Value') (',' (scopedName | 'Object' | 'Value'))*
         void interfaceExtends(Node& contained)
         {
             if (!at(TokenKind::Extends) && !at(TokenKind::Colon))
@@ -527,6 +567,28 @@ namespace
 
             Node clause{NodeKind::Clause};
             take(clause);
+            interfaceList(clause);
+            contained.children.push_back(std::move(clause));
+        }
+
+        // implements := 'implements' interfaceList
+        // Ice 3.7 lists the interfaces that a class implements.
+        void implements(Node& contained)
+        {
+            if (!atIce37Keyword("implements"))
+            {
+                return;
+            }
+
+            Node clause{NodeKind::Clause};
+            take(clause);
+            interfaceList(clause);
+            contained.children.push_back(std::move(clause));
+        }
+
+        // interfaceList := (scopedName | 'Object' | 'Value') (',' (scopedName | 'Object' | 'Value'))*
+        void interfaceList(Node& clause)
+        {
             do
             {
                 if (!atScopedName() && !at(TokenKind::Object) && !at(TokenKind::Value))
@@ -535,7 +597,6 @@ namespace
                 }
                 take(clause);
             } while (accept(clause, TokenKind::Comma));
-            contained.children.push_back(std::move(clause));
         }
 
         // dataMember := metadata* optionalType name ('=' constInitializer)? ';'

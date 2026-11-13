@@ -1,6 +1,7 @@
 # ice-fmt
 
-`ice-fmt` formats Slice files that use the original Slice syntax (`.ice` files). It has one style, with nothing to
+`ice-fmt` formats Slice files that use the original Slice syntax (`.ice` files), as Ice 3.8 reads it or as Ice 3.7 did,
+with its `local` definitions, `implements` clauses, and operations in classes. It has one style, with nothing to
 configure.
 
 ## Usage
