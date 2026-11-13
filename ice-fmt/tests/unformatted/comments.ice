@@ -18,7 +18,7 @@ module Demo
     struct Limits
     {
         string aVeryLongMemberNameThatPushesTheTrailingCommentFarToTheRightSide;    // short
-        int x;      // In the column of the comment above, this comment would end past 120 columns.
+        int x;      // Comments line up even when that takes a line past 120 columns.
     }
 
       /* A block comment keeps the indentation	

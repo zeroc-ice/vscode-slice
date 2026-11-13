@@ -91,18 +91,12 @@ namespace
             const Layout* layout;
         };
 
-        // The suffixes of a line: the offset in _out where the code before them ends, the columns that code takes, and
-        // the columns they take with the space that separates each one.
+        // The suffixes of a line: the offset in _out where the code before them ends, and the columns that code takes.
         struct LineSuffix
         {
             int line;
             size_t codeEnd;
             int codeColumns;
-            int suffixColumns;
-
-            // The suffixes start one space after the code, and no later than where they still fit in the line width.
-            [[nodiscard]] int lowestStart() const { return codeColumns + 1; }
-            [[nodiscard]] int highestStart() const { return max(lowestStart(), lineWidth + 1 - suffixColumns); }
         };
 
         [[nodiscard]] bool lineIsEmpty() const { return _out.size() == _lineStart; }
@@ -130,17 +124,15 @@ namespace
             trimLine();
             if (_suffixes.empty() || _suffixes.back().line != _line)
             {
-                _suffixes.push_back({_line, _out.size(), columns(string_view{_out}.substr(_lineStart)), 0});
+                _suffixes.push_back({_line, _out.size(), columns(string_view{_out}.substr(_lineStart))});
             }
-            _suffixes.back().suffixColumns += 1 + columns(text);
             _out += ' ';
             _out += text;
             _endOfLine = true;
         }
 
-        // Returns the rendered text with the suffixes of consecutive lines in one column, as clang-format aligns
-        // trailing comments: one space after the longest code of those lines, unless that column pushes a suffix past
-        // the line width where it fit before. That suffix starts a new run of lines instead.
+        // Returns the rendered text with the suffixes of consecutive lines in one column, one space after the longest
+        // code of those lines, as gofmt aligns trailing comments.
         [[nodiscard]] string alignSuffixes() const
         {
             string aligned;
@@ -148,21 +140,18 @@ namespace
             size_t first = 0;
             while (first < _suffixes.size())
             {
-                int start = _suffixes[first].lowestStart();
-                int latest = _suffixes[first].highestStart();
+                int codeColumns = _suffixes[first].codeColumns;
                 size_t last = first + 1;
-                while (last < _suffixes.size() && _suffixes[last].line == _suffixes[last - 1].line + 1 &&
-                       _suffixes[last].lowestStart() <= latest && _suffixes[last].highestStart() >= start)
+                while (last < _suffixes.size() && _suffixes[last].line == _suffixes[last - 1].line + 1)
                 {
-                    start = max(start, _suffixes[last].lowestStart());
-                    latest = min(latest, _suffixes[last].highestStart());
+                    codeColumns = max(codeColumns, _suffixes[last].codeColumns);
                     last++;
                 }
 
                 for (size_t i = first; i < last; ++i)
                 {
                     aligned.append(_out, copied, _suffixes[i].codeEnd - copied);
-                    aligned.append(static_cast<size_t>(start - _suffixes[i].lowestStart()), ' ');
+                    aligned.append(static_cast<size_t>(codeColumns - _suffixes[i].codeColumns), ' ');
                     copied = _suffixes[i].codeEnd;
                 }
                 first = last;

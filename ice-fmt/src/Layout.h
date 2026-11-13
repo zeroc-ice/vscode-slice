@@ -83,7 +83,7 @@ namespace IceFmt
 
     /// Creates text that ends its line and doesn't count toward the width of the line, for a comment that follows
     /// code. The suffixes of consecutive lines start in the same column, one space after the longest code of those
-    /// lines, unless that column pushes one of them past the line width.
+    /// lines.
     [[nodiscard]] Layout suffix(std::string text);
 
     /// Creates the end of the current line: what follows starts on a new line, unless the current line is empty.
