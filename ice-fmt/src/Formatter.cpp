@@ -360,10 +360,10 @@ namespace
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
-    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A definition or an
-    // operation starts the line after its metadata, as rustfmt puts an item after its attributes, and so does a node
-    // that the author put there. Any other node follows its metadata on the same line when it fits there with the last
-    // metadata list on one line.
+    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. As rustfmt does
+    // with attributes, several lists go one per line, and a definition or an operation starts the line after its
+    // metadata. So does a node that the author put there. Any other node follows its metadata list on the same line
+    // when it fits there with the list on one line.
     Layout afterLeadingMetadata(const Node& node, size_t count, Layout rest)
     {
         if (count == 0)
@@ -371,19 +371,24 @@ namespace
             return rest;
         }
 
-        vector<Layout> parts;
-        appendChildren(parts, node, 0, count - 1, space());
-        const Node& last = node.children[count - 1];
         if (count > 1)
         {
-            parts.push_back(separator(node.children[count - 2], last, space()));
+            vector<Layout> parts;
+            for (size_t i = 0; i < count; ++i)
+            {
+                parts.push_back(metadata(node.children[i]));
+                parts.push_back(hardline());
+            }
+            parts.push_back(std::move(rest));
+            return concat(std::move(parts));
         }
 
-        // The last metadata list shares a group with the node, so a list that breaks puts the node on the next line.
-        bool ownLine = isDefinition(node) || node.kind == NodeKind::Operation || startsLine(node.children[count]);
-        parts.push_back(beforeText(firstToken(last)));
-        parts.push_back(group(concat(directives(last), ownLine ? hardline() : line(), std::move(rest))));
-        return concat(std::move(parts));
+        // The metadata list shares a group with the node, so a list that breaks puts the node on the next line.
+        const Node& list = node.children.front();
+        bool ownLine = isDefinition(node) || node.kind == NodeKind::Operation || startsLine(node.children[1]);
+        return concat(
+            beforeText(firstToken(list)),
+            group(concat(directives(list), ownLine ? hardline() : line(), std::move(rest))));
     }
 
     // An operation that doesn't fit on one line is broken in two steps, the second one only when the first one is not

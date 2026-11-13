@@ -53,11 +53,24 @@ module Demo
         string user;
         ["java:type:java.util.LinkedHashMap<String, String[]>:java.util.LinkedHashMap<String, String[]>"]
         optional(1) Index history;
+
+        // Several metadata lists go one per line, and what they lead starts the next line.
+        ["deprecated"]
+        ["cpp:type:wstring"]
+        string nickname;
     }
 
     interface Printer
     {
         void print(["cpp:array"] Ice::ByteSeq bytes, ["cpp:type:wstring"] string name);
+
+        ["amd"]
+        ["cpp:const"]
+        void wait(
+            int count,
+            ["deprecated"]
+            ["cpp:type:wstring"]
+            string reason);
 
         void printAll(
             ["java:type:java.util.LinkedHashMap<String, String[]>:java.util.LinkedHashMap<String, String[]>"]
