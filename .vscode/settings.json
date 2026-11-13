@@ -1,5 +1,5 @@
 {
-  "rust-analyzer.linkedProjects": ["./server/Cargo.toml"],
+  "rust-analyzer.linkedProjects": ["./language-server/Cargo.toml"],
   "rust-analyzer.rustfmt.extraArgs": ["+nightly"],
   "rust-analyzer.check.command": "clippy",
   "[rust]": {

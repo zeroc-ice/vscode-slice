@@ -14,7 +14,7 @@
       "outFiles": ["${workspaceFolder}/editors/vscode/client/out/**/*.js"],
       "preLaunchTask": "Watch Client",
       "env": {
-        "SERVER_PATH": "${workspaceFolder}/server/target/",
+        "SERVER_PATH": "${workspaceFolder}/language-server/target/",
         "BUILT_IN_SLICE_PATH": "${workspaceFolder}/editors/vscode/slice/"
       }
     },
@@ -28,7 +28,7 @@
       "preLaunchTask": "Build All (Production)",
       "env": {
         "NODE_ENV": "production",
-        "SERVER_PATH": "${workspaceFolder}/server/target/",
+        "SERVER_PATH": "${workspaceFolder}/language-server/target/",
         "BUILT_IN_SLICE_PATH": "${workspaceFolder}/editors/vscode/slice/"
       }
     }
