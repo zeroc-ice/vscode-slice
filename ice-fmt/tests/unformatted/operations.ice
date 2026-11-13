@@ -3,17 +3,26 @@ module Demo
     interface Printer
     {
         // An operation that fits on one line goes on one line.
-        ["cpp:const"] idempotent string status()
-            throws PrinterException;
+        ["cpp:const"]   idempotent string status( )throws PrinterException ;
 
+        void stop(string user, bool notify
+        );
+
+        // A line of 120 columns fits.
+        idempotent Ice::StringSeq listQueuedOnTray(string user, Color color, bool doubleSided, optional(1) string tray);
+
+        // A parameter the author started a line with keeps the parameters one per line, even when they fit.
         void resume(
             string user,
             bool notify
         );
 
-        // A line of 120 columns fits.
-        idempotent Ice::StringSeq listQueuedOnTray(string user, Color color, bool doubleSided,
-            optional(1) string tray);
+        void restart(string user,
+                     bool notify);
+
+        // So does a throws clause the author started a line with.
+        idempotent string name()
+            throws PrinterException;
 
         // Metadata written on the line above stays there.
         ["amd"]
