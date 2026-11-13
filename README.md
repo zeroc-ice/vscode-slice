@@ -1,67 +1,27 @@
-# Slice for Visual Studio Code
+# Slice Tools
 
-This extension provides support for the Slice Interface Definition Language (IDL).
+Editor tools for the Slice interface definition language: `.ice` files for [Ice] and `.slice` files for [IceRPC].
 
-## Features
+| Directory          | Description                                                                                  |
+|--------------------|----------------------------------------------------------------------------------------------|
+| [server](server)   | The Slice language server for `.slice` files, written in Rust.                               |
+| [vscode](vscode)   | The [Slice extension for Visual Studio Code][marketplace], which bundles the language server. |
 
-- Syntax Highlighting
-- Syntax Validation
-- Error Detection & Reporting
-- Go to Definition
+GitHub highlights `.ice` files with the grammar in [vscode/syntaxes](vscode/syntaxes), through [Linguist].
 
-### Syntax Highlighting and Validation
+## Building
 
-This extension supports syntax highlighting and validation for the following Slice file types:
+[vscode/INSTALLATION.md](vscode/INSTALLATION.md) describes how to build the language server and package the extension.
 
-- `.ice` files, which use the [original Slice](https://doc.zeroc.com/ice/latest/the-slice-language) syntax
-- `.slice` files, which use the [latest Slice](https://docs.icerpc.dev/slice2) syntax
+## Contributing
 
-### Error Detection and Reporting
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Error checking is triggered every time a Slice file is saved or opened, and is only available for `.slice` files.
+## License
 
-## Configuration
+Slice Tools is licensed under the [BSD 3-Clause License](LICENSE).
 
-The Slice language server that ships with this extension can be configured with the following settings:
-
-- `slice.languageServer.enabled`: A boolean indicating whether the server should be enabled. Defaults to `true`.
-
-- `slice.configurations`: An array of configuration sets (independent groups of Slice files).
-This allows multiple Slice projects to exist within a single repository.
-Each configuration set supports the following settings:
-
-    - `paths`: An array of paths to specify which Slice files should be included in this set.
-    This field is required.
-
-    - `addWellKnownTypes`: A boolean indicating whether to include the Slice definitions contained in the
-    [IceRPC Slice](https://github.com/icerpc/icerpc-slice) repository.
-    These types are commonly used in applications utilizing Slice. Defaults to `true`.
-
-If you do not specify any configuration sets, the extension will default to using the project's root directory for `paths`.
-
-**Note:** the language server only works with `.slice` files, and ignores any `.ice` files in your project.
-The above settings are only meaningful for projects using `.slice` files.
-
-### Example
-
-Below is an example `settings.json` file which configures 2 separate Slice projects:
-
-```json
-{
-    "slice.languageServer.enabled": true,
-    "slice.configurations": [
-        {
-            "paths": [
-                "path/to/slice/directory"
-            ]
-        },
-        {
-            "addWellKnownTypes": false,
-            "paths": [
-                "path/to/specific/file.slice",
-                "/absolute/path/to/other/slice/directory",
-            ]
-        }
-    ]
-}
-```
+[Ice]: https://github.com/zeroc-ice/ice
+[IceRPC]: https://github.com/icerpc
+[Linguist]: https://github.com/github-linguist/linguist
+[marketplace]: https://marketplace.visualstudio.com/items?itemName=ZeroCInc.slice
