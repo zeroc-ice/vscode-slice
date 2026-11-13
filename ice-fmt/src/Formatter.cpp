@@ -88,9 +88,8 @@ namespace
         return definition.children[index].token.text == "local" ? index + 1 : index;
     }
 
-    // Returns whether a node is a definition, forward declarations included, rather than a data member, enumerator,
-    // parameter, or operation.
-    bool isDefinition(const Node& node)
+    // Returns whether a node defines or forward declares a module, class, interface, exception, struct, or enum.
+    bool declaresContainer(const Node& node)
     {
         constexpr array keywords{
             TokenKind::Module,
@@ -98,10 +97,7 @@ namespace
             TokenKind::Interface,
             TokenKind::Exception,
             TokenKind::Struct,
-            TokenKind::Enum,
-            TokenKind::Sequence,
-            TokenKind::Dictionary,
-            TokenKind::Const};
+            TokenKind::Enum};
         return contains(keywords, node.children[keywordIndex(node)].token.kind);
     }
 
@@ -361,9 +357,9 @@ namespace
     }
 
     // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. As rustfmt does
-    // with attributes, several lists go one per line, and a definition or an operation starts the line after its
-    // metadata. So does a node that the author put there. Any other node follows its metadata list on the same line
-    // when it fits there with the list on one line.
+    // with attributes, several lists go one per line, and the declaration of a container or an operation starts the
+    // line after its metadata. So does a node that the author put there. Any other node follows its metadata list on
+    // the same line when it fits there with the list on one line.
     Layout afterLeadingMetadata(const Node& node, size_t count, Layout rest)
     {
         if (count == 0)
@@ -385,7 +381,7 @@ namespace
 
         // The metadata list shares a group with the node, so a list that breaks puts the node on the next line.
         const Node& list = node.children.front();
-        bool ownLine = isDefinition(node) || node.kind == NodeKind::Operation || startsLine(node.children[1]);
+        bool ownLine = declaresContainer(node) || node.kind == NodeKind::Operation || startsLine(node.children[1]);
         return concat(
             beforeText(firstToken(list)),
             group(concat(directives(list), ownLine ? hardline() : line(), std::move(rest))));

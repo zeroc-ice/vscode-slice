@@ -34,11 +34,13 @@ The exit status is `1` when the command line is invalid, when a file can't be fo
 - Braces go on their own line, except for an empty `{}` and a definition written on one line that still fits.
 - A blank line separates a module, class, interface, exception, struct, or enum from the definitions around it, but
   not from its own forward declaration.
-- The metadata of a definition, forward declarations included, or of an operation goes on the line above it.
+- The metadata of a module, class, interface, exception, struct, enum, or operation goes on the line above it, forward
+  declarations included.
 - An operation that doesn't fit moves its `throws` clause to its own line, then puts its parameters one per line. An
   `extends` clause moves to its own line first. Other lists that don't fit go one item per line.
-- The metadata of a data member, enumerator, or parameter stays on its line or the line above, as written, unless it
-  doesn't fit there. Blank lines between definitions and members stay too, at most one in a row.
+- The metadata of a sequence, dictionary, constant, data member, enumerator, or parameter stays on its line or the
+  line above, as written, unless it doesn't fit there. Blank lines between definitions and members stay too, at most
+  one in a row.
 - Several metadata lists that lead the same thing go one per line, and what they lead starts the next line.
 - Comments and directives keep their text and take the indentation of the code around them. A doc comment on a line
   with code moves above that line, where the Slice compiler reads it. The comments that end consecutive lines line

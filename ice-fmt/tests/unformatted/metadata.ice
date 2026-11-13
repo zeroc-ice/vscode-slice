@@ -10,10 +10,13 @@
         First
     }
 
-    // So does the metadata of a sequence, dictionary, constant, or forward declaration.
-    ["deprecated"] sequence<Old> OldSeq;
-    ["deprecated"] const int Oldest = 1;
+    // So does the metadata of a forward declaration.
     ["deprecated"] class Forward;
+
+    // The metadata of a sequence, dictionary, or constant stays on its line or on the line above, as written.
+    ["deprecated"] sequence<Old> OldSeq;
+    ["deprecated"]
+    const int Oldest = 1;
 
     // The directives go one per line when they don't fit on one line, and what they lead starts the next line.
     ["cpp:type:std::map<std::string, std::vector<std::string>>", "java:type:java.util.TreeMap<String, java.util.List<String>>", "cs:generic:SortedDictionary"] dictionary<string, Ice::StringSeq> Index;
