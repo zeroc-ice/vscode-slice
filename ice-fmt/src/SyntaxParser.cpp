@@ -173,6 +173,7 @@ namespace
                     {.kind = lexeme->kind,
                      .text = lexeme->text,
                      .line = lexeme->line,
+                     .column = lexeme->column,
                      .startsLine = firstOnLine,
                      .blankLineBefore = blankLineBefore,
                      .leading = std::move(leading),

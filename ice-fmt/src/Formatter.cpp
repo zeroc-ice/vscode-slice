@@ -9,6 +9,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -316,6 +317,73 @@ namespace
 
     Layout metadata(const Node& node) { return concat(beforeText(firstToken(node)), directives(node)); }
 
+    // The comments that leave definitions and members as written: 'ignore' the one it leads, and 'off' the ones from
+    // the one it leads to the one before the one that 'on' leads, or to the end of their body or file.
+    constexpr string_view ignoreComment = "// ice-fmt: ignore";
+    constexpr string_view offComment = "// ice-fmt: off";
+    constexpr string_view onComment = "// ice-fmt: on";
+
+    // Returns the index of the comment 'marker' among the comments and directives that have lines of their own before a
+    // node, if it is one of them.
+    optional<size_t> markerIndex(const Node& node, string_view marker)
+    {
+        const vector<Trivia>& leading = firstToken(node).leading;
+        for (size_t i = 0; i < leading.size(); ++i)
+        {
+            if (leading[i].ownLine && withoutTrailingBlanks(leading[i].text) == marker)
+            {
+                return i;
+            }
+        }
+        return nullopt;
+    }
+
+    // The nodes from 'first' to 'last' as written, after the comments that lead 'first' up to the one at 'marker'. The
+    // text goes on lines of its own, as a comment does, so its lines keep their indentation relative to the first one.
+    Layout writtenText(const Node& first, const Node& last, size_t marker)
+    {
+        const Token& token = firstToken(first);
+        bool afterMarker = marker + 1 < token.leading.size();
+        const char* start = afterMarker ? token.leading[marker + 1].text.data() : token.text.data();
+        int column = afterMarker ? token.leading[marker + 1].column : token.column;
+        bool blankLine = afterMarker ? token.leading[marker + 1].blankLineBefore : token.blankLineBefore;
+
+        const Token& lastOfLast = lastToken(last);
+        string_view end = lastOfLast.trailing.empty() ? lastOfLast.text : lastOfLast.trailing.back().text;
+        string_view written{start, static_cast<size_t>(end.data() + end.size() - start)};
+
+        vector<Trivia> trivia{token.leading.begin(), token.leading.begin() + static_cast<ptrdiff_t>(marker) + 1};
+        trivia.push_back({.text = written, .column = column, .ownLine = true, .blankLineBefore = blankLine});
+        return leadingTrivia(trivia);
+    }
+
+    // The children that a comment leaves as written, from 'children[first]', and the index of the child after them.
+    // 'end' is the index after the last child that formatting can leave off.
+    struct AsWritten
+    {
+        Layout layout;
+        size_t next;
+    };
+
+    optional<AsWritten> asWritten(const vector<Node>& children, size_t first, size_t end)
+    {
+        size_t next = first + 1;
+        optional<size_t> marker = markerIndex(children[first], ignoreComment);
+        if (!marker)
+        {
+            marker = markerIndex(children[first], offComment);
+            if (!marker)
+            {
+                return nullopt;
+            }
+            while (next < end && !markerIndex(children[next], onComment))
+            {
+                ++next;
+            }
+        }
+        return AsWritten{writtenText(children[first], children[next - 1], *marker), next};
+    }
+
     Layout file(const Node& node)
     {
         vector<Layout> parts;
@@ -337,7 +405,19 @@ namespace
                     parts.push_back(hardline());
                 }
             }
-            parts.push_back(endOfFile ? leadingTrivia(child.token.leading) : print(child));
+            if (endOfFile)
+            {
+                parts.push_back(leadingTrivia(child.token.leading));
+            }
+            else if (optional<AsWritten> written = asWritten(node.children, i, node.children.size() - 1))
+            {
+                parts.push_back(std::move(written->layout));
+                i = written->next - 1;
+            }
+            else
+            {
+                parts.push_back(print(child));
+            }
         }
 
         if (!parts.empty())
@@ -494,7 +574,16 @@ namespace
                     parts.push_back(hardline());
                 }
             }
-            parts.push_back(print(child));
+
+            if (optional<AsWritten> written = asWritten(node.children, i, node.children.size() - 1))
+            {
+                parts.push_back(std::move(written->layout));
+                i = written->next - 1;
+            }
+            else
+            {
+                parts.push_back(print(child));
+            }
         }
         return concat(std::move(parts));
     }

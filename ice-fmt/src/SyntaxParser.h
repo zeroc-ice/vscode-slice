@@ -38,6 +38,9 @@ namespace IceFmt
         /// The one-based line of the token.
         int line;
 
+        /// The zero-based column of the first character, in bytes.
+        int column;
+
         /// Whether this token is the first one on its line.
         bool startsLine;
 

@@ -22,6 +22,15 @@ git ls-files -z '*.ice' ':!:test/errors' | xargs -0 ice-fmt --check
 - `-h`, `--help` shows the usage.
 - `-v`, `--version` shows the version.
 
+To leave part of a file as written, put one of these comments on a line of its own:
+
+- `// ice-fmt: ignore`, before a definition or member, leaves that definition or member as written.
+- `// ice-fmt: off`, before a definition or member, leaves it and the definitions and members after it as written, up to
+  the one that `// ice-fmt: on` precedes, or to the end of their module, class, or other body.
+
+The text left as written takes the indentation of the code around it, and its lines keep their indentation relative to
+the first one.
+
 `ice-fmt` reads a file without preprocessing it, so a macro that stands in for Slice syntax is a syntax error. A file
 with a syntax error is reported as `file:line: message` and left unchanged.
 
