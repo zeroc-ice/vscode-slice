@@ -1,5 +1,5 @@
 {
-  "rust-analyzer.linkedProjects": ["./language-servers/slice/Cargo.toml"],
+  "rust-analyzer.linkedProjects": ["./slice-lsp/Cargo.toml"],
   "rust-analyzer.rustfmt.extraArgs": ["+nightly"],
   "rust-analyzer.check.command": "clippy",
   "[rust]": {
@@ -19,7 +19,7 @@
   ],
   "slice.configurations": [
     {
-      "paths": ["editors/vscode/slice"],
+      "paths": ["vscode-extension/slice"],
       "addWellKnownTypes": false
     }
   ]
