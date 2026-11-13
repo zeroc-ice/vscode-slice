@@ -216,8 +216,7 @@ namespace
         parts.reserve(token.trailing.size());
         for (const Trivia& trivia : token.trailing)
         {
-            // The comment keeps its column, which often aligns it with the comments of the lines around it.
-            parts.push_back(suffix(string{withoutTrailingBlanks(trivia.text)}, trivia.column));
+            parts.push_back(suffix(string{withoutTrailingBlanks(trivia.text)}));
         }
         return concat(std::move(parts));
     }
@@ -410,11 +409,7 @@ namespace
             parts.push_back(space());
         }
         parts.push_back(leadingTrivia(leading));
-        for (const Trivia& comment : token.trailing)
-        {
-            // The comment moves left by the column the semicolon took.
-            parts.push_back(suffix(string{withoutTrailingBlanks(comment.text)}, comment.column - 1));
-        }
+        parts.push_back(trailingTrivia(token));
         return concat(std::move(parts));
     }
 

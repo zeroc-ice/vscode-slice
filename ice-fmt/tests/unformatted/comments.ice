@@ -10,9 +10,15 @@ module Demo
             // A comment on its own line takes the indentation of the code.
     enum Color
     {
-        Red,    // A comment that follows code keeps its column.
-        Green,  // Green
-        Blue    // Blue
+        Red, // Comments that follow code on consecutive lines line up.
+        Green,      // Green
+        Blue  // Blue
+    }
+
+    struct Limits
+    {
+        string aVeryLongMemberNameThatPushesTheTrailingCommentFarToTheRightSide;    // short
+        int x;      // In the column of the comment above, this comment would end past 120 columns.
     }
 
       /* A block comment keeps the indentation	

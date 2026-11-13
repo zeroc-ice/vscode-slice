@@ -59,14 +59,7 @@ namespace
                             }
                         },
                         [&](const Layout::HardLine&) { startLine(); },
-                        [&](const Layout::Suffix& suffix)
-                        {
-                            size_t length = _out.size() - _lineStart;
-                            auto column = static_cast<size_t>(suffix.column);
-                            _out.append(column > length ? column - length : 1, ' ');
-                            _out += suffix.text;
-                            _endOfLine = true;
-                        },
+                        [&](const Layout::Suffix& suffix) { writeSuffix(suffix.text); },
                         [&](const Layout::EndOfLine&) { _endOfLine = !lineIsEmpty(); },
                         [&](const Layout::Indent& indent)
                         { commands.push_back({command.indent + indentWidth, command.flat, indent.contents.get()}); },
@@ -85,7 +78,7 @@ namespace
                         }},
                     command.layout->value);
             }
-            return std::move(_out);
+            return alignSuffixes();
         }
 
     private:
@@ -98,17 +91,84 @@ namespace
             const Layout* layout;
         };
 
+        // The suffixes of a line: the offset in _out where the code before them ends, the columns that code takes, and
+        // the columns they take with the space that separates each one.
+        struct LineSuffix
+        {
+            int line;
+            size_t codeEnd;
+            int codeColumns;
+            int suffixColumns;
+
+            // The suffixes start one space after the code, and no later than where they still fit in the line width.
+            [[nodiscard]] int lowestStart() const { return codeColumns + 1; }
+            [[nodiscard]] int highestStart() const { return max(lowestStart(), lineWidth + 1 - suffixColumns); }
+        };
+
         [[nodiscard]] bool lineIsEmpty() const { return _out.size() == _lineStart; }
 
-        void startLine()
+        void trimLine()
         {
             while (!lineIsEmpty() && _out.back() == ' ')
             {
                 _out.pop_back();
             }
+        }
+
+        void startLine()
+        {
+            trimLine();
             _out += '\n';
             _lineStart = _out.size();
+            _line++;
             _endOfLine = false;
+        }
+
+        // Writes a suffix one space after the code of its line. alignSuffixes moves it to its column.
+        void writeSuffix(string_view text)
+        {
+            trimLine();
+            if (_suffixes.empty() || _suffixes.back().line != _line)
+            {
+                _suffixes.push_back({_line, _out.size(), columns(string_view{_out}.substr(_lineStart)), 0});
+            }
+            _suffixes.back().suffixColumns += 1 + columns(text);
+            _out += ' ';
+            _out += text;
+            _endOfLine = true;
+        }
+
+        // Returns the rendered text with the suffixes of consecutive lines in one column, as clang-format aligns
+        // trailing comments: one space after the longest code of those lines, unless that column pushes a suffix past
+        // the line width where it fit before. That suffix starts a new run of lines instead.
+        [[nodiscard]] string alignSuffixes() const
+        {
+            string aligned;
+            size_t copied = 0;
+            size_t first = 0;
+            while (first < _suffixes.size())
+            {
+                int start = _suffixes[first].lowestStart();
+                int latest = _suffixes[first].highestStart();
+                size_t last = first + 1;
+                while (last < _suffixes.size() && _suffixes[last].line == _suffixes[last - 1].line + 1 &&
+                       _suffixes[last].lowestStart() <= latest && _suffixes[last].highestStart() >= start)
+                {
+                    start = max(start, _suffixes[last].lowestStart());
+                    latest = min(latest, _suffixes[last].highestStart());
+                    last++;
+                }
+
+                for (size_t i = first; i < last; ++i)
+                {
+                    aligned.append(_out, copied, _suffixes[i].codeEnd - copied);
+                    aligned.append(static_cast<size_t>(start - _suffixes[i].lowestStart()), ' ');
+                    copied = _suffixes[i].codeEnd;
+                }
+                first = last;
+            }
+            aligned.append(_out, copied);
+            return aligned;
         }
 
         void writeText(string_view text, int indent)
@@ -242,11 +302,15 @@ namespace
 
         string _out;
 
-        // The offset in _out of the line being written.
+        // The offset in _out of the line being written, and its zero-based number.
         size_t _lineStart = 0;
+        int _line = 0;
 
         // Whether the current line is complete: the next text starts a new line.
         bool _endOfLine = false;
+
+        // The suffixes of each line that has any, in order.
+        vector<LineSuffix> _suffixes;
     };
 }
 
@@ -281,9 +345,9 @@ IceFmt::hardline()
 }
 
 Layout
-IceFmt::suffix(string text, int column)
+IceFmt::suffix(string text)
 {
-    return {Layout::Suffix{.text = std::move(text), .column = column}};
+    return {Layout::Suffix{std::move(text)}};
 }
 
 Layout

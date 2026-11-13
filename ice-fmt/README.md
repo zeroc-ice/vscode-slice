@@ -39,7 +39,8 @@ The exit status is `1` when the command line is invalid, when a file can't be fo
 - Other metadata stays on its line or the line above, as written, unless it doesn't fit there. Blank lines between
   definitions and members stay too, at most one in a row.
 - Comments and directives keep their text and take the indentation of the code around them. A doc comment on a line
-  with code moves above that line, where the Slice compiler reads it.
+  with code moves above that line, where the Slice compiler reads it. The comments that end consecutive lines line
+  up, one space after the longest code of those lines, unless that pushes one of them past 120 columns.
 - No line ends with a space or a tab, and the file ends with one line break.
 
 ## Building
