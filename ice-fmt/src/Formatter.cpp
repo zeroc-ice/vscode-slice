@@ -88,23 +88,6 @@ namespace
         return definition.children[index].token.text == "local" ? index + 1 : index;
     }
 
-    // Returns whether a node is a definition, forward declarations included, rather than a data member, enumerator,
-    // parameter, or operation.
-    bool isDefinition(const Node& node)
-    {
-        constexpr array keywords{
-            TokenKind::Module,
-            TokenKind::Class,
-            TokenKind::Interface,
-            TokenKind::Exception,
-            TokenKind::Struct,
-            TokenKind::Enum,
-            TokenKind::Sequence,
-            TokenKind::Dictionary,
-            TokenKind::Const};
-        return contains(keywords, node.children[keywordIndex(node)].token.kind);
-    }
-
     // Returns whether a node is the forward declaration of a definition, as 'class Node;' is of 'class Node { ... }'.
     bool forwardDeclares(const Node& node, const Node& definition)
     {
@@ -360,9 +343,9 @@ namespace
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
-    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A definition
-    // starts the line after its metadata, and so does a node that the author put there. Any other node follows its
-    // metadata on the same line when it fits there with the last metadata list on one line.
+    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A container starts
+    // the line after its metadata, and so does a node that the author put there. Any other node follows its metadata
+    // on the same line when it fits there with the last metadata list on one line.
     Layout afterLeadingMetadata(const Node& node, size_t count, Layout rest)
     {
         if (count == 0)
@@ -379,7 +362,7 @@ namespace
         }
 
         // The last metadata list shares a group with the node, so a list that breaks puts the node on the next line.
-        bool ownLine = isDefinition(node) || startsLine(node.children[count]);
+        bool ownLine = isContainer(node) || startsLine(node.children[count]);
         parts.push_back(beforeText(firstToken(last)));
         parts.push_back(group(concat(directives(last), ownLine ? hardline() : line(), std::move(rest))));
         return concat(std::move(parts));

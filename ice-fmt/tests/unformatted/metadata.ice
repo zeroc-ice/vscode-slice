@@ -3,17 +3,17 @@
 
 ["cs:namespace:Example"] module Demo
 {
-    // The metadata of a definition goes on the line above it.
+    // The metadata of a definition with a body goes on the line above it.
     ["deprecated"] struct Old { int x; }
     ["deprecated"] enum Older
     {
         First
     }
 
-    // So does the metadata of a sequence, dictionary, constant, or forward declaration.
+    // The metadata of any other declaration stays on its line or on the line above, as written.
     ["deprecated"] sequence<Old> OldSeq;
-    ["deprecated"] const int Oldest = 1;
-    ["deprecated"] class Forward;
+    ["deprecated"]
+    sequence<Older> OlderSeq;
 
     // The directives go one per line when they don't fit on one line, and what they lead starts the next line.
     ["cpp:type:std::map<std::string, std::vector<std::string>>", "java:type:java.util.TreeMap<String, java.util.List<String>>", "cs:generic:SortedDictionary"] dictionary<string, Ice::StringSeq> Index;
@@ -32,7 +32,6 @@
 
     class Job
     {
-        // The metadata of a data member stays on its line or on the line above, as written.
         [ "cpp:type:wstring" ]string owner;
         ["deprecated:use owner"]
         string user;

@@ -6,8 +6,7 @@ module Demo
     local interface Logger;
     local interface Logger { void print(string message); }
 
-    ["cpp:type:std::list<std::string>"]
-    local sequence<string> StringList;
+    ["cpp:type:std::list<std::string>"] local sequence<string> StringList;
 
     local class EndpointInfo extends Info implements Logger, Printer
     {
