@@ -33,18 +33,21 @@ The exit status is `1` when the command line is invalid, when a file can't be fo
 - Indentation is 4 spaces, and lines are broken where they can be to fit in 120 columns.
 - Braces go on their own line, except for an empty `{}` and a definition written on one line that still fits.
 - A blank line separates a module, class, interface, exception, struct, or enum from the definitions around it, but
-  not from its own forward declaration.
-- The metadata of a module, class, interface, exception, struct, enum, or operation goes on the line above it, forward
-  declarations included.
-- An operation that doesn't fit moves its `throws` clause to its own line, then puts its parameters one per line. An
-  `extends` clause moves to its own line first. Other lists that don't fit go one item per line.
-- The metadata of a sequence, dictionary, constant, data member, enumerator, or parameter stays on its line or the
-  line above, as written, unless it doesn't fit there. Blank lines between definitions and members stay too, at most
-  one in a row.
-- Several metadata lists that lead the same thing go one per line, and what they lead starts the next line.
-- Comments and directives keep their text and take the indentation of the code around them. A doc comment on a line
-  with code moves above that line, where the Slice compiler reads it. The comments that end consecutive lines line
-  up, one space after the longest code of those lines.
+  not from its own forward declaration. Other blank lines stay, at most one in a row.
+- An operation goes on one line when it fits, whatever line breaks the author put in it. When it doesn't fit, its
+  `throws` clause moves to its own line, then its parameters go one per line.
+- An `extends` clause that doesn't fit moves to its own line, then its names go one per line. Any other list that
+  doesn't fit goes one item per line.
+- Metadata:
+  - The metadata of a module, class, interface, exception, struct, enum, or operation goes on the line above it. So
+    does the metadata of a forward declaration.
+  - The metadata of a sequence, dictionary, constant, data member, enumerator, or parameter stays on its line or on
+    the line above, as the author wrote it. It moves to the line above when the two don't fit on one line.
+  - Several metadata lists go one per line, and what they lead starts the next line. In a parameter list, this puts
+    each parameter on its own line.
+- Comments and directives keep their text and take the indentation of the code around them.
+- A doc comment on a line with code moves above that line, where the Slice compiler reads it.
+- The comments that end consecutive lines start in one column, one space after the longest code of those lines.
 - No line ends with a space or a tab, and the file ends with one line break.
 
 ## Building
