@@ -256,9 +256,9 @@ namespace
 
     // Groups a list that starts with the token 'open'. The comments before that token would break the group, so the
     // caller lays them out before it.
-    Layout listGroup(const Token& open, Layout items, bool broken = false)
+    Layout listGroup(const Token& open, Layout items)
     {
-        return group(concat(textAndTrailingTrivia(open), indent(std::move(items))), broken);
+        return group(concat(textAndTrailingTrivia(open), indent(std::move(items))));
     }
 
     // What separates a child from the child before it. 'afterComma' is what follows a comma.
@@ -370,8 +370,7 @@ namespace
 
     // An operation that doesn't fit on one line is broken in three steps, each one only when the previous ones are
     // not enough: its metadata takes the line above, its throws clause takes a line of its own, then each parameter
-    // takes one. Each step is a group inside the group of the previous step. A step the author took stays, with the
-    // steps before it, even when the operation fits on one line.
+    // takes one. Each step is a group inside the group of the previous step.
     Layout operation(const Node& node)
     {
         size_t first = leadingMetadata(node);
@@ -390,9 +389,7 @@ namespace
             }
             tokens.push_back(child.kind == NodeKind::Clause ? clause(child) : print(child));
         }
-        const Node& beforeSemicolon = node.children[node.children.size() - 2];
-        bool throwsOwnLine = beforeSemicolon.kind == NodeKind::Clause && startsLine(beforeSemicolon);
-        Layout signature = concat(beforeText(start.token), group(concat(std::move(tokens)), throwsOwnLine));
+        Layout signature = concat(beforeText(start.token), group(concat(std::move(tokens))));
         return afterLeadingMetadata(node, first, std::move(signature));
     }
 
@@ -441,8 +438,7 @@ namespace
     }
 
     // The parameters of an operation, or the types of a sequence or dictionary, are on one line when they fit, and each
-    // one has its own line after the opening token otherwise. Parameters keep a line each when the author started a
-    // line with one of them.
+    // one has its own line after the opening token otherwise.
     Layout list(const Node& node)
     {
         vector<Layout> items;
@@ -452,10 +448,7 @@ namespace
         }
         appendChildren(items, node, 1, node.children.size(), line());
         const Token& open = node.children.front().token;
-        auto startsLineAsParameter = [](const Node& child)
-        { return child.kind == NodeKind::Contained && startsLine(child); };
-        bool broken = node.kind == NodeKind::Parameters && ranges::any_of(node.children, startsLineAsParameter);
-        return concat(beforeText(open), listGroup(open, concat(std::move(items)), broken));
+        return concat(beforeText(open), listGroup(open, concat(std::move(items))));
     }
 
     // The members of a body, each after a line break, and each comma after its member. No blank line follows the

@@ -35,9 +35,8 @@ The exit status is `1` when the command line is invalid, when a file can't be fo
 - A blank line separates a module, class, interface, exception, struct, or enum from the definitions around it, but
   not from its own forward declaration. Its metadata goes on the line above.
 - An operation that doesn't fit moves its metadata to the line above, then its `throws` clause to its own line, then
-  puts its parameters one per line. A parameter or `throws` clause that the author started a line with keeps that step,
-  and the steps before it, even when the operation fits. An `extends` clause moves to its own line first. Other lists
-  that don't fit go one item per line.
+  puts its parameters one per line. An `extends` clause moves to its own line first. Other lists that don't fit go one
+  item per line.
 - Other metadata stays on its line or the line above, as written, unless it doesn't fit there. Blank lines between
   definitions and members stay too, at most one in a row.
 - Comments and directives keep their text and take the indentation of the code around them. A doc comment on a line
