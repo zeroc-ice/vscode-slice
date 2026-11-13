@@ -22,7 +22,7 @@ npm install
 The extension packages the Slice language server (written in Rust) from `editors/vscode/server/target`.
 To build it there, run from the repository root:
 ```shell
-cargo build --release --target <TARGET> --manifest-path language-server/Cargo.toml --target-dir editors/vscode/server/target
+cargo build --release --target <TARGET> --manifest-path language-servers/slice/Cargo.toml --target-dir editors/vscode/server/target
 ```
 Where `TARGET` is one of the architectures where the extension will be run.
 (See [Rust Supported Platforms](https://doc.rust-lang.org/beta/rustc/platform-support.html) for a full list of architectures).

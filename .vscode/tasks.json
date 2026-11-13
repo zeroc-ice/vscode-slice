@@ -33,7 +33,7 @@
       "type": "shell",
       "command": "cargo build",
       "options": {
-        "cwd": "${workspaceFolder}/language-server"
+        "cwd": "${workspaceFolder}/language-servers/slice"
       },
       "group": "build",
       "problemMatcher": ["$rustc"]
