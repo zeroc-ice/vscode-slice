@@ -15,14 +15,13 @@ module Demo
         idempotent Ice::StringSeq listQueuedOnTray(string user, Color color, bool doubleSided,
             optional(1) string tray);
 
-        // Metadata written on the line above stays there.
+        // The metadata of an operation goes on the line above it.
         ["amd"]
         void pause(string user);
 
-        // The metadata moves to the line above.
         ["amd"] idempotent Ice::StringSeq listQueuedDocuments(string user, Color color, bool doubleSided, optional(1) int max);
 
-        // Then the throws clause moves to its own line.
+        // An operation that doesn't fit moves its throws clause to its own line.
         void cancel(string user, Ice::StringSeq documents, bool notifyOwner, out Ice::StringSeq cancelled) throws PrinterException;
 
         ["amd"] void cancelAll(string user, bool notifyOwners, out Ice::StringSeq cancelled, out int remaining) throws PrinterException;

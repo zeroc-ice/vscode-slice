@@ -88,6 +88,23 @@ namespace
         return definition.children[index].token.text == "local" ? index + 1 : index;
     }
 
+    // Returns whether a node is a definition, forward declarations included, rather than a data member, enumerator,
+    // parameter, or operation.
+    bool isDefinition(const Node& node)
+    {
+        constexpr array keywords{
+            TokenKind::Module,
+            TokenKind::Class,
+            TokenKind::Interface,
+            TokenKind::Exception,
+            TokenKind::Struct,
+            TokenKind::Enum,
+            TokenKind::Sequence,
+            TokenKind::Dictionary,
+            TokenKind::Const};
+        return contains(keywords, node.children[keywordIndex(node)].token.kind);
+    }
+
     // Returns whether a node is the forward declaration of a definition, as 'class Node;' is of 'class Node { ... }'.
     bool forwardDeclares(const Node& node, const Node& definition)
     {
@@ -343,9 +360,10 @@ namespace
         return indent(concat(line(), print(node.children.front()), group(indent(concat(std::move(names))))));
     }
 
-    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A container starts
-    // the line after its metadata, and so does a node that the author put there. Any other node follows its metadata
-    // on the same line when it fits there with the last metadata list on one line.
+    // Lays out the 'count' metadata lists that lead a node, then 'rest', which is what follows them. A definition or an
+    // operation starts the line after its metadata, as rustfmt puts an item after its attributes, and so does a node
+    // that the author put there. Any other node follows its metadata on the same line when it fits there with the last
+    // metadata list on one line.
     Layout afterLeadingMetadata(const Node& node, size_t count, Layout rest)
     {
         if (count == 0)
@@ -362,15 +380,15 @@ namespace
         }
 
         // The last metadata list shares a group with the node, so a list that breaks puts the node on the next line.
-        bool ownLine = isContainer(node) || startsLine(node.children[count]);
+        bool ownLine = isDefinition(node) || node.kind == NodeKind::Operation || startsLine(node.children[count]);
         parts.push_back(beforeText(firstToken(last)));
         parts.push_back(group(concat(directives(last), ownLine ? hardline() : line(), std::move(rest))));
         return concat(std::move(parts));
     }
 
-    // An operation that doesn't fit on one line is broken in three steps, each one only when the previous ones are
-    // not enough: its metadata takes the line above, its throws clause takes a line of its own, then each parameter
-    // takes one. Each step is a group inside the group of the previous step.
+    // An operation that doesn't fit on one line is broken in two steps, the second one only when the first one is not
+    // enough: its throws clause takes a line of its own, then each parameter takes one. The parameters are a group
+    // inside the group of the throws clause.
     Layout operation(const Node& node)
     {
         size_t first = leadingMetadata(node);
