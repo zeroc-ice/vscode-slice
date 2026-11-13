@@ -13,16 +13,16 @@ ext install "Slice"
 
 ## Prerequisites
 
-To install the extension's dependencies, run from the `vscode` directory:
+To install the extension's dependencies, run from the `editors/vscode` directory:
 
 ```shell
 npm install
 ```
 
-The extension packages the Slice language server (written in Rust) from `vscode/server/target`.
+The extension packages the Slice language server (written in Rust) from `editors/vscode/server/target`.
 To build it there, run from the repository root:
 ```shell
-cargo build --release --target <TARGET> --manifest-path server/Cargo.toml --target-dir vscode/server/target
+cargo build --release --target <TARGET> --manifest-path server/Cargo.toml --target-dir editors/vscode/server/target
 ```
 Where `TARGET` is one of the architectures where the extension will be run.
 (See [Rust Supported Platforms](https://doc.rust-lang.org/beta/rustc/platform-support.html) for a full list of architectures).
@@ -31,11 +31,11 @@ each time targeting another platform architecture.
 
 ## Packaging
 
-To build and package the extension, run from the `vscode` directory:
+To build and package the extension, run from the `editors/vscode` directory:
 
 ```shell
 npx @vscode/vsce package
 ```
 
-This generates a `.vsix` package file in the `vscode` directory.
+This generates a `.vsix` package file in the `editors/vscode` directory.
 This package can be installed by drag-and-dropping it into the "Extensions" panel of VSCode.

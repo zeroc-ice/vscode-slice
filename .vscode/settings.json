@@ -19,7 +19,7 @@
   ],
   "slice.configurations": [
     {
-      "paths": ["vscode/slice"],
+      "paths": ["editors/vscode/slice"],
       "addWellKnownTypes": false
     }
   ]

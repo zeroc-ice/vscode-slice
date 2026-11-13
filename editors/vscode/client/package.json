@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/zeroc-ice/slice-tools",
-    "directory": "vscode/client"
+    "directory": "editors/vscode/client"
   },
   "engines": {
     "vscode": "^1.75.0"
