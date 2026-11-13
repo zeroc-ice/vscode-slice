@@ -21,7 +21,7 @@ runs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          server/target/
+          slice-lsp/target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
@@ -38,5 +38,5 @@ runs:
       env:
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
       run: |
-        cargo build --manifest-path server/Cargo.toml ${{ inputs.cargo-build-args }} --target ${{ inputs.target }}
+        cargo build --manifest-path slice-lsp/Cargo.toml ${{ inputs.cargo-build-args }} --target ${{ inputs.target }}
       shell: bash

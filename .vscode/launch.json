@@ -10,29 +10,12 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceRoot}"],
-      "outFiles": ["${workspaceRoot}/client/out/**/*.js"],
-      "preLaunchTask": {
-        "type": "npm",
-        "script": "watch"
-      },
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/vscode-extension"],
+      "outFiles": ["${workspaceFolder}/vscode-extension/client/out/**/*.js"],
+      "preLaunchTask": "Watch Client",
       "env": {
-        "SERVER_PATH": "${workspaceRoot}/server/target/",
-        "BUILT_IN_SLICE_PATH": "${workspaceRoot}/slice/"
-      }
-    },
-    {
-      "name": "Launch Client (Production)",
-      "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceRoot}"],
-      "outFiles": ["${workspaceRoot}/client/out/**/*.js"],
-      "preLaunchTask": "Build All (Production)",
-      "env": {
-        "NODE_ENV": "production",
-        "SERVER_PATH": "${workspaceRoot}/server/target/",
-        "BUILT_IN_SLICE_PATH": "${workspaceRoot}/slice/"
+        "SERVER_PATH": "${workspaceFolder}/slice-lsp/target/",
+        "BUILT_IN_SLICE_PATH": "${workspaceFolder}/vscode-extension/slice/"
       }
     }
   ]

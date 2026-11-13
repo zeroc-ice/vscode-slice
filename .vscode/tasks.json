@@ -5,6 +5,7 @@
       "label": "Build Client",
       "type": "npm",
       "script": "compile",
+      "path": "vscode-extension",
       "group": "build",
       "presentation": {
         "panel": "dedicated",
@@ -13,8 +14,10 @@
       "problemMatcher": ["$tsc"]
     },
     {
+      "label": "Watch Client",
       "type": "npm",
       "script": "watch",
+      "path": "vscode-extension",
       "isBackground": true,
       "group": {
         "kind": "build"
@@ -30,7 +33,7 @@
       "type": "shell",
       "command": "cargo build",
       "options": {
-        "cwd": "${workspaceFolder}/server"
+        "cwd": "${workspaceFolder}/slice-lsp"
       },
       "group": "build",
       "problemMatcher": ["$rustc"]

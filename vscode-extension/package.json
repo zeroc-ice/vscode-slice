@@ -101,10 +101,11 @@
   "homepage": "https://zeroc.com/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zeroc-ice/vscode-slice"
+    "url": "https://github.com/zeroc-ice/slice-tools",
+    "directory": "vscode-extension"
   },
   "bugs": {
-    "url": "https://github.com/zeroc-ice/vscode-slice/issues"
+    "url": "https://github.com/zeroc-ice/slice-tools/issues"
   },
   "scripts": {
     "build:prod": "NODE_ENV=production tsc -b",

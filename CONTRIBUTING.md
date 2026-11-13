@@ -1,6 +1,6 @@
-# Contributing to Slice Extension for Visual Studio Code
+# Contributing to Slice Tools
 
-Thank you for your interest in contributing to the Slice Extension for Visual Studio Code!
+Thank you for your interest in contributing to Slice Tools!
 
 ## How to Contribute
 
@@ -12,7 +12,7 @@ To contribute code or documentation to this project, please follow these steps:
 
 2. If you're planning to make a significant contribution, such as a new feature
    or major changes, please discuss your ideas with the community first by
-   starting a [discussion](https://github.com/zeroc-ice/vscode-slice/discussions) or by
+   starting a [discussion](https://github.com/zeroc-ice/slice-tools/discussions) or by
    contacting us via [email](mailto:contributing@zeroc.com).
 
 3. Fork this repository.
@@ -28,6 +28,6 @@ accepted: we may reject a pull request for any reason, or no reason.
 
 ## Contact
 
-- GitHub Discussions: <https://github.com/zeroc-ice/vscode-slice/discussions>
+- GitHub Discussions: <https://github.com/zeroc-ice/slice-tools/discussions>
 - Twitter: <https://twitter.com/zeroc>
 - Email: <contributing@zeroc.com>
