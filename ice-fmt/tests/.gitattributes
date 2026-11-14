@@ -1,0 +1,2 @@
+# The test cases are compared byte for byte, line endings and trailing blanks included.
+*.ice -text -whitespace

@@ -1,0 +1,93 @@
+name: ice-fmt
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "main"
+
+permissions:
+  contents: read
+
+# See https://docs.github.com/en/actions/using-jobs/using-concurrency#example-using-a-fallback-value
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-ice-fmt:
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            target: x86_64-apple-darwin
+            cmake-args: -DCMAKE_OSX_ARCHITECTURES=x86_64
+            bin: ice-fmt
+          - os: macos-26
+            target: aarch64-apple-darwin
+            cmake-args: -DCMAKE_OSX_ARCHITECTURES=arm64
+            bin: ice-fmt
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bin: ice-fmt
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            bin: ice-fmt
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            bin: Release/ice-fmt.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure
+        run: >
+          cmake -S ice-fmt -B ice-fmt/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+          ${{ matrix.cmake-args }}
+
+      - name: Build
+        run: cmake --build ice-fmt/build --config Release
+
+      - name: Test
+        run: ctest --test-dir ice-fmt/build --build-config Release --output-on-failure
+
+      - name: Upload ice-fmt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ice-fmt_${{ matrix.target }}
+          path: ./ice-fmt/build/${{ matrix.bin }}
+          if-no-files-found: error
+
+  clang:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install LLVM
+        run: brew install llvm
+
+      - name: Check the format
+        run: |
+          "$(brew --prefix llvm)/bin/clang-format" --dry-run --Werror ice-fmt/src/*.cpp ice-fmt/src/*.h
+
+      # clang-tidy reads the headers the compiler uses, so the build uses Homebrew's clang and names the SDK.
+      - name: Configure with clang-tidy
+        run: >
+          cmake -S ice-fmt -B ice-fmt/build
+          "-DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++"
+          "-DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path)"
+          "-DCMAKE_CXX_CLANG_TIDY=$(brew --prefix llvm)/bin/clang-tidy"
+
+      - name: Build
+        run: cmake --build ice-fmt/build
