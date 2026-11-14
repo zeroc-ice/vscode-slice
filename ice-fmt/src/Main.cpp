@@ -15,30 +15,53 @@
 #include <system_error>
 #include <vector>
 
+#ifdef _WIN32
+#    define NOMINMAX
+#    include <windows.h>
+#endif
+
 using namespace std;
 using namespace IceFmt;
 
 namespace
 {
-    // Returns the Slice files in a directory and in the directories below it, in order. A name that starts with a
-    // dot is skipped, and so is node_modules, where the Ice package for JavaScript keeps its own Slice files.
-    vector<string> sliceFilesIn(const string& directory)
+    // Returns a path as text for the console. On Windows, the text is in the code page of the console, as the messages
+    // of the Slice compilers are: the code page of the process doesn't have every character a file name can hold.
+    string consoleText(const filesystem::path& path)
     {
-        vector<string> files;
+#ifdef _WIN32
+        const wstring& wide = path.native();
+        auto wideSize = static_cast<int>(wide.size());
+        UINT codePage = GetConsoleOutputCP();
+        int size = WideCharToMultiByte(codePage, 0, wide.data(), wideSize, nullptr, 0, nullptr, nullptr);
+        string text(static_cast<size_t>(size), '\0');
+        WideCharToMultiByte(codePage, 0, wide.data(), wideSize, text.data(), size, nullptr, nullptr);
+        return text;
+#else
+        return path.string();
+#endif
+    }
+
+    // Returns the .ice files in a directory, recursively, in order. It skips the files and directories whose name
+    // starts with a dot, and node_modules directories, where npm installs the Slice files of the Ice for JavaScript
+    // package.
+    vector<filesystem::path> sliceFilesIn(const filesystem::path& directory)
+    {
+        vector<filesystem::path> files;
         filesystem::recursive_directory_iterator end;
         for (filesystem::recursive_directory_iterator entry{directory}; entry != end; ++entry)
         {
-            string name = entry->path().filename().string();
-            if (name.starts_with('.') || name == "node_modules")
+            filesystem::path name = entry->path().filename();
+            if (name.native().starts_with('.') || name == "node_modules")
             {
                 if (entry->is_directory())
                 {
                     entry.disable_recursion_pending();
                 }
             }
-            else if (entry->is_regular_file() && entry->path().extension() == ".ice")
+            else if (entry->is_regular_file() && name.extension() == ".ice")
             {
-                files.push_back(entry->path().string());
+                files.push_back(entry->path());
             }
         }
         ranges::sort(files);
@@ -48,12 +71,13 @@ namespace
     // Formats a file in place. With 'check', it writes nothing and lists the file when formatting would change it.
     // Returns false when the file can't be read, formatted, or written, and with 'check' when formatting would change
     // it.
-    bool formatFile(const string& file, bool check, string_view program)
+    bool formatFile(const filesystem::path& file, bool check, string_view program)
     {
+        string name = consoleText(file);
         ifstream in{file, ios::binary};
         if (!in)
         {
-            cerr << program << ": error: cannot open '" << file << "' for reading" << endl;
+            cerr << program << ": error: cannot open '" << name << "' for reading" << endl;
             return false;
         }
         string text{istreambuf_iterator<char>{in}, istreambuf_iterator<char>{}};
@@ -65,12 +89,12 @@ namespace
         }
         catch (const SyntaxError& error)
         {
-            cerr << file << ':' << error.line << ": " << error.what() << endl;
+            cerr << name << ':' << error.line << ": " << error.what() << endl;
             return false;
         }
         catch (const logic_error& error)
         {
-            cerr << file << ": internal error: " << error.what() << endl;
+            cerr << name << ": internal error: " << error.what() << endl;
             return false;
         }
 
@@ -80,7 +104,7 @@ namespace
         }
         if (check)
         {
-            cout << file << endl;
+            cout << name << endl;
             return false;
         }
 
@@ -89,7 +113,7 @@ namespace
         out.close();
         if (!out)
         {
-            cerr << program << ": error: cannot write '" << file << "'" << endl;
+            cerr << program << ": error: cannot write '" << name << "'" << endl;
             return false;
         }
         return true;
@@ -98,7 +122,7 @@ namespace
     void usage(ostream& out, string_view program)
     {
         out << "Usage: " << program << " [options] paths...\n";
-        out << "Formats .ice Slice files in place. A directory stands for the .ice files in it and below it.\n"
+        out << "Formats .ice Slice files in place. Given a directory, formats all its .ice files, recursively.\n"
                "Options:\n"
                "-h, --help               Show this message.\n"
                "-v, --version            Display the version.\n"
@@ -107,17 +131,25 @@ namespace
     }
 }
 
+// On Windows, the arguments are wide strings, as the Slice compilers take them: the code page of the process doesn't
+// have every character a file name can hold.
+#ifdef _WIN32
+int
+wmain(int argc, wchar_t* argv[])
+#else
 int
 main(int argc, char* argv[])
+#endif
 {
+    string program = consoleText(argv[0]);
     bool check = false;
-    vector<string> paths;
+    vector<filesystem::path> paths;
     for (int i = 1; i < argc; ++i)
     {
-        string_view argument = argv[i];
+        filesystem::path argument = argv[i];
         if (argument == "-h" || argument == "--help")
         {
-            usage(cout, argv[0]);
+            usage(cout, program);
             return EXIT_SUCCESS;
         }
         if (argument == "-v" || argument == "--version")
@@ -130,28 +162,28 @@ main(int argc, char* argv[])
         {
             check = true;
         }
-        else if (argument.starts_with('-'))
+        else if (argument.native().starts_with('-'))
         {
-            cerr << argv[0] << ": error: unknown option '" << argument << "'" << endl;
-            usage(cerr, argv[0]);
+            cerr << program << ": error: unknown option '" << consoleText(argument) << "'" << endl;
+            usage(cerr, program);
             return EXIT_FAILURE;
         }
         else
         {
-            paths.emplace_back(argument);
+            paths.push_back(std::move(argument));
         }
     }
 
     if (paths.empty())
     {
-        cerr << argv[0] << ": error: no input file" << endl;
-        usage(cerr, argv[0]);
+        cerr << program << ": error: no input file" << endl;
+        usage(cerr, program);
         return EXIT_FAILURE;
     }
 
     int status = EXIT_SUCCESS;
-    vector<string> files;
-    for (const string& path : paths)
+    vector<filesystem::path> files;
+    for (const filesystem::path& path : paths)
     {
         try
         {
@@ -166,14 +198,14 @@ main(int argc, char* argv[])
         }
         catch (const system_error& error)
         {
-            cerr << argv[0] << ": error: " << error.what() << endl;
+            cerr << program << ": error: " << error.what() << endl;
             status = EXIT_FAILURE;
         }
     }
 
-    for (const string& file : files)
+    for (const filesystem::path& file : files)
     {
-        if (!formatFile(file, check, argv[0]))
+        if (!formatFile(file, check, program))
         {
             status = EXIT_FAILURE;
         }

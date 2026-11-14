@@ -67,11 +67,21 @@ add_test(NAME backslash COMMAND ice-fmt --check "${output}/backslash.ice")
 set_tests_properties(backslash PROPERTIES
     PASS_REGULAR_EXPRESSION "backslash\\.ice:3: blanks after the backslash that ends the line")
 
-# A directory stands for the .ice files below it, except under a name that starts with a dot and under node_modules.
-# The directory is made here because the repository ignores node_modules.
+# On Windows, a file name can hold characters that the code page of the process doesn't have.
+add_test(NAME format-wide-name COMMAND "${CMAKE_COMMAND}"
+    -DICE_FMT=$<TARGET_FILE:ice-fmt>
+    -DUNFORMATTED=${tests}/unformatted/definitions.ice
+    -DFORMATTED=${tests}/formatted/definitions.ice
+    -DOUTPUT=${output}/定義.ice
+    -P "${tests}/FormatTest.cmake")
+
+# Given a directory, ice-fmt formats all the .ice files in that directory, recursively. It skips the files and
+# directories whose name starts with a dot, and node_modules directories. The test creates its directory here because
+# the repository ignores node_modules.
 set(directory "${output}/directory")
 file(WRITE "${directory}/nested/found.ice" "module  Demo {}\n")
 file(WRITE "${directory}/nested/skipped.txt" "module  Demo {}\n")
+file(WRITE "${directory}/nested/説明.txt" "module  Demo {}\n")
 file(WRITE "${directory}/.hidden/skipped.ice" "module  Demo {}\n")
 file(WRITE "${directory}/node_modules/skipped.ice" "module  Demo {}\n")
 add_test(NAME directory COMMAND ice-fmt --check "${directory}")
