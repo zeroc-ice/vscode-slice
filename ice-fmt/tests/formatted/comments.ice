@@ -52,7 +52,7 @@ module Demo
         /// A doc comment after code moves above its line, where the Slice compiler reads it.
         int timeout;
         /** This one documents retries,
-            the first member of its line. */
+            the first definition of its line. */
         int retries;
         int delay;
     }

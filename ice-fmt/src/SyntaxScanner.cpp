@@ -98,7 +98,7 @@ namespace
         return end;
     }
 
-    // A directive or a line comment runs to the end of its line, or of its last continuation line.
+    // A preprocessor directive or a line comment runs to the end of its line, or of its last continuation line.
     size_t continuedLineEnd(string_view text, size_t start)
     {
         size_t end = start;
@@ -256,13 +256,13 @@ namespace
             return {nullopt, skip(text, start, isWhitespace)};
         }
 
-        // A directive starts with a '#' that only blanks precede on its line.
+        // A preprocessor directive starts with a '#' that only blanks precede on its line.
         if (c == '#')
         {
             size_t previous = text.substr(0, start).find_last_not_of(" \t");
             if (previous == string_view::npos || text[previous] == '\n')
             {
-                return {TokenKind::Directive, continuedLineEnd(text, start)};
+                return {TokenKind::PreprocessorDirective, continuedLineEnd(text, start)};
             }
         }
         if (c == '/' && isAt(text, start + 1, '/'))

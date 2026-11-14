@@ -7,7 +7,7 @@ module Demo {
     enum Color { Red, Green, Blue }   
     struct Point { int x; int y; }
 
-    // A definition written on several lines has one member per line.
+    // A definition written on several lines has one definition per line.
     enum Shape
     {
         Circle,Square,

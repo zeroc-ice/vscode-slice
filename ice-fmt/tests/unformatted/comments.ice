@@ -51,7 +51,7 @@ module Demo
     {
         int timeout; /// A doc comment after code moves above its line, where the Slice compiler reads it.
         int retries; int delay; /** This one documents retries,
-                                    the first member of its line. */
+                                    the first definition of its line. */
     }
 
     // The comments before a closing brace have a line each when the body doesn't fit on one line.

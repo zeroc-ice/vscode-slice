@@ -61,7 +61,7 @@ namespace IceFmt
         /// A whole file: its definitions and file metadata, then the EndOfFile token.
         File,
 
-        /// A definition, data member, enumerator, or parameter, from its metadata to its last token.
+        /// A definition other than an operation, or a parameter, from its metadata to its last token.
         Contained,
 
         /// An operation, from its metadata to its semicolon.
@@ -76,10 +76,10 @@ namespace IceFmt
         /// The element type of a sequence, or the key and value types of a dictionary, from '<' to '>'.
         Types,
 
-        /// An 'extends', 'implements', or 'throws' clause.
+        /// An 'extends' or 'implements' clause, or an exception specification.
         Clause,
 
-        /// The members of a definition, from '{' to '}'.
+        /// The definitions in a module, class, or other definition, from '{' to '}'.
         Body,
     };
 
@@ -105,8 +105,8 @@ namespace IceFmt
     /// rejects for what its definitions mean.
     /// @param text The text of the file. The tokens of the tree are views into it.
     /// @return The File node.
-    /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar, or holds a comment or directive that
-    /// formatting can't keep as the Slice compiler reads it.
+    /// @throws SyntaxError Thrown when @p text doesn't follow the Slice grammar, or holds a comment or preprocessor
+    /// directive that formatting can't keep as the Slice compiler reads it.
     [[nodiscard]] Node parse(std::string_view text);
 }
 

@@ -70,7 +70,7 @@ namespace IceFmt
         LineComment,
         BlockComment,
         /// A preprocessor directive, with its continuation lines.
-        Directive,
+        PreprocessorDirective,
         /// A character that no token starts with.
         Invalid,
         EndOfFile,

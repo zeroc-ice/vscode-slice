@@ -158,11 +158,11 @@ namespace
         return commentFirst || !contains(noSpaceBefore, token.kind);
     }
 
-    // Returns a line of a comment or directive without the blanks and the carriage return that end it.
+    // Returns a line of a comment or preprocessor directive without the blanks and the carriage return that end it.
     string_view withoutTrailingBlanks(string_view line) { return line.substr(0, line.find_last_not_of(" \t\r") + 1); }
 
-    // Splits a comment or directive into its lines. A line after the first one keeps the indentation it has relative
-    // to the first one.
+    // Splits a comment or preprocessor directive into its lines. A line after the first one keeps the indentation it
+    // has relative to the first one.
     vector<string> splitLines(const Trivia& trivia)
     {
         auto column = static_cast<size_t>(trivia.column);
@@ -192,8 +192,8 @@ namespace
         }
     }
 
-    // The comments and directives before a token, without the blank line that precedes the first one or the space
-    // that follows the last one.
+    // The comments and preprocessor directives before a token, without the blank line that precedes the first one or
+    // the space that follows the last one.
     Layout leadingTrivia(const vector<Trivia>& leading)
     {
         vector<Layout> parts;
@@ -245,8 +245,8 @@ namespace
     // The text of a token and the comments that follow it on its line.
     Layout textAndTrailingTrivia(const Token& token) { return concat(text(string{token.text}), trailingTrivia(token)); }
 
-    // What precedes the text of a token: the comments and directives before it, then the blank line or the space
-    // that separates the last one from the token.
+    // What precedes the text of a token: the comments and preprocessor directives before it, then the blank line or the
+    // space that separates the last one from the token.
     Layout beforeText(const Token& token)
     {
         vector<Layout> parts;
@@ -317,14 +317,14 @@ namespace
 
     Layout metadata(const Node& node) { return concat(beforeText(firstToken(node)), directives(node)); }
 
-    // The comments that leave definitions and members as written: 'ignore' the one it leads, and 'off' the ones from
+    // The comments that leave definitions as written: 'ignore' the one it leads, and 'off' the ones from
     // the one it leads to the one before the one that 'on' leads, or to the end of their body or file.
     constexpr string_view ignoreComment = "// ice-fmt: ignore";
     constexpr string_view offComment = "// ice-fmt: off";
     constexpr string_view onComment = "// ice-fmt: on";
 
-    // Returns the index of the comment 'marker' among the comments and directives that have lines of their own before a
-    // node, if it is one of them.
+    // Returns the index of the comment 'marker' among the comments and preprocessor directives that have lines of their
+    // own before a node, if it is one of them.
     optional<size_t> markerIndex(const Node& node, string_view marker)
     {
         const vector<Trivia>& leading = firstToken(node).leading;
@@ -427,8 +427,8 @@ namespace
         return concat(std::move(parts));
     }
 
-    // An 'extends', 'implements', or 'throws' clause, after a line break that belongs to the enclosing group. Its names
-    // are on one line when they fit, and each one starts a line after the first otherwise.
+    // An 'extends' or 'implements' clause, or an exception specification, after a line break that belongs to the
+    // enclosing group. Its names are on one line when they fit, and each one starts a line after the first otherwise.
     Layout clause(const Node& node)
     {
         vector<Layout> names;
@@ -468,8 +468,8 @@ namespace
     }
 
     // An operation that doesn't fit on one line is broken in two steps, the second one only when the first one is not
-    // enough: its throws clause takes a line of its own, then each parameter takes one. The parameters are a group
-    // inside the group of the throws clause.
+    // enough: its exception specification takes a line of its own, then each parameter takes one. The parameters are a
+    // group inside the group of the exception specification.
     Layout operation(const Node& node)
     {
         size_t first = leadingMetadata(node);
@@ -550,9 +550,9 @@ namespace
         return concat(beforeText(open), listGroup(open, concat(std::move(items))));
     }
 
-    // The members of a body, each after a line break, and each comma after its member. No blank line follows the
-    // opening brace.
-    Layout members(const Node& node)
+    // The definitions in a body, each after a line break, and each comma after its enumerator. No blank line follows
+    // the opening brace.
+    Layout definitions(const Node& node)
     {
         vector<Layout> parts;
         for (size_t i = 1; i < node.children.size() - 1; ++i)
@@ -588,7 +588,7 @@ namespace
         return concat(std::move(parts));
     }
 
-    // The comments before the closing brace of a body, indented like the members.
+    // The comments before the closing brace of a body, indented like the definitions.
     Layout commentsBeforeClose(const Node& node, bool broken)
     {
         const vector<Trivia>& leading = node.children.back().token.leading;
@@ -599,8 +599,8 @@ namespace
 
         if (!broken)
         {
-            // The comments of a body written on one line follow the members on that line, or have a line each when the
-            // body doesn't fit on one.
+            // The comments of a body written on one line follow the definitions on that line, or have a line each when
+            // the body doesn't fit on one.
             vector<Layout> parts;
             for (const Trivia& comment : leading)
             {
@@ -640,7 +640,7 @@ namespace
             concat(
                 line(),
                 print(open),
-                indent(concat(members(node), commentsBeforeClose(node, broken))),
+                indent(concat(definitions(node), commentsBeforeClose(node, broken))),
                 empty ? softline() : line(),
                 textAndTrailingTrivia(close)),
             broken);
@@ -673,7 +673,8 @@ namespace
         return {};
     }
 
-    // Returns the lines of a comment or directive without the blanks around each one, which formatting manages.
+    // Returns the lines of a comment or preprocessor directive without the blanks around each one, which formatting
+    // manages.
     string withoutBlanks(string_view text)
     {
         constexpr string_view blanks = " \t\r\f\v";
@@ -697,9 +698,9 @@ namespace
         }
     }
 
-    // What formatting keeps of a text: the tokens and directives, in order, the doc comments with their places, which
-    // decide what the compiler documents, and the other comments, in any order. The optional semicolon after a closing
-    // brace is left out, since formatting removes it.
+    // What formatting keeps of a text: the tokens and preprocessor directives, in order, the doc comments with their
+    // places, which decide what the compiler documents, and the other comments, in any order. The optional semicolon
+    // after a closing brace is left out, since formatting removes it.
     struct Content
     {
         vector<string> code;
@@ -744,7 +745,7 @@ namespace
                         content.comments.push_back(withoutBlanks(lexeme.text));
                     }
                     break;
-                case TokenKind::Directive:
+                case TokenKind::PreprocessorDirective:
                     content.code.push_back(withoutBlanks(lexeme.text));
                     break;
                 default:

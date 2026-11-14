@@ -18,7 +18,7 @@ module Demo
         ["amd"]
         idempotent Ice::StringSeq listQueuedDocuments(string user, Color color, bool doubleSided, optional(1) int max);
 
-        // An operation that doesn't fit moves its throws clause to its own line.
+        // An operation that doesn't fit moves its exception specification to its own line.
         void cancel(string user, Ice::StringSeq documents, bool notifyOwner, out Ice::StringSeq cancelled)
             throws PrinterException;
 
@@ -61,7 +61,7 @@ module Demo
             optional(2) string tray,
             out int pages);
 
-        // The names of a throws clause go one per line when they don't fit on its line.
+        // The names of an exception specification go one per line when they don't fit on its line.
         void shutdown()
             throws PrinterException,
                 QueueException,

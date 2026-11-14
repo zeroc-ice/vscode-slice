@@ -35,7 +35,7 @@
 
     class Job
     {
-        // The metadata of a data member stays on its line or on the line above, as written.
+        // The metadata of a field stays on its line or on the line above, as written.
         [ "cpp:type:wstring" ]string owner;
         ["deprecated:use owner"]
         string user;

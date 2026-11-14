@@ -2,7 +2,7 @@
 
 module Demo
 {
-    // Formatting leaves the definitions and members between these two comments as written.
+    // Formatting leaves the definitions between these two comments as written.
     // ice-fmt: off
     const int    One   = 1;
     const int    Eleven = 11;
