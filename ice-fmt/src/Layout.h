@@ -83,8 +83,8 @@ namespace IceFmt
     /// Creates a line break that breaks the enclosing groups.
     [[nodiscard]] Layout hardline();
 
-    /// Creates a line break that breaks the enclosing groups, and starts the next line at the first column, without
-    /// indentation: the text that follows holds its own.
+    /// Creates a line break that breaks the enclosing groups, and starts the next line at the first column. The text
+    /// that follows holds its own indentation.
     [[nodiscard]] Layout literalline();
 
     /// Creates text that ends its line and doesn't count toward the width of the line, for a comment that follows
