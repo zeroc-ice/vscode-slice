@@ -10,8 +10,8 @@
 
 namespace IceFmt
 {
-    /// Formats the text of a Slice file in the style that README.md describes. Formatting never adds or reorders a
-    /// token, and the only token it removes is the optional semicolon after a closing brace.
+    /// Formats the text of a Slice file in the style that the files in tests/formatted show. Formatting never adds or
+    /// reorders a token, and the only token it removes is the optional semicolon after a closing brace.
     /// @param text The text of the file.
     /// @return The formatted text, with the line endings of the first line of @p text and its byte order mark when it
     /// has one, or @p text as it is when it holds the comment `// ice-fmt: ignore-file`.
