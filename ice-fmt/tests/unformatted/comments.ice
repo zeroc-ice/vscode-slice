@@ -31,6 +31,11 @@ module Demo
     struct Point3D { int x; int y; int z; }
 #endif
 
+// The lines that continue a preprocessor directive stay as written, since the preprocessor joins them.
+#define DEPTH in\
+t
+    const DEPTH Depth = 3;
+
     interface Printer
     {
         void print(string document /* inline */, int copies); // A comment after an operation.

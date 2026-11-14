@@ -34,6 +34,8 @@ namespace IceFmt
 
         struct HardLine
         {
+            /// Whether the next line starts at the first column, without indentation.
+            bool literal;
         };
 
         struct Suffix
@@ -80,6 +82,10 @@ namespace IceFmt
 
     /// Creates a line break that breaks the enclosing groups.
     [[nodiscard]] Layout hardline();
+
+    /// Creates a line break that breaks the enclosing groups, and starts the next line at the first column, without
+    /// indentation: the text that follows holds its own.
+    [[nodiscard]] Layout literalline();
 
     /// Creates text that ends its line and doesn't count toward the width of the line, for a comment that follows
     /// code. The suffixes of consecutive lines start in the same column, one space after the longest code of those

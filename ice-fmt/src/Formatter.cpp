@@ -134,7 +134,7 @@ namespace
         }
         const Token& token = firstToken(node);
         bool separated = token.blankLineBefore || ranges::any_of(token.leading, &Trivia::blankLineBefore);
-        auto isDirective = [](const Trivia& trivia) { return trivia.text.starts_with('#'); };
+        auto isDirective = [](const Trivia& trivia) { return trivia.kind == TokenKind::PreprocessorDirective; };
         return (isContainer(previous) || isContainer(node)) && !separated && !forwardDeclares(previous, node) &&
                ranges::none_of(token.leading, isDirective);
     }
@@ -161,10 +161,12 @@ namespace
     // Returns a line of a comment or preprocessor directive without the blanks and the carriage return that end it.
     string_view withoutTrailingBlanks(string_view line) { return line.substr(0, line.find_last_not_of(" \t\r") + 1); }
 
-    // Splits a comment or preprocessor directive into its lines. A line after the first one keeps the indentation it
-    // has relative to the first one.
+    // Splits a comment or preprocessor directive into its lines. A line of a comment after the first one keeps the
+    // indentation it has relative to the first one. A line of a preprocessor directive after the first one stays as
+    // written: the preprocessor joins it to the line before it, with the blanks that start it.
     vector<string> splitLines(const Trivia& trivia)
     {
+        bool asWritten = trivia.kind == TokenKind::PreprocessorDirective;
         auto column = static_cast<size_t>(trivia.column);
         vector<string> lines;
         string_view rest = trivia.text;
@@ -173,7 +175,7 @@ namespace
             size_t end = rest.find('\n');
             string_view current = withoutTrailingBlanks(rest.substr(0, end));
             size_t indentation = current.find_first_not_of(" \t");
-            if (lines.empty() || current.empty())
+            if (lines.empty() || current.empty() || asWritten)
             {
                 lines.emplace_back(current);
             }
@@ -213,7 +215,8 @@ namespace
                 parts.push_back(text(lines.front()));
                 for (size_t i = 1; i < lines.size(); ++i)
                 {
-                    parts.push_back(hardline());
+                    // A line of a preprocessor directive holds its own indentation.
+                    parts.push_back(trivia.kind == TokenKind::PreprocessorDirective ? literalline() : hardline());
                     parts.push_back(text(lines[i]));
                 }
                 parts.push_back(endOfLine());
@@ -353,7 +356,12 @@ namespace
         string_view written{start, static_cast<size_t>(end.data() + end.size() - start)};
 
         vector<Trivia> trivia{token.leading.begin(), token.leading.begin() + static_cast<ptrdiff_t>(marker) + 1};
-        trivia.push_back({.text = written, .column = column, .ownLine = true, .blankLineBefore = blankLine});
+        trivia.push_back(
+            {.kind = TokenKind::BlockComment,
+             .text = written,
+             .column = column,
+             .ownLine = true,
+             .blankLineBefore = blankLine});
         return leadingTrivia(trivia);
     }
 
@@ -673,20 +681,22 @@ namespace
         return {};
     }
 
-    // Returns the lines of a comment or preprocessor directive without the blanks around each one, which formatting
-    // manages.
-    string withoutBlanks(string_view text)
+    constexpr string_view blanks = " \t\r\f\v";
+
+    // Returns the lines of a text without the blanks that end each one, and without the characters of 'indentation'
+    // that start each one.
+    string trimLines(string_view text, string_view indentation)
     {
-        constexpr string_view blanks = " \t\r\f\v";
         string result;
         while (true)
         {
             size_t end = text.find('\n');
             string_view line = text.substr(0, end);
-            size_t first = line.find_first_not_of(blanks);
-            if (first != string_view::npos)
+            size_t first = line.find_first_not_of(indentation);
+            size_t last = line.find_last_not_of(blanks);
+            if (first != string_view::npos && last != string_view::npos && first <= last)
             {
-                result += line.substr(first, line.find_last_not_of(blanks) + 1 - first);
+                result += line.substr(first, last + 1 - first);
             }
 
             if (end == string_view::npos)
@@ -738,15 +748,16 @@ namespace
                 case TokenKind::BlockComment:
                     if (isDocComment(lexeme))
                     {
-                        content.docComments.emplace_back(lineStart, withoutBlanks(lexeme.text));
+                        content.docComments.emplace_back(lineStart, trimLines(lexeme.text, blanks));
                     }
                     else
                     {
-                        content.comments.push_back(withoutBlanks(lexeme.text));
+                        content.comments.push_back(trimLines(lexeme.text, blanks));
                     }
                     break;
                 case TokenKind::PreprocessorDirective:
-                    content.code.push_back(withoutBlanks(lexeme.text));
+                    // The preprocessor joins the lines of a directive with the blanks that start them.
+                    content.code.push_back(trimLines(lexeme.text, ""));
                     break;
                 default:
                     if (!afterClosingBrace || lexeme.kind != TokenKind::Semicolon)

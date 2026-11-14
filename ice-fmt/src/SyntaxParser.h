@@ -15,6 +15,9 @@ namespace IceFmt
     /// A comment or preprocessor directive, attached to the token it sits next to.
     struct Trivia
     {
+        /// LineComment, BlockComment, or PreprocessorDirective.
+        TokenKind kind;
+
         /// The text, without the blanks that indent it.
         std::string_view text;
 

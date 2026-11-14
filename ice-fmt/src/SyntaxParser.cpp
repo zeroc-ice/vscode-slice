@@ -188,6 +188,7 @@ namespace
             auto nextToken = ranges::find_if_not(lexeme + 1, lexemes.end(), isTrivia, &Lexeme::kind);
             bool tokenFollows = nextToken->kind != TokenKind::EndOfFile && nextToken->line == lastLine;
             Trivia trivia{
+                .kind = lexeme->kind,
                 .text = lexeme->text,
                 .column = lexeme->column,
                 .ownLine = true,

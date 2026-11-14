@@ -58,7 +58,11 @@ namespace
                                 writeSpace();
                             }
                         },
-                        [&](const Layout::HardLine&) { startLine(); },
+                        [&](const Layout::HardLine& hardLine)
+                        {
+                            startLine();
+                            _literalLine = hardLine.literal;
+                        },
                         [&](const Layout::Suffix& suffix) { writeSuffix(suffix.text); },
                         [&](const Layout::EndOfLine&) { _endOfLine = !lineIsEmpty(); },
                         [&](const Layout::Indent& indent)
@@ -116,6 +120,7 @@ namespace
             _lineStart = _out.size();
             _line++;
             _endOfLine = false;
+            _literalLine = false;
         }
 
         // Writes a suffix one space after the code of its line. alignSuffixes moves it to its column.
@@ -170,7 +175,7 @@ namespace
             {
                 startLine();
             }
-            if (lineIsEmpty())
+            if (lineIsEmpty() && !_literalLine)
             {
                 _out.append(static_cast<size_t>(indent), ' ');
             }
@@ -298,6 +303,9 @@ namespace
         // Whether the current line is complete: the next text starts a new line.
         bool _endOfLine = false;
 
+        // Whether the current line follows a literal line break, and takes no indentation.
+        bool _literalLine = false;
+
         // The suffixes of each line that has any, in order.
         vector<LineSuffix> _suffixes;
     };
@@ -330,7 +338,13 @@ IceFmt::softline()
 Layout
 IceFmt::hardline()
 {
-    return {Layout::HardLine{}};
+    return {Layout::HardLine{.literal = false}};
+}
+
+Layout
+IceFmt::literalline()
+{
+    return {Layout::HardLine{.literal = true}};
 }
 
 Layout
