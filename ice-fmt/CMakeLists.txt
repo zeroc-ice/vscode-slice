@@ -60,6 +60,13 @@ endforeach()
 # A file with the comment "// ice-fmt: ignore-file" is left as it is.
 add_test(NAME ignore-file COMMAND ice-fmt --check "${tests}/ignore-file.ice")
 
+# Blanks after the backslash that ends a "//" comment are refused: without them, the preprocessor joins the next line
+# to the comment. The file is made here because its line ends with blanks.
+file(WRITE "${output}/backslash.ice" "module Demo\n{\n    struct A { int x; } // note \\  \n    struct B { int y; }\n}\n")
+add_test(NAME backslash COMMAND ice-fmt --check "${output}/backslash.ice")
+set_tests_properties(backslash PROPERTIES
+    PASS_REGULAR_EXPRESSION "backslash\\.ice:3: blanks after the backslash that ends the line")
+
 # A directory stands for the .ice files below it, except under a name that starts with a dot and under node_modules.
 # The directory is made here because the repository ignores node_modules.
 set(directory "${output}/directory")
